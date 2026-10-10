@@ -28,9 +28,9 @@ class IeumBackend{
   return operations;
  }
  sync(data){if(!this.active)return Promise.resolve(false);const snapshot=clone(data),operations=this.diff(this.baseline,snapshot);this.baseline=snapshot;if(!operations.length)return Promise.resolve(true);const generation=this.generation;this.pending++;this.callbacks.status('저장 중');
-  const job=this.queue.then(async()=>{if(generation!==this.generation)return false;try{const result=await this.native.request('/sync',{operations});if(result.error)throw new Error(result.error);this.callbacks.status('연결됨');return true;}catch(error){this.generation++;this.callbacks.error(error.message);return false;}}).finally(()=>{this.pending--;if(!this.pending)this.scheduleRefresh();});this.queue=job.catch(()=>false);return job;
+  const job=this.queue.then(async()=>{if(generation!==this.generation)return false;try{const result=await this.native.request('/sync',{operations});if(result.error)throw new Error(result.error);this.callbacks.status('연결됨');return true;}catch(error){this.generation++;this.callbacks.error(error.message);return false;}}).finally(async()=>{this.pending--;if(!this.pending){clearTimeout(this.refreshTimer);this.refreshTimer=null;await this.refresh();}});this.queue=job.catch(()=>false);return job;
  }
- scheduleRefresh(){clearTimeout(this.refreshTimer);if(this.active)this.refreshTimer=setTimeout(()=>this.refresh(),120);}
+ scheduleRefresh(){if(this.refreshTimer||!this.active)return;this.refreshTimer=setTimeout(()=>{this.refreshTimer=null;this.refresh();},0);}
  async refresh(){if(this.pending||!this.user)return;try{const result=await this.native.request('/bootstrap');if(result.error){if(result.status===401){this.active=false;this.callbacks.expired();}else this.callbacks.status('연결 확인 필요');return;}this.activate(result);this.callbacks.status('연결됨');}catch{this.callbacks.status('연결 끊김');}}
  onEvent(event){if(['changed','presence','ready','connected'].includes(event.kind))this.scheduleRefresh();if(event.kind==='connected')this.callbacks.status('연결됨');if(event.kind==='disconnected')this.callbacks.status('재연결 중');if(event.kind==='expired'||event.kind==='logout'){this.active=false;this.user=null;this.baseline=null;this.callbacks.expired();}}
 }

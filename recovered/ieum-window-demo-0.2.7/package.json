@@ -1,6 +1,6 @@
 {
   "name": "ieum-school-messenger",
-  "version": "0.2.17",
+  "version": "0.2.18",
   "private": true,
   "description": "학교 교내망용 이음 서버와 설치형 메신저",
   "author": "Ieum",
