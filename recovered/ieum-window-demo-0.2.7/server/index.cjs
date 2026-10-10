@@ -1,0 +1,288 @@
+'use strict';
+const https = require('node:https');
+const fs = require('node:fs');
+const path = require('node:path');
+const os = require('node:os');
+const crypto = require('node:crypto');
+const net = require('node:net');
+const { DatabaseSync } = require('node:sqlite');
+require('reflect-metadata');
+const x509 = require('@peculiar/x509');
+const bell=require('./schedule.cjs');
+x509.cryptoProvider.set(crypto.webcrypto);
+const { promisify } = require('node:util');
+const scrypt = promisify(crypto.scrypt);
+const SESSION_MS = 12 * 60 * 60 * 1000;
+const id = (prefix) => prefix + '-' + crypto.randomUUID();
+const hash = (value) => crypto.createHash('sha256').update(value).digest('hex');
+const json = (value) => JSON.stringify(value);
+const parse = (value) => JSON.parse(value);
+function fail(status, message) { const error = new Error(message); error.status = status; throw error; }
+function str(value, max = 100, required = true) {
+  if (typeof value !== 'string' || value.length > max || (required && !value.trim())) fail(400, '입력 형식 또는 길이를 확인해 주세요.');
+  return value.trim();
+}
+function validDate(value) {
+  str(value, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || Number.isNaN(Date.parse(value + 'T12:00:00')) || new Date(value + 'T12:00:00Z').toISOString().slice(0, 10) !== value) fail(400, '날짜 형식이 올바르지 않습니다.');
+  return value;
+}
+const dateKey = () => new Date().toLocaleDateString('sv-SE');
+const timeKey = () => new Date().toLocaleTimeString('ko-KR', {hour:'2-digit',minute:'2-digit',hour12:false});
+async function certificate(dataDir, address) {
+  const keyPath = path.join(dataDir, 'server-key.pem'), certPath = path.join(dataDir, 'server-cert.pem');
+  if (!fs.existsSync(keyPath) || !fs.existsSync(certPath)) {
+    const alg={name:'RSASSA-PKCS1-v1_5',hash:'SHA-256',publicExponent:new Uint8Array([1,0,1]),modulusLength:3072};
+    const keys=await crypto.webcrypto.subtle.generateKey(alg,true,['sign','verify']);
+    const hostname=new URL(address).hostname;
+    const names=[...new Set([hostname,'localhost','127.0.0.1',os.hostname()])].map(v=>({type:net.isIP(v)?'ip':'dns',value:v}));
+    const notAfter=new Date();notAfter.setFullYear(notAfter.getFullYear()+3);
+    const cert=await x509.X509CertificateGenerator.createSelfSigned({serialNumber:'01'+crypto.randomBytes(15).toString('hex'),name:'CN=Ieum School LAN Server',notBefore:new Date(Date.now()-60000),notAfter,signingAlgorithm:alg,keys,extensions:[new x509.BasicConstraintsExtension(true,0,true),new x509.KeyUsagesExtension(x509.KeyUsageFlags.digitalSignature|x509.KeyUsageFlags.keyEncipherment|x509.KeyUsageFlags.keyCertSign,true),new x509.ExtendedKeyUsageExtension(['1.3.6.1.5.5.7.3.1']),new x509.SubjectAlternativeNameExtension(names)]});
+    const privateKey=crypto.KeyObject.from(keys.privateKey).export({type:'pkcs8',format:'pem'});
+    fs.writeFileSync(keyPath,privateKey,{mode:0o600});fs.writeFileSync(certPath,cert.toString('pem'),{mode:0o600});
+  }
+  const key = fs.readFileSync(keyPath), cert = fs.readFileSync(certPath,'utf8');
+  const parsed = new crypto.X509Certificate(cert);
+  const hostname=new URL(address).hostname;
+  if(!(net.isIP(hostname)?parsed.checkIP(hostname):parsed.checkHost(hostname)))fail(400,'저장된 인증서와 서버 주소가 다릅니다. 기존 주소를 사용하거나 안내에 따라 인증서를 재발급하세요.');
+  const fingerprint = parsed.fingerprint256;
+  return {key,cert,fingerprint};
+}
+async function passwordRecord(password) {
+  str(password,128); if(password.length<10) fail(400,'비밀번호는 10자 이상 입력해 주세요.');
+  const salt = crypto.randomBytes(16).toString('hex');
+  const digest = (await scrypt(password,salt,64,{N:32768,r:8,p:1,maxmem:64*1024*1024})).toString('hex');
+  return {salt,digest};
+}
+async function passwordMatches(password,user) {
+  if(typeof password!=='string'||password.length>128)return false;
+  const digest=await scrypt(password,user.salt,64,{N:32768,r:8,p:1,maxmem:64*1024*1024});
+  return crypto.timingSafeEqual(Buffer.from(user.digest,'hex'),digest);
+}
+async function startServer(options = {}) {
+  const dataDir = path.resolve(options.dataDir || path.join(os.homedir(),'.ieum-server'));
+  fs.mkdirSync(dataDir,{recursive:true,mode:0o700});
+  const port = options.port === undefined ? 8443 : options.port;
+  const address = options.address || `https://localhost:${port || 8443}`;
+  const addressURL = new URL(address);
+  if(addressURL.protocol!=='https:'||addressURL.username||addressURL.password||addressURL.pathname!=='/'||addressURL.search||addressURL.hash)fail(400,'서버 주소는 https://호스트:포트 형식이어야 합니다.');
+  const tls = await certificate(dataDir,address);
+  const db = new DatabaseSync(path.join(dataDir,'ieum.sqlite'));
+  db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;
+  CREATE TABLE IF NOT EXISTS users(id TEXT PRIMARY KEY, username TEXT UNIQUE NOT NULL,name TEXT NOT NULL,department TEXT NOT NULL,role TEXT NOT NULL,subject TEXT NOT NULL,extension TEXT NOT NULL,digest TEXT NOT NULL,salt TEXT NOT NULL,admin INTEGER NOT NULL DEFAULT 0,disabled INTEGER NOT NULL DEFAULT 0,must_change INTEGER NOT NULL DEFAULT 0);
+  CREATE TABLE IF NOT EXISTS sessions(token_hash TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,expires INTEGER NOT NULL);
+  CREATE TABLE IF NOT EXISTS rooms(id TEXT PRIMARY KEY,name TEXT NOT NULL,notice TEXT NOT NULL DEFAULT '');
+  CREATE TABLE IF NOT EXISTS room_members(room_id TEXT REFERENCES rooms(id) ON DELETE CASCADE,user_id TEXT REFERENCES users(id) ON DELETE CASCADE,pinned INTEGER NOT NULL DEFAULT 0,muted INTEGER NOT NULL DEFAULT 0,read_seq INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(room_id,user_id));
+  CREATE TABLE IF NOT EXISTS messages(seq INTEGER PRIMARY KEY AUTOINCREMENT,id TEXT UNIQUE NOT NULL,room_id TEXT REFERENCES rooms(id) ON DELETE CASCADE,sender TEXT REFERENCES users(id),payload TEXT NOT NULL);
+  CREATE TABLE IF NOT EXISTS reactions(message_id TEXT REFERENCES messages(id) ON DELETE CASCADE,user_id TEXT REFERENCES users(id) ON DELETE CASCADE,PRIMARY KEY(message_id,user_id));
+  CREATE TABLE IF NOT EXISTS mails(id TEXT PRIMARY KEY,sender TEXT REFERENCES users(id),payload TEXT NOT NULL,sender_folder TEXT NOT NULL DEFAULT 'sent',sender_important INTEGER NOT NULL DEFAULT 0,event_id TEXT);
+  CREATE TABLE IF NOT EXISTS recipients(mail_id TEXT REFERENCES mails(id) ON DELETE CASCADE,user_id TEXT REFERENCES users(id),status TEXT NOT NULL DEFAULT 'unread',folder TEXT NOT NULL DEFAULT 'inbox',important INTEGER NOT NULL DEFAULT 0,event_id TEXT,PRIMARY KEY(mail_id,user_id));
+  CREATE TABLE IF NOT EXISTS events(id TEXT PRIMARY KEY,owner TEXT REFERENCES users(id),payload TEXT NOT NULL);
+  CREATE TABLE IF NOT EXISTS items(id TEXT PRIMARY KEY,owner TEXT REFERENCES users(id),kind TEXT NOT NULL,payload TEXT NOT NULL);
+  CREATE TABLE IF NOT EXISTS bell_schedules(date TEXT PRIMARY KEY,periods TEXT NOT NULL);
+  CREATE TABLE IF NOT EXISTS metadata(key TEXT PRIMARY KEY,value TEXT NOT NULL);
+  CREATE INDEX IF NOT EXISTS idx_messages_room ON messages(room_id,seq);
+  CREATE INDEX IF NOT EXISTS idx_recipient_user ON recipients(user_id);
+  CREATE INDEX IF NOT EXISTS idx_members_user ON room_members(user_id);`);
+  const columns=new Set(db.prepare('PRAGMA table_info(users)').all().map(column=>column.name));
+  if(!columns.has('grade'))db.exec("ALTER TABLE users ADD COLUMN grade TEXT NOT NULL DEFAULT ''");
+  if(!columns.has('other_group'))db.exec("ALTER TABLE users ADD COLUMN other_group TEXT NOT NULL DEFAULT ''");
+  const existing=db.prepare('SELECT count(*) n FROM users').get().n;
+  if(!existing){
+    if(!options.admin?.username||!options.admin?.password){db.close();fail(400,'최초 실행에는 관리자 아이디와 비밀번호를 설정해야 합니다.');}
+    const record=await passwordRecord(options.admin.password);
+    db.prepare('INSERT INTO users(id,username,name,department,role,subject,extension,digest,salt,admin,disabled,must_change) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)').run(id('staff'),str(options.admin.username,40),str(options.admin.name||'관리자',40),'정보부','관리자','정보','',record.digest,record.salt,1,0,0);
+    db.prepare('INSERT OR REPLACE INTO metadata VALUES(?,?)').run('schoolName',str(options.schoolName||'우리 학교',60));
+  }
+  const defaultPeriods=()=>parse(db.prepare("SELECT value FROM metadata WHERE key='defaultPeriods'").get()?.value||json(bell.defaults()));
+  const periodsFor=date=>{const temporary=db.prepare('SELECT periods FROM bell_schedules WHERE date=?').get(date);return temporary?parse(temporary.periods):defaultPeriods();};
+  const resolvePeriod=(date,period)=>{if(!Number.isInteger(Number(period)))fail(400,'수업은 정수 교시로 지정하세요.');const slot=periodsFor(date).find(p=>p.period===Number(period));if(!slot)fail(409,'보강에 지정된 교시가 일과표에 없습니다. 보강 교시를 먼저 변경하세요.');return slot;};
+  const streams=new Map(), loginAttempts=new Map();
+  const userPublic=u=>({id:u.id,username:u.username,name:u.name,department:u.department,role:u.role,subject:u.subject,extension:u.extension,grade:u.grade||'',otherGroup:u.other_group||'',admin:!!u.admin,disabled:!!u.disabled,mustChange:!!u.must_change,status:streams.has(u.id)?'online':'offline'});
+  const notify=(audience=null,kind='changed')=>{
+    for(const [userId,connections] of streams){if(audience&&!audience.includes(userId))continue;for(const response of connections)response.write(`event: update\ndata: ${json({kind})}\n\n`);}
+    options.onChange?.();
+  };
+  const roomUsers=room=>db.prepare('SELECT user_id FROM room_members WHERE room_id=?').all(room).map(r=>r.user_id);
+  const member=(user,room)=>{const row=db.prepare('SELECT * FROM room_members WHERE room_id=? AND user_id=?').get(room,user.id);if(!row)fail(403,'이 대화방의 참여자만 이용할 수 있습니다.');return row;};
+  const knownUsers=(ids)=>{
+    if(!Array.isArray(ids)||ids.length<1||ids.length>200)fail(400,'대상자를 한 명 이상 선택해 주세요.');
+    const result=[...new Set(ids.map(v=>str(v,100)))];
+    for(const userId of result)if(!db.prepare('SELECT id FROM users WHERE id=? AND disabled=0').get(userId))fail(400,'사용할 수 없는 교직원 계정입니다.');
+    return result;
+  };
+  function bootstrap(user){
+    const me=value=>value===user.id?'me':value;
+    const people=db.prepare('SELECT * FROM users WHERE disabled=0 ORDER BY department,name').all().map(userPublic);
+    const rooms=db.prepare('SELECT r.*,m.pinned,m.muted,m.read_seq FROM rooms r JOIN room_members m ON m.room_id=r.id WHERE m.user_id=?').all(user.id).map(r=>{
+      const raw=db.prepare('SELECT * FROM messages WHERE room_id=? ORDER BY seq DESC LIMIT 500').all(r.id).reverse();
+      return {id:r.id,name:r.name,notice:r.notice,pinned:!!r.pinned,muted:!!r.muted,members:roomUsers(r.id).filter(v=>v!==user.id),unread:db.prepare('SELECT count(*) n FROM messages WHERE room_id=? AND seq>? AND sender<>?').get(r.id,r.read_seq,user.id).n,messages:raw.map(m=>{const likes=db.prepare('SELECT user_id FROM reactions WHERE message_id=?').all(m.id);return {...parse(m.payload),id:m.id,sender:me(m.sender),likes:likes.length,liked:likes.some(l=>l.user_id===user.id)};})};
+    });
+    const mailRows=db.prepare("SELECT * FROM mails WHERE sender=? OR id IN(SELECT mail_id FROM recipients WHERE user_id=? AND status NOT IN('recalled','scheduled'))").all(user.id,user.id);
+    const mails=mailRows.map(m=>{const recipients=db.prepare('SELECT * FROM recipients WHERE mail_id=?').all(m.id),mine=m.sender===user.id,r=recipients.find(r=>r.user_id===user.id);const payload=parse(m.payload);return {...payload,files:payload.files.map((file,index)=>({name:file.name,size:file.size,bytes:file.bytes,stored:true,sourceMail:m.id,index})),id:m.id,from:me(m.sender),to:recipients.map(r=>r.user_id),receipts:recipients.map(r=>r.status==='scheduled'?'unread':r.status),folder:mine?m.sender_folder:r.folder,important:!!(mine?m.sender_important:r.important),unread:!mine&&r.status==='unread',eventId:(mine?m.event_id:r.event_id)||null,previousFolder:mine?'sent':'inbox',canRecall:mine};}).sort((a,b)=>b.createdAt-a.createdAt);
+    const events=db.prepare('SELECT * FROM events').all().filter(e=>{const p=parse(e.payload);return e.owner===user.id||(['group','makeup','lessonChange'].includes(p.type)&&p.targets.includes(user.id)&&(!p.noticeMail||db.prepare("SELECT 1 FROM recipients WHERE mail_id=? AND user_id=? AND status NOT IN('recalled','scheduled')").get(p.noticeMail,user.id)));}).map(e=>({...parse(e.payload),id:e.id,owner:e.owner,readonly:e.owner!==user.id}));
+    const items=db.prepare('SELECT * FROM items WHERE owner=?').all(user.id), data={today:dateKey(),schoolName:db.prepare("SELECT value FROM metadata WHERE key='schoolName'").get()?.value||'우리 학교',people,departments:[...new Set(people.map(p=>p.department))],rooms,mails,events,classTeachers:parse(db.prepare("SELECT value FROM metadata WHERE key='classTeachers'").get()?.value||'[]'),defaultPeriods:defaultPeriods(),bellSchedules:db.prepare('SELECT * FROM bell_schedules ORDER BY date').all().map(row=>({date:row.date,periods:parse(row.periods)})),academic:[],deadlines:[],notes:[],tasks:[],shortcuts:[]};
+    for(const item of items)data[item.kind].push({...parse(item.payload),id:item.id});
+    return {user:userPublic(user),data};
+  }
+  function operation(user,op){
+    if(!op||typeof op.type!=='string')fail(400,'변경 요청이 올바르지 않습니다.');
+    let v=op.value||{}, opId=op.id||v.id;
+    if(opId!==undefined)str(opId,100);
+    switch(op.type){
+    case 'room.create':{
+      const users=knownUsers([user.id,...(v.members||[])]),existing=db.prepare('SELECT id FROM rooms WHERE id=?').get(opId);
+      if(existing){member(user,opId);return;}
+      db.prepare('INSERT INTO rooms(id,name,notice) VALUES(?,?,?)').run(opId,str(v.name,150),'');
+      for(const userId of users)db.prepare('INSERT INTO room_members(room_id,user_id) VALUES(?,?)').run(opId,userId);
+      break;}
+    case 'room.update':{
+      member(user,opId);const max=db.prepare('SELECT coalesce(max(seq),0) n FROM messages WHERE room_id=?').get(opId).n;
+      db.prepare('UPDATE room_members SET pinned=?,muted=?,read_seq=CASE WHEN ? THEN ? ELSE read_seq END WHERE room_id=? AND user_id=?').run(op.pinned?1:0,op.muted?1:0,op.read?1:0,max,opId,user.id);break;}
+    case 'room.leave':member(user,opId);db.prepare('DELETE FROM room_members WHERE room_id=? AND user_id=?').run(opId,user.id);break;
+    case 'message.send':{
+      member(user,op.room);const existing=db.prepare('SELECT sender,room_id FROM messages WHERE id=?').get(opId);
+      if(existing){if(existing.sender!==user.id||existing.room_id!==op.room)fail(409,'메시지 식별자가 중복되었습니다.');return;}
+      const payload={text:str(v.text,5000),reply:typeof v.reply==='string'?str(v.reply,5000,false):'',date:dateKey(),time:timeKey(),createdAt:Date.now()};
+      const row=db.prepare('INSERT INTO messages(id,room_id,sender,payload) VALUES(?,?,?,?)').run(opId,op.room,user.id,json(payload));
+      db.prepare('UPDATE room_members SET read_seq=? WHERE room_id=? AND user_id=?').run(Number(row.lastInsertRowid),op.room,user.id);break;}
+    case 'message.like':{
+      const m=db.prepare('SELECT * FROM messages WHERE id=?').get(opId);if(!m)fail(404,'메시지를 찾을 수 없습니다.');member(user,m.room_id);
+      if(op.liked)db.prepare('INSERT OR IGNORE INTO reactions VALUES(?,?)').run(opId,user.id);else db.prepare('DELETE FROM reactions WHERE message_id=? AND user_id=?').run(opId,user.id);break;}
+    case 'mail.send':{
+      const existing=db.prepare('SELECT sender FROM mails WHERE id=?').get(opId);if(existing){if(existing.sender!==user.id)fail(409,'쪽지 식별자가 중복되었습니다.');return;}
+      let broadcast=null;if(v.scheduleAnnouncement){if(!user.admin)fail(403,'일과표 전체 안내는 관리자만 발송할 수 있습니다.');const scope=v.scheduleAnnouncement.scope==='default'?'default':'temporary',date=validDate(v.scheduleAnnouncement.date);broadcast={date,scope,...bell.announcement(date,scope==='default'?defaultPeriods():periodsFor(date),scope)};v={...v,title:broadcast.title,body:broadcast.body,html:broadcast.html,to:db.prepare('SELECT id FROM users WHERE disabled=0 AND id<>?').all(user.id).map(u=>u.id),cc:[],files:[],scheduled:'',notice:null,calendarEvent:null};}
+      let notice=null;
+      if(v.notice){const n=v.notice;if(!['makeup','lessonChange'].includes(n.kind)||!Array.isArray(n.rows)||!n.rows.length||n.rows.length>7)fail(400,'보강/수업 변경 안내의 교시 배정이 올바르지 않습니다.');
+        const seen=new Set(),date=validDate(n.date);const rows=n.rows.map(row=>{const period=Number(row.period);if(!Number.isInteger(period)||period<1||period>7||seen.has(period))fail(400,'1~7교시를 중복 없이 선택하세요.');seen.add(period);resolvePeriod(date,period);const teacher=knownUsers([row.teacher])[0],className=str(row.className||'',40,n.kind==='lessonChange');let homeroomTeacher;if(n.kind==='makeup'&&className){const classes=parse(db.prepare("SELECT value FROM metadata WHERE key='classTeachers'").get()?.value||'[]');const mapping=classes.find(c=>c.className.replace(/\s+/g,'')===className.replace(/\s+/g,''));if(!mapping)fail(409,'선택한 반의 담임이 등록되지 않았습니다. 관리자에게 반·담임 설정을 요청하세요.');homeroomTeacher=knownUsers([mapping.teacher])[0];}let originalTeacher;if(n.kind==='lessonChange'){originalTeacher=knownUsers([row.originalTeacher])[0];if(originalTeacher===teacher)fail(400,'기존 교사와 교체 교사는 달라야 합니다.');}return {period,teacher,className,...(originalTeacher?{originalTeacher}:{}),...(homeroomTeacher?{homeroomTeacher}:{})};});notice={kind:n.kind,date,rows};if(v.scheduled)fail(400,'수업 안내는 예약 발송을 지원하지 않습니다.');}
+      const to=broadcast&&!v.to.length?[]:knownUsers([...new Set([...(Array.isArray(v.to)?v.to:[]),...(notice?notice.rows.flatMap(r=>[r.teacher,r.originalTeacher,r.homeroomTeacher].filter(Boolean)):[])])]),files=Array.isArray(v.files)?v.files:[];if(files.length>20)fail(400,'첨부 파일은 20개까지 가능합니다.');let bytes=0;
+      const cleanFiles=files.map(f=>{const data=str(f.data,3*1024*1024,false);if(!/^data:[a-zA-Z0-9.+\/-]+;base64,[A-Za-z0-9+/=]*$/.test(data))fail(400,'첨부 파일 데이터 형식이 올바르지 않습니다.');const count=Buffer.from(data.split(',')[1],'base64').length;bytes+=count;if(count>2*1024*1024||bytes>3*1024*1024)fail(413,'첨부 파일 크기 제한을 초과했습니다.');return {name:str(f.name,180),size:str(f.size||Math.ceil(count/1024)+' KB',30),bytes:count,data};});
+      let scheduled='';if(v.scheduled){scheduled=str(v.scheduled,40);const at=new Date(scheduled).getTime();if(!Number.isFinite(at)||at<=Date.now())fail(400,'예약 발송 시간은 현재 이후여야 합니다.');scheduled=new Date(at).toISOString();}
+      let calendarEvent='';if(v.calendarEvent){calendarEvent=str(v.calendarEvent,100);const event=db.prepare('SELECT * FROM events WHERE id=?').get(calendarEvent);if(!event||event.owner!==user.id)fail(403,'본인의 일정만 메시지로 공유할 수 있습니다.');const shared=parse(event.payload);if(!shared.targets.length||to.some(id=>!shared.targets.includes(id))||shared.targets.some(id=>!to.includes(id)))fail(400,'메시지 수신자와 일정 수신자가 일치해야 합니다.');}
+      const payload={title:str(v.title||'',150,false),body:str(v.body,100000),html:typeof v.html==='string'?str(v.html,150000,false):'',cc:Array.isArray(v.cc)?v.cc.filter(u=>to.includes(u)):[],files:cleanFiles,date:dateKey(),time:timeKey(),scheduled,createdAt:Date.now(),...(notice?{notice}:{}),...(calendarEvent?{calendarEvent}:{}),...(broadcast?{scheduleAnnouncement:{date:broadcast.date,scope:broadcast.scope}}:{})};
+      db.prepare('INSERT INTO mails(id,sender,payload,sender_important) VALUES(?,?,?,?)').run(opId,user.id,json(payload),v.important?1:0);
+      for(const userId of to)db.prepare('INSERT INTO recipients(mail_id,user_id,status,important) VALUES(?,?,?,?)').run(opId,userId,scheduled?'scheduled':'unread',v.important?1:0);
+      if(calendarEvent){db.prepare('UPDATE mails SET event_id=? WHERE id=?').run(calendarEvent,opId);db.prepare('UPDATE recipients SET event_id=? WHERE mail_id=?').run(calendarEvent,opId);}
+      if(notice)for(const row of notice.rows){const slot=resolvePeriod(notice.date,row.period);const event={title:`${notice.kind==='makeup'?'보강 안내':'수업 변경 안내'} · ${row.period}교시${row.className?' · '+row.className:''}`,date:notice.date,start:slot.start,end:slot.end,type:notice.kind,period:row.period,targets:[...new Set([row.teacher,row.originalTeacher,row.homeroomTeacher].filter(Boolean))],note:payload.body.slice(0,1000),place:row.className,assignment:row,noticeMail:opId};db.prepare('INSERT INTO events VALUES(?,?,?)').run(opId+'-p'+row.period,user.id,json(event));}break;}
+    case 'mail.update':{
+      const mail=db.prepare('SELECT * FROM mails WHERE id=?').get(opId);if(!mail)fail(404,'쪽지를 찾을 수 없습니다.');const mine=mail.sender===user.id,r=db.prepare('SELECT * FROM recipients WHERE mail_id=? AND user_id=?').get(opId,user.id);
+      if(!mine&&(!r||r.status==='recalled'||r.status==='scheduled'))fail(403,'이 쪽지에 접근할 수 없습니다.');
+      if(op.recall){if(!mine)fail(403,'보낸 사람만 회수할 수 있습니다.');db.prepare("UPDATE recipients SET status='recalled' WHERE mail_id=? AND status IN('unread','scheduled')").run(opId);}
+      if(op.eventId){const event=db.prepare('SELECT owner FROM events WHERE id=?').get(op.eventId)||db.prepare("SELECT owner FROM items WHERE id=? AND kind IN('deadlines','notes')").get(op.eventId);if(!event||event.owner!==user.id)fail(403,'본인의 일정만 연동할 수 있습니다.');}
+      const folder=op.folder||(mine?mail.sender_folder:r.folder);if(!(mine?['sent','trash']:['inbox','trash']).includes(folder))fail(400,'쪽지 폴더가 올바르지 않습니다.');
+      if(mine)db.prepare('UPDATE mails SET sender_folder=?,sender_important=?,event_id=coalesce(?,event_id) WHERE id=?').run(folder,op.important?1:0,op.eventId||null,opId);
+      else db.prepare("UPDATE recipients SET folder=?,important=?,status=CASE WHEN ? AND status='unread' THEN 'read' ELSE status END,event_id=coalesce(?,event_id) WHERE mail_id=? AND user_id=?").run(folder,op.important?1:0,op.read?1:0,op.eventId||null,opId,user.id);break;}
+    case 'event.upsert':{
+      const existing=db.prepare('SELECT owner,payload FROM events WHERE id=?').get(opId);if(existing&&existing.owner!==user.id)fail(403,'다른 선생님의 일정은 수정할 수 없습니다.');
+      if(existing&&parse(existing.payload).noticeMail){const event=parse(existing.payload),slot=resolvePeriod(event.date,event.period);event.start=slot.start;event.end=slot.end;db.prepare('UPDATE events SET payload=? WHERE id=?').run(json(event),opId);break;}
+      if(!['personal','group','repeat','makeup'].includes(v.type))fail(400,'일정 종류가 올바르지 않습니다.');
+      const slot=v.type==='makeup'?resolvePeriod(validDate(v.date),v.period):null;
+      const start=slot?slot.start:str(v.start,5),end=slot?slot.end:str(v.end,5);if(!/^\d{2}:\d{2}$/.test(start)||!/^\d{2}:\d{2}$/.test(end)||start<'08:00'||end>'18:00'||start>=end||Number(start.slice(3))>59||Number(end.slice(3))>59)fail(400,'일정 시간은 08:00~18:00 범위에서 종료 시간이 더 늦어야 합니다.');
+      const targets=['group','makeup'].includes(v.type)&&v.targets?.length?knownUsers(v.targets):[];
+      if(v.type==='makeup'&&(!targets.length||!String(v.note||'').trim()))fail(400,'보강 안내에는 수신자와 안내 내용이 필요합니다.');
+      const payload={title:str(v.title,100),date:validDate(v.date),start,end,type:v.type,place:str(v.place||'',100,false),note:str(v.note||'',1000,false),targets,...(slot?{period:slot.period}: {})};
+      db.prepare('INSERT INTO events VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload').run(opId,user.id,json(payload));break;}
+    case 'event.delete':{const existing=db.prepare('SELECT owner FROM events WHERE id=?').get(opId);if(!existing)return;if(existing.owner!==user.id)fail(403,'다른 선생님의 일정은 삭제할 수 없습니다.');db.prepare('DELETE FROM events WHERE id=?').run(opId);break;}
+    case 'classes.upsert':{
+      if(!user.admin)fail(403,'반·담임 설정은 관리자만 변경할 수 있습니다.');if(!Array.isArray(v.classes)||v.classes.length>200)fail(400,'반·담임 목록이 올바르지 않습니다.');const seen=new Set();const classes=v.classes.map(c=>{if(!c||typeof c!=='object')fail(400,'반 정보가 올바르지 않습니다.');const className=str(c.className,40),key=className.replace(/\s+/g,'');if(seen.has(key))fail(400,'같은 반은 한 번만 등록하세요.');seen.add(key);const teacher=knownUsers([c.teacher])[0];return {className,teacher};});db.prepare("INSERT OR REPLACE INTO metadata VALUES('classTeachers',?)").run(json(classes));break;
+    }
+    case 'schedule.upsert':
+    case 'schedule.delete':{
+      if(!user.admin)fail(403,'학교 일과표는 관리자만 변경할 수 있습니다.');
+      const date=v.date?validDate(v.date):'';
+      if(op.type==='schedule.delete'){if(!date)fail(400,'기본 일과표는 삭제할 수 없습니다.');db.prepare('DELETE FROM bell_schedules WHERE date=?').run(date);}
+      else {let periods;try{periods=bell.validate(v.periods);}catch(error){fail(400,error.message);}
+        if(date)db.prepare('INSERT INTO bell_schedules VALUES(?,?) ON CONFLICT(date) DO UPDATE SET periods=excluded.periods').run(date,json(periods));
+        else db.prepare("INSERT OR REPLACE INTO metadata VALUES('defaultPeriods',?)").run(json(periods));
+      }
+      for(const event of db.prepare('SELECT * FROM events').all()){const payload=parse(event.payload);if(!['makeup','lessonChange'].includes(payload.type)||date&&payload.date!==date)continue;const slot=resolvePeriod(payload.date,payload.period);payload.start=slot.start;payload.end=slot.end;db.prepare('UPDATE events SET payload=? WHERE id=?').run(json(payload),event.id);}
+      break;
+    }
+    case 'item.upsert':{
+      if(!['notes','deadlines','tasks','shortcuts'].includes(op.kind))fail(400,'개인 항목 종류가 올바르지 않습니다.');const existing=db.prepare('SELECT owner,kind FROM items WHERE id=?').get(opId);if(existing&&(existing.owner!==user.id||existing.kind!==op.kind))fail(403,'본인의 항목만 수정할 수 있습니다.');
+      let payload;
+      if(op.kind==='notes')payload={date:validDate(v.date),time:str(v.time,5),text:str(v.text,1200)};
+      if(op.kind==='deadlines'){const dueTime=str(v.dueTime||'',5,false);if(dueTime&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(dueTime))fail(400,'마감 시간 형식이 올바르지 않습니다.');payload={title:str(v.title,150),date:validDate(v.date),dueTime,note:str(v.note||'',1000,false),done:!!v.done};}
+      if(op.kind==='tasks')payload={title:str(v.title,150),done:!!v.done};
+      if(op.kind==='shortcuts'){const url=new URL(str(v.url,2000));if(!['https:','http:'].includes(url.protocol)||url.username||url.password)fail(400,'웹 주소 형식이 올바르지 않습니다.');payload={title:str(v.title,100),desc:str(v.desc||'',200,false),url:url.href,icon:'link'};}
+      db.prepare('INSERT INTO items VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload').run(opId,user.id,op.kind,json(payload));break;}
+    case 'item.delete':{const existing=db.prepare('SELECT owner FROM items WHERE id=?').get(opId);if(existing&&existing.owner!==user.id)fail(403,'본인의 항목만 삭제할 수 있습니다.');db.prepare('DELETE FROM items WHERE id=?').run(opId);break;}
+    default:fail(400,'지원하지 않는 변경 요청입니다.');
+    }
+  }
+  function authentication(req){
+    const token=req.headers.authorization?.match(/^Bearer ([a-f0-9]{64})$/)?.[1];if(!token)fail(401,'로그인이 필요합니다.');
+    const row=db.prepare('SELECT u.*,s.expires FROM sessions s JOIN users u ON u.id=s.user_id WHERE token_hash=? AND s.expires>? AND u.disabled=0').get(hash(token),Date.now());
+    if(!row)fail(401,'로그인이 만료되었습니다. 다시 로그인해 주세요.');return {...row,tokenHash:hash(token)};
+  }
+  async function body(req){
+    let bytes=0;const chunks=[];for await(const chunk of req){bytes+=chunk.length;if(bytes>8*1024*1024)fail(413,'요청 크기가 너무 큽니다.');chunks.push(chunk);}try{return parse(Buffer.concat(chunks).toString('utf8'));}catch{fail(400,'요청 데이터가 올바르지 않습니다.');}
+  }
+  const send=(res,status,value)=>{res.writeHead(status,{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'});res.end(json(value));};
+  const server=https.createServer({key:tls.key,cert:tls.cert,minVersion:'TLSv1.2'},async(req,res)=>{
+    try{
+      const url=new URL(req.url,'https://localhost');const route=url.pathname;
+      if(route==='/health'&&req.method==='GET'){send(res,200,{ok:true,version:'0.2.0'});return;}
+      if(route==='/login'&&req.method==='POST'){
+        const payload=await body(req),username=str(payload.username,40),key=(req.socket.remoteAddress||'')+':'+username,attempt=loginAttempts.get(key);
+        if(attempt&&attempt.until>Date.now()&&attempt.count>=8)fail(429,'로그인 시도가 많습니다. 15분 후 다시 시도해 주세요.');
+        const user=db.prepare('SELECT * FROM users WHERE username=? AND disabled=0').get(username);
+        if(!user||!(await passwordMatches(payload.password,user))){const current=attempt&&attempt.until>Date.now()?attempt:{count:0,until:Date.now()+900000};current.count++;loginAttempts.set(key,current);fail(401,'아이디 또는 비밀번호를 확인해 주세요.');}
+        loginAttempts.delete(key);const token=crypto.randomBytes(32).toString('hex');db.prepare('INSERT INTO sessions VALUES(?,?,?)').run(hash(token),user.id,Date.now()+SESSION_MS);
+        send(res,200,{token,user:userPublic(user)});return;
+      }
+      const user=authentication(req);
+      if(route==='/logout'&&req.method==='POST'){db.prepare('DELETE FROM sessions WHERE token_hash=?').run(user.tokenHash);for(const response of streams.get(user.id)||[])if(response.ieumToken===user.tokenHash)response.end();send(res,200,{ok:true});return;}
+      if(route==='/password'&&req.method==='POST'){
+        const payload=await body(req);if(!(await passwordMatches(payload.current,user)))fail(403,'현재 비밀번호가 올바르지 않습니다.');const record=await passwordRecord(payload.password);
+        db.prepare('UPDATE users SET salt=?,digest=?,must_change=0 WHERE id=?').run(record.salt,record.digest,user.id);db.prepare('DELETE FROM sessions WHERE user_id=? AND token_hash<>?').run(user.id,user.tokenHash);notify([user.id]);send(res,200,{ok:true});return;
+      }
+      if(user.must_change)fail(403,'임시 비밀번호를 먼저 변경해 주세요.');
+      if(route==='/bootstrap'&&req.method==='GET'){send(res,200,bootstrap(user));return;}
+      if(route==='/events'&&req.method==='GET'){
+        res.writeHead(200,{'content-type':'text/event-stream','cache-control':'no-store','connection':'keep-alive','x-content-type-options':'nosniff'});res.ieumToken=user.tokenHash;
+        const connections=streams.get(user.id)||new Set();connections.add(res);streams.set(user.id,connections);res.write('event: ready\ndata: {}\n\n');notify(null,'presence');
+        const heartbeat=setInterval(()=>{if(user.expires<=Date.now()){res.end();return;}res.write(': heartbeat\n\n');},20000);
+        req.on('close',()=>{clearInterval(heartbeat);connections.delete(res);if(!connections.size)streams.delete(user.id);notify(null,'presence');});return;
+      }
+      if(route==='/attachment'&&req.method==='POST'){
+        const p=await body(req),mail=db.prepare('SELECT * FROM mails WHERE id=?').get(str(p.mail,100));
+        if(!mail)fail(404,'첨부 쪽지를 찾을 수 없습니다.');
+        const recipient=db.prepare("SELECT status FROM recipients WHERE mail_id=? AND user_id=?").get(p.mail,user.id);
+        if(mail.sender!==user.id&&(!recipient||['recalled','scheduled'].includes(recipient.status)))fail(403,'이 첨부 파일에 접근할 수 없습니다.');
+        if(!Number.isInteger(p.index)||p.index<0)fail(400,'첨부 파일 번호가 올바르지 않습니다.');
+        const file=parse(mail.payload).files[p.index];if(!file)fail(404,'첨부 파일을 찾을 수 없습니다.');send(res,200,{file});return;
+      }
+      if(route==='/sync'&&req.method==='POST'){
+        const payload=await body(req);if(!Array.isArray(payload.operations)||payload.operations.length>300)fail(400,'변경 요청은 300개까지 가능합니다.');
+        db.exec('BEGIN IMMEDIATE');try{for(const op of payload.operations)operation(user,op);db.exec('COMMIT');}catch(error){db.exec('ROLLBACK');throw error;}
+        notify();send(res,200,{ok:true});return;
+      }
+      if(route==='/admin/users'&&user.admin){
+        if(req.method==='GET'){send(res,200,{users:db.prepare('SELECT * FROM users ORDER BY department,name').all().map(userPublic)});return;}
+        if(req.method==='POST'){const p=await body(req),record=await passwordRecord(p.password);const userId=id('staff');db.prepare('INSERT INTO users(id,username,name,department,role,subject,extension,digest,salt,admin,disabled,must_change,grade,other_group) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(userId,str(p.username,40),str(p.name,40),str(p.department,60),str(p.role||'교사',30),str(p.subject||'',30,false),str(p.extension||'',20,false),record.digest,record.salt,0,0,1,str(p.grade||'',30,false),str(p.otherGroup||'',60,false));notify();send(res,201,{id:userId});return;}
+      }
+      if(route==='/admin/user'&&req.method==='POST'&&user.admin){
+        const p=await body(req);const target=db.prepare('SELECT * FROM users WHERE id=?').get(str(p.id,100));if(!target)fail(404,'계정을 찾을 수 없습니다.');if(target.admin)fail(403,'관리자 계정은 여기서 변경할 수 없습니다.');
+        if(Object.hasOwn(p,'grade')||Object.hasOwn(p,'otherGroup')){const target=db.prepare('SELECT * FROM users WHERE id=?').get(p.id);db.prepare('UPDATE users SET grade=?,other_group=? WHERE id=?').run(Object.hasOwn(p,'grade')?str(p.grade,30,false):target.grade,Object.hasOwn(p,'otherGroup')?str(p.otherGroup,60,false):target.other_group,p.id);}
+        if(typeof p.disabled==='boolean'){db.prepare('UPDATE users SET disabled=? WHERE id=?').run(p.disabled?1:0,p.id);if(p.disabled){db.prepare('DELETE FROM sessions WHERE user_id=?').run(p.id);for(const stream of streams.get(p.id)||[])stream.end();}}
+        if(p.password){const record=await passwordRecord(p.password);db.prepare('UPDATE users SET digest=?,salt=?,must_change=1 WHERE id=?').run(record.digest,record.salt,p.id);db.prepare('DELETE FROM sessions WHERE user_id=?').run(p.id);for(const stream of streams.get(p.id)||[])stream.end();}notify();send(res,200,{ok:true});return;
+      }
+      fail(404,'요청한 기능을 찾을 수 없습니다.');
+    }catch(error){if(!res.headersSent)send(res,error.status|| (String(error.message).includes('UNIQUE constraint')?409:500),{error:error.status?error.message:String(error.message).includes('UNIQUE constraint')?'이미 사용 중인 아이디입니다.':'서버에서 요청을 처리하지 못했습니다.'});else res.end();if(!error.status)options.onError?.(error);}
+  });
+  server.requestTimeout=20000;server.headersTimeout=10000;
+  const scheduler=setInterval(()=>{
+    const rows=db.prepare("SELECT DISTINCT m.* FROM mails m JOIN recipients r ON r.mail_id=m.id WHERE r.status='scheduled'").all();let changed=false;
+    for(const row of rows){if(new Date(parse(row.payload).scheduled).getTime()<=Date.now()){db.prepare("UPDATE recipients SET status='unread' WHERE mail_id=? AND status='scheduled'").run(row.id);changed=true;}}
+    if(changed)notify();db.prepare('DELETE FROM sessions WHERE expires<=?').run(Date.now());for(const [key,value] of loginAttempts)if(value.until<Date.now())loginAttempts.delete(key);
+  },1000);
+  await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(port,options.host||'0.0.0.0',resolve);}).catch(error=>{clearInterval(scheduler);db.close();throw error;});
+  const boundPort=server.address().port;
+  const connection={version:1,schoolName:db.prepare("SELECT value FROM metadata WHERE key='schoolName'").get()?.value,url:new URL(address).origin.replace(/:0$/,':'+boundPort),certificate:tls.cert,fingerprint:tls.fingerprint};
+  // A port selected by the OS must be reflected in the exported connection file.
+  if(port===0)connection.url=`https://${addressURL.hostname}:${boundPort}`;
+  fs.writeFileSync(path.join(dataDir,'ieum-server.json'),json(connection),{mode:0o600});
+  return {port:boundPort,connection,dataDir,stats:()=>({users:db.prepare('SELECT count(*) n FROM users WHERE disabled=0').get().n,online:streams.size,rooms:db.prepare('SELECT count(*) n FROM rooms').get().n,messages:db.prepare('SELECT count(*) n FROM messages').get().n}),backup(destination){db.exec('PRAGMA wal_checkpoint(TRUNCATE)');fs.copyFileSync(path.join(dataDir,'ieum.sqlite'),destination);},async close(){clearInterval(scheduler);for(const connections of streams.values())for(const res of connections)res.end();await new Promise(resolve=>server.close(resolve));db.close();}};
+}
+module.exports={startServer,passwordRecord};

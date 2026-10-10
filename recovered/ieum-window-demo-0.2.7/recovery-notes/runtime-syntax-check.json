@@ -1,0 +1,52 @@
+[
+  {
+    "path": "data/mock.js",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "path": "desktop/admin-ui.js",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "path": "desktop/main.cjs",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "path": "desktop/preload.cjs",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "path": "desktop/server-ui.js",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "path": "js/app.js",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "path": "js/backend.js",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "path": "js/notify.js",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "path": "server/index.cjs",
+    "status": 0,
+    "error": ""
+  },
+  {
+    "path": "server/schedule.cjs",
+    "status": 0,
+    "error": ""
+  }
+]

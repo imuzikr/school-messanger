@@ -1,0 +1,117 @@
+[
+  {
+    "path": "assets/ieum-icon.ico",
+    "size": 8536,
+    "sha256": "b8db0de2e3fe4cf9424d6596b9b735b393f25c7f653b67b4bdf8533d9a59bdcb"
+  },
+  {
+    "path": "assets/ieum-icon.png",
+    "size": 1360,
+    "sha256": "200f3c74d87ee6930d01bfbc500347fea9e1d328219b5613a8f24505b2996949"
+  },
+  {
+    "path": "assets/installer.nsi",
+    "size": 1999,
+    "sha256": "7112eb9c74da88524411202375a720f176dffecbe006efbe2061ddbbc9400a65"
+  },
+  {
+    "path": "assets/Pretendard-LICENSE.txt",
+    "size": 4418,
+    "sha256": "d31ddd9f2bed32fd7e302a205cf2380ba0de6529152d239ef99cfb6f261bfc04"
+  },
+  {
+    "path": "assets/PretendardVariable.woff2",
+    "size": 2057688,
+    "sha256": "9599f12fd42fc0bce1cd50b47a0c022e108d7aa64dd0d1bb0ed44f3282d900b4"
+  },
+  {
+    "path": "css/components.css",
+    "size": 49023,
+    "sha256": "384dbb415fb8965e25174ff1f3c1dd9f1029729c8075bb3192e11d92166b6daf"
+  },
+  {
+    "path": "css/desktop.css",
+    "size": 14516,
+    "sha256": "667bc5144a4ee9f9c94c8f71c984c71bd63901c569ecd4b6fa29989d1ae887d6"
+  },
+  {
+    "path": "css/tokens.css",
+    "size": 2133,
+    "sha256": "7194290ef63cf4419578a1c6a320cb5af033e3b1e162743badcdf1410b1454f3"
+  },
+  {
+    "path": "data/mock.js",
+    "size": 6732,
+    "sha256": "10d594b8bc713ceafec38a41de5fdba8935f6e4635dca7dd80eae2151eb51f6f"
+  },
+  {
+    "path": "desktop/admin-ui.js",
+    "size": 4094,
+    "sha256": "e1f05efb8a64236b9cb412839e6313c282dc1f26f88cf5404c7e942cda486646"
+  },
+  {
+    "path": "desktop/admin.html",
+    "size": 3635,
+    "sha256": "2e3240cd59ba92d82a73c22e29dc3ed71bd2557c73e09efcebe45b467e1ca5ce"
+  },
+  {
+    "path": "desktop/main.cjs",
+    "size": 15827,
+    "sha256": "cbdc71ba492cc6794da19b30cc69d2f0f98e53cb3f33306aedb64ec8be11e8f5"
+  },
+  {
+    "path": "desktop/preload.cjs",
+    "size": 1472,
+    "sha256": "2e63c38cda414111b736560efeace4e1e1a8baf7efa2adfa7c9e7733569514b9"
+  },
+  {
+    "path": "desktop/server-ui.js",
+    "size": 2958,
+    "sha256": "369746c70b47684d29d1c54b54edb39aaae5e77dac460edbc8534fe1fcd0ef86"
+  },
+  {
+    "path": "desktop/server.css",
+    "size": 3610,
+    "sha256": "855750526207ba320f7b73b85428fc25dca67685012b095a0bf2535dbcce2ccb"
+  },
+  {
+    "path": "desktop/server.html",
+    "size": 3614,
+    "sha256": "ce1ca4d86e46bc45700e74702c0f046e9d54c04a4be645f5e94968b295cd49e5"
+  },
+  {
+    "path": "index.html",
+    "size": 1042,
+    "sha256": "6a8ad4332662684963a0862da41a0fb358063848f68ccd8ec19fd333ef10b552"
+  },
+  {
+    "path": "js/app.js",
+    "size": 151647,
+    "sha256": "807ab686784f379f96aa3caba0f653f0598e56e7b1723c24b931f3f31ecbd04a"
+  },
+  {
+    "path": "js/backend.js",
+    "size": 6454,
+    "sha256": "44b08223c80f24b42d8e95b2349340bbf45126126a2f6144bb6d1a9229f9c38d"
+  },
+  {
+    "path": "js/notify.js",
+    "size": 1753,
+    "sha256": "23cfd80dd273394f1b396f36c6f1ff2f84e1a27043a986b0c7823ee568da91b9"
+  },
+  {
+    "path": "package.json",
+    "size": 342,
+    "sha256": "f93c7adfbbdffdae22ecb3b74a950854c01b7be7acce2c1b3d9a243659138b70"
+  },
+  {
+    "path": "server/index.cjs",
+    "size": 37614,
+    "sha256": "c98452dc5dbc6d85a3c8816d537d0595f26efc173fe0e29060e8661aa0ced465"
+  },
+  {
+    "path": "server/schedule.cjs",
+    "size": 1788,
+    "sha256": "559d94d6a669c9038952e3a692a532838fffc1f76e989d3f94c289ca6ed3e525"
+  }
+]

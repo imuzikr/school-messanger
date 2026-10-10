@@ -1,0 +1,13 @@
+{
+  "runtime": "v24.21.0",
+  "dependencySource": "excluded original extraction node_modules; not committed",
+  "tests": {
+    "health": 200,
+    "login": 200,
+    "bootstrap": 200,
+    "sync": 200,
+    "logout": 200
+  },
+  "adminAuthenticated": true,
+  "bootstrapHasData": true
+}

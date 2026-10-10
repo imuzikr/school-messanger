@@ -1,0 +1,14 @@
+{
+  "name": "ieum-school-messenger",
+  "version": "0.2.7",
+  "private": true,
+  "description": "학교 교내망용 이음 서버와 설치형 메신저",
+  "author": "Ieum",
+  "license": "UNLICENSED",
+  "main": "desktop/main.cjs",
+  "dependencies": {
+    "@peculiar/x509": "2.1.0",
+    "reflect-metadata": "0.2.2"
+  },
+  "ieumRole": "demo"
+}
