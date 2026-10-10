@@ -194,7 +194,7 @@ async function startServer(options = {}) {
       const m=db.prepare('SELECT * FROM messages WHERE id=?').get(opId);if(!m)fail(404,'메시지를 찾을 수 없습니다.');member(user,m.room_id);
       if(op.liked)db.prepare('INSERT OR IGNORE INTO reactions VALUES(?,?)').run(opId,user.id);else db.prepare('DELETE FROM reactions WHERE message_id=? AND user_id=?').run(opId,user.id);break;}
     case 'mail.send':{
-      const existing=db.prepare('SELECT sender FROM mails WHERE id=?').get(opId);if(existing){if(existing.sender!==user.id)fail(409,'쪽지 식별자가 중복되었습니다.');return;}
+      const existing=db.prepare('SELECT sender FROM mails WHERE id=?').get(opId);if(existing){if(existing.sender!==user.id)fail(409,'메시지 식별자가 중복되었습니다.');return;}
       let broadcast=null;if(v.scheduleAnnouncement){if(!user.admin)fail(403,'일과표 전체 안내는 관리자만 발송할 수 있습니다.');const scope=v.scheduleAnnouncement.scope==='default'?'default':'temporary',date=validDate(v.scheduleAnnouncement.date);broadcast={date,scope,...bell.announcement(date,scope==='default'?defaultPeriods():periodsFor(date),scope)};v={...v,title:broadcast.title,body:broadcast.body,html:broadcast.html,to:db.prepare('SELECT id FROM users WHERE disabled=0 AND id<>?').all(user.id).map(u=>u.id),cc:[],files:[],scheduled:'',notice:null,calendarEvent:null};}
       let notice=null;
       if(v.notice){const n=v.notice;if(!['makeup','lessonChange'].includes(n.kind)||!Array.isArray(n.rows)||!n.rows.length||n.rows.length>7)fail(400,'보강/수업 변경 안내의 교시 배정이 올바르지 않습니다.');
@@ -210,11 +210,11 @@ async function startServer(options = {}) {
       if(calendarEvent){db.prepare('UPDATE mails SET event_id=? WHERE id=?').run(calendarEvent,opId);db.prepare('UPDATE recipients SET event_id=? WHERE mail_id=?').run(calendarEvent,opId);}
       if(notice)for(const row of notice.rows){const slot=resolvePeriod(notice.date,row.period);const event={title:`${notice.kind==='makeup'?'보강 안내':'수업 변경 안내'} · ${row.period}교시${row.className?' · '+row.className:''}`,date:notice.date,start:slot.start,end:slot.end,type:notice.kind,period:row.period,targets:[...new Set([row.teacher,row.originalTeacher,row.homeroomTeacher].filter(Boolean))],note:payload.body.slice(0,1000),place:row.className,assignment:row,noticeMail:opId};db.prepare('INSERT INTO events VALUES(?,?,?)').run(opId+'-p'+row.period,user.id,json(event));}break;}
     case 'mail.update':{
-      const mail=db.prepare('SELECT * FROM mails WHERE id=?').get(opId);if(!mail)fail(404,'쪽지를 찾을 수 없습니다.');const mine=mail.sender===user.id,r=db.prepare('SELECT * FROM recipients WHERE mail_id=? AND user_id=?').get(opId,user.id);
-      if(!mine&&(!r||r.status==='recalled'||r.status==='scheduled'))fail(403,'이 쪽지에 접근할 수 없습니다.');
+      const mail=db.prepare('SELECT * FROM mails WHERE id=?').get(opId);if(!mail)fail(404,'메시지를 찾을 수 없습니다.');const mine=mail.sender===user.id,r=db.prepare('SELECT * FROM recipients WHERE mail_id=? AND user_id=?').get(opId,user.id);
+      if(!mine&&(!r||r.status==='recalled'||r.status==='scheduled'))fail(403,'이 메시지에 접근할 수 없습니다.');
       if(op.recall){if(!mine)fail(403,'보낸 사람만 회수할 수 있습니다.');db.prepare("UPDATE recipients SET status='recalled' WHERE mail_id=? AND status IN('unread','scheduled')").run(opId);}
       if(op.eventId){const event=db.prepare('SELECT owner FROM events WHERE id=?').get(op.eventId)||db.prepare("SELECT owner FROM items WHERE id=? AND kind IN('deadlines','notes')").get(op.eventId);if(!event||event.owner!==user.id)fail(403,'본인의 일정만 연동할 수 있습니다.');}
-      const folder=op.folder||(mine?mail.sender_folder:r.folder);if(!(mine?['sent','trash']:['inbox','trash']).includes(folder))fail(400,'쪽지 폴더가 올바르지 않습니다.');
+      const folder=op.folder||(mine?mail.sender_folder:r.folder);if(!(mine?['sent','trash']:['inbox','trash']).includes(folder))fail(400,'메시지 폴더가 올바르지 않습니다.');
       if(mine)db.prepare('UPDATE mails SET sender_folder=?,sender_important=?,event_id=coalesce(?,event_id) WHERE id=?').run(folder,op.important?1:0,op.eventId||null,opId);
       else db.prepare("UPDATE recipients SET folder=?,important=?,status=CASE WHEN ? AND status='unread' THEN 'read' ELSE status END,event_id=coalesce(?,event_id) WHERE mail_id=? AND user_id=?").run(folder,op.important?1:0,op.read?1:0,op.eventId||null,opId,user.id);break;}
     case 'event.reschedule':{
@@ -325,7 +325,7 @@ async function startServer(options = {}) {
       }
       if(route==='/attachment'&&req.method==='POST'){
         const p=await body(req),mail=db.prepare('SELECT * FROM mails WHERE id=?').get(str(p.mail,100));
-        if(!mail)fail(404,'첨부 쪽지를 찾을 수 없습니다.');
+        if(!mail)fail(404,'첨부 메시지를 찾을 수 없습니다.');
         const recipient=db.prepare("SELECT status FROM recipients WHERE mail_id=? AND user_id=?").get(p.mail,user.id);
         if(mail.sender!==user.id&&(!recipient||['recalled','scheduled'].includes(recipient.status)))fail(403,'이 첨부 파일에 접근할 수 없습니다.');
         if(!Number.isInteger(p.index)||p.index<0)fail(400,'첨부 파일 번호가 올바르지 않습니다.');
