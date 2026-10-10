@@ -42,3 +42,6 @@ body{background:#edf0ed}.desktop-frame{display:flex;width:min(760px,calc(100vw -
 .editor-link-dialog{width:min(440px,90vw);border:1px solid #d8e1da;border-radius:16px;padding:24px;background:var(--surface,#fff);color:var(--text,#21332b)}.editor-link-dialog::backdrop{background:#13241f66}.editor-link-dialog form,.editor-link-dialog label{display:grid;gap:12px}.editor-link-dialog h2{font-size:18px}.editor-link-actions{display:flex;justify-content:flex-end;gap:10px}.mail-body a,.rich-editor a{color:inherit;text-decoration:underline;text-decoration-color:#7ca69c;text-underline-offset:3px;cursor:pointer}
 
 .mail-body table,.rich-editor table{width:100%;border-collapse:collapse;margin:12px 0;font-size:14px}.mail-body th,.mail-body td,.rich-editor th,.rich-editor td{border:1px solid #d4ddd7;padding:10px 14px;text-align:left}.mail-body th,.rich-editor th{background:#edf4ef}
+
+/* Modal hit areas must override the native drag regions underneath them. */
+.overlay,.overlay button,.overlay button *,.overlay input,.overlay select,.overlay textarea{-webkit-app-region:no-drag}

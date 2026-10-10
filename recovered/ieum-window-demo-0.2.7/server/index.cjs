@@ -118,10 +118,11 @@ async function startServer(options = {}) {
     const context={bellSchedules:db.prepare('SELECT * FROM bell_schedules').all().map(r=>({date:r.date,periods:parse(r.periods)})),
       defaultPeriods:db.prepare("SELECT value FROM metadata WHERE key='defaultPeriods'").get()?defaultPeriods():undefined};
     const entries=deadlines.extract(kind==='message'?payload.text:(payload.title||'')+'\n'+payload.body,payload.scheduled||payload.createdAt||payload.date,context);
-    for(const owner of new Set(recipients)){if(owner===sender)continue;
+    for(const owner of new Set([sender,...recipients])){
       entries.forEach((entry,index)=>{const key=deadlines.sourceKey(kind,sourceId,owner,index),itemId='auto-'+hash(key);
         const inserted=db.prepare('INSERT OR IGNORE INTO auto_deadline_sources VALUES(?,?)').run(key,itemId);
         if(inserted.changes){db.prepare('INSERT INTO items VALUES(?,?,?,?)').run(itemId,owner,'deadlines',json({...entry,done:false,source:{kind,id:sourceId}}));
+          if(kind==='mail'&&owner===sender)db.prepare('UPDATE mails SET event_id=coalesce(event_id,?) WHERE id=?').run(itemId,sourceId);
           if(kind==='mail')db.prepare('UPDATE recipients SET event_id=coalesce(event_id,?) WHERE mail_id=? AND user_id=?').run(itemId,sourceId,owner);}
       });
     }

@@ -339,7 +339,7 @@
         )
         .join(
           "",
-        )}</div><div class="school-tools"><small class="muted" style="margin-right:auto" title="보강 안내·임시 일과표 포함">v0.2.8</small>${button("makeup-notice","보강 안내","calendar")}${button("lesson-change","수업 변경","calendar")}${button("bell-schedule","일과표","clock")}${button("class-teachers","반·담임","users")}</div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 눌러 대화해 보세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div><footer class="org-footer"><small id="selection-summary">${state.selected.size ? state.selected.size + "명에게 보내기" : "함께 나누면 더 쉬워져요"}</small>${button("group-mail", "선택한 사람에게 쪽지", "mail", "", state.selected.size ? "" : "disabled")}${button("group-chat", "선택한 사람과 대화", "chat", "", state.selected.size ? "" : "disabled")}</footer></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
+        )}</div><div class="school-tools"><small class="muted" style="margin-right:auto" title="보강 안내·임시 일과표 포함">v0.2.9</small>${button("makeup-notice","보강 안내","calendar")}${button("lesson-change","수업 변경","calendar")}${button("bell-schedule","일과표","clock")}</div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 눌러 대화해 보세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div><footer class="org-footer"><small id="selection-summary">${state.selected.size ? state.selected.size + "명에게 보내기" : "함께 나누면 더 쉬워져요"}</small>${button("group-mail", "선택한 사람에게 쪽지", "mail", "", state.selected.size ? "" : "disabled")}${button("group-chat", "선택한 사람과 대화", "chat", "", state.selected.size ? "" : "disabled")}</footer></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
     );
   }
   const groupLabel=p=>String(p[state.group]||"").trim()||({grade:"학년 미지정",otherGroup:"기타 미지정"}[state.group]||"미지정");
@@ -788,7 +788,7 @@
     });
   }
   function closeModal() {
-    if(requestedCompose&&composeDraft&&!mailSending){windowApi?.windowAction("close");return;}
+    if(requestedCompose&&composeDraft&&!mailSending&&windowApi){windowApi?.windowAction("close");return;}
     if (modalCleanup) {
       modalCleanup();
       modalCleanup = null;

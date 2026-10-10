@@ -31,6 +31,6 @@ test('invalid dates, times, timestamps and non-deadlines are skipped',()=>{
 });
 test('multiple deadlines and durable demo dedup, including user deletion',()=>{
  const data={rooms:[{messages:[{id:'m1',sender:'other',text:'내일까지 제출.\n16일까지 회신',createdAt:sent},{id:'m2',sender:'me',text:'내일까지 제출',createdAt:sent}]}],mails:[],deadlines:[]};
- rules.applyDemo(data);assert.equal(data.deadlines.length,2);rules.applyDemo(data);assert.equal(data.deadlines.length,2);
- data.deadlines.shift();const restored=JSON.parse(JSON.stringify(data));rules.applyDemo(restored);assert.equal(restored.deadlines.length,1);
+ rules.applyDemo(data);assert.equal(data.deadlines.length,3);rules.applyDemo(data);assert.equal(data.deadlines.length,3);
+ data.deadlines.shift();const restored=JSON.parse(JSON.stringify(data));rules.applyDemo(restored);assert.equal(restored.deadlines.length,2);
 });

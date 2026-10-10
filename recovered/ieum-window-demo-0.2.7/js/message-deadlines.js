@@ -47,8 +47,8 @@
  function applyDemo(data,owner='me'){
   data.autoDeadlineSources ||= {};data.deadlines ||= [];
   const sources=[];
-  for(const room of data.rooms||[])for(const m of room.messages||[])if(m.sender!=='me')sources.push({kind:'message',id:m.id,text:m.text,at:m.createdAt??m.date});
-  for(const m of data.mails||[])if(m.from!=='me'&&!['trash','sent'].includes(m.folder)&&!m.notice&&!m.calendarEvent&&!m.scheduleAnnouncement&&!m.scheduled)sources.push({kind:'mail',id:m.id,text:(m.title||'')+'\n'+m.body,at:m.createdAt??m.date,mail:m});
+  for(const room of data.rooms||[])for(const m of room.messages||[])sources.push({kind:'message',id:m.id,text:m.text,at:m.createdAt??m.date});
+  for(const m of data.mails||[])if(m.folder!=='trash'&&!m.notice&&!m.calendarEvent&&!m.scheduleAnnouncement&&!m.scheduled)sources.push({kind:'mail',id:m.id,text:(m.title||'')+'\n'+m.body,at:m.createdAt??m.date,mail:m});
   for(const item of data.deadlines)if(item.rule==='lunch')item.dueTime=lunchTime(item.date,data);
   for(const s of sources)extract(s.text,s.at,data).forEach((d,i)=>{const k=sourceKey(s.kind,s.id,owner,i);if(data.autoDeadlineSources[k])return;const id='auto-'+encodeURIComponent(k);data.autoDeadlineSources[k]=id;data.deadlines.push({id,...d,done:false,source:{kind:s.kind,id:s.id}});if(s.mail&&!s.mail.eventId)s.mail.eventId=id;});
  }
