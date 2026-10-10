@@ -74,3 +74,18 @@ body:not(.installed) .desktop-frame{overflow:visible}body:not(.installed) .deskt
 .installed.compact-mode .desktop-frame>.shell{width:100%;min-width:0;flex:1 1 0}
 .compact-mode .compact-body>.workspace{margin:0;min-width:0;flex:1 1 0}
 .compact-mode .page,.compact-mode .people-layout,.compact-mode .people-panel{width:100%;max-width:none;margin:0}
+
+/* Keep roster controls in its heading and school totals next to the school. */
+.school-heading{display:flex;align-items:center;gap:7px;min-width:0}
+.school-heading>button{min-width:0;overflow:hidden}
+.school-population{display:flex;align-items:center;gap:5px;flex-shrink:0;font-size:10px;color:var(--muted);white-space:nowrap}
+.school-population .population-online{color:#24734d;font-weight:600}
+.people-panel>.panel-head{display:flex;align-items:center;gap:6px}
+.people-panel>.panel-head h2{white-space:nowrap;flex-shrink:0;font-size:13px;gap:5px}
+.people-panel>.panel-head .org-group-tabs{display:flex;flex:0 0 auto;gap:1px;margin:0 0 0 auto;padding:2px;width:auto}
+.people-panel>.panel-head .org-group-tabs button{flex:0 0 auto;padding:5px 6px;font-size:10px;min-width:0;white-space:nowrap}
+.person-presence{width:20px;height:20px}
+.presence-image{display:block;width:20px;height:20px;background-image:url('../assets/presence-status.png');background-size:300% 100%;background-repeat:no-repeat}
+.person-presence.online .presence-image{background-position:0% 50%}
+.person-presence.away .presence-image{background-position:50% 50%}
+.person-presence.offline .presence-image{background-position:100% 50%}
