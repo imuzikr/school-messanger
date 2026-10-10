@@ -1,7 +1,7 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-echo Ieum Window Demo v0.2.5 - makeup notices and temporary schedules
+echo Ieum Window Demo v0.2.6 - makeup notices and temporary schedules
 :check_running
 tasklist /FI "IMAGENAME eq Ieum Window Demo.exe" /NH 2>nul | find /I "Ieum Window Demo.exe" >nul
 if errorlevel 1 goto assemble
@@ -9,13 +9,13 @@ echo Please exit the old demo from its tray menu, then press any key.
 pause >nul
 goto check_running
 :assemble
-copy /b Ieum-demo.part01+Ieum-demo.part02+Ieum-demo.part03 "Ieum-demo-Setup-0.2.5-x64.exe" >nul
+copy /b Ieum-demo.part01+Ieum-demo.part02+Ieum-demo.part03 "Ieum-demo-Setup-0.2.6-x64.exe" >nul
 if errorlevel 1 goto failed
-powershell -NoProfile -Command "if ((Get-FileHash -LiteralPath 'Ieum-demo-Setup-0.2.5-x64.exe' -Algorithm SHA256).Hash -ne '1e0b4e0346826f947824af867b4f2f239a39b6fac07540c772c55716db6cb228') { exit 1 }"
+powershell -NoProfile -Command "if ((Get-FileHash -LiteralPath 'Ieum-demo-Setup-0.2.6-x64.exe' -Algorithm SHA256).Hash -ne 'd3a54bdfe215e8dd9f72b9f128fefb1241194dde0c1c9fe88d165694c9410c47') { exit 1 }"
 if errorlevel 1 goto failed
-start "" /wait "Ieum-demo-Setup-0.2.5-x64.exe"
+start "" /wait "Ieum-demo-Setup-0.2.6-x64.exe"
 if errorlevel 1 goto failed
-echo Open the updated desktop shortcut. The main screen must show v0.2.5.
+echo Open the updated desktop shortcut. The main screen must show v0.2.6.
 pause
 exit /b 0
 :failed
