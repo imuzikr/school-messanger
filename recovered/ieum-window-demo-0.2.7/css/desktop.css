@@ -89,3 +89,4 @@ body:not(.installed) .desktop-frame{overflow:visible}body:not(.installed) .deskt
 .person-presence.online .presence-image{background-position:0% 50%}
 .person-presence.away .presence-image{background-position:50% 50%}
 .person-presence.offline .presence-image{background-position:100% 50%}
+.automatic-deadline-preview{padding:10px 12px;border-radius:8px;background:#eef5ef;color:#326147;font-size:12px;line-height:1.6}

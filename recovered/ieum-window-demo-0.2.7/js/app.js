@@ -341,7 +341,7 @@
         )
         .join(
           "",
-        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.14</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 쪽지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
+        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.15</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 쪽지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
     );
   }
   const groupLabel=p=>String(p[state.group]||"").trim()||({grade:"학년 미지정",otherGroup:"기타 미지정"}[state.group]||"미지정");
@@ -823,7 +823,7 @@
     };
     openModal(
       "새 쪽지 쓰기",
-      `<form id="compose-form" class="compose-form"><label>안내 종류<select id="lesson-kind" class="input"><option value="">일반 쪽지</option><option value="makeup">보강 안내</option><option value="lessonChange">수업 변경 안내</option></select></label><section id="lesson-assignment" hidden><label>수업 날짜<input id="lesson-date" class="input" type="date" value="${state.today}"></label><p class="muted">필요한 교시를 체크하고 담당 교사를 배정하세요. 보강에서 반을 선택하면 담임과 보강 교사에게 함께 발송합니다. 수업 변경은 기존·교체 교사에게 안내하고 캘린더에 자동 등록합니다.</p><div class="lesson-table-scroll"><table class="lesson-table"><thead><tr><th>교시</th><th>반</th><th class="lesson-original" hidden>기존 교사</th><th id="lesson-teacher-heading">보강 교사</th></tr></thead><tbody>${Array.from({length:7},(_,i)=>`<tr data-lesson-row="${i+1}"><td><label><input type="checkbox" data-lesson-period="${i+1}">${i+1}교시</label><small data-lesson-time="${i+1}"></small></td><td><input class="input" data-lesson-class="${i+1}" list="school-classes" placeholder="반 선택/입력" maxlength="40" aria-label="${i+1}교시 반"><small data-lesson-homeroom="${i+1}"></small></td><td class="lesson-original" hidden><select class="input" data-lesson-original="${i+1}" aria-label="${i+1}교시 기존 교사"><option value="">교사 선택</option>${lessonPeople.map(p=>`<option value="${p.id}">${esc(p.name)} · ${esc(p.department)}</option>`).join("")}</select></td><td><select class="input" data-lesson-teacher="${i+1}" aria-label="${i+1}교시 배정 교사"><option value="">교사 선택</option>${lessonPeople.map(p=>`<option value="${p.id}">${esc(p.name)} · ${esc(p.department)}</option>`).join("")}</select></td></tr>`).join("")}</tbody></table></div><datalist id="school-classes">${[...new Set([...(state.data.classTeachers||[]).map(c=>c.className),...Array.from({length:36},(_,i)=>`${Math.floor(i/12)+1}학년 ${i%12+1}반`)])].map(name=>`<option value="${esc(name)}">`).join("")}</datalist></section><div class="field-row"><label for="recipient-input">받는 사람</label><div class="recipient-box" id="recipient-box">${recipientChips()}<input id="recipient-input" autocomplete="off" placeholder="이름을 입력해 선택하세요" aria-label="받는 사람 검색"><div class="suggestions" id="recipient-suggestions" hidden></div></div></div><details class="recipient-picker"><summary>목록에서 필요한 수신자 선택</summary><p class="muted">받는 사람만 체크하세요. 전체 선택은 필요하지 않습니다.</p><div class="recipient-options">${state.data.people.map(p=>`<label><input type="checkbox" data-compose-person="${p.id}" ${composeDraft.to.includes(p.id)?"checked":""}><span>${esc(p.name)} <small>${esc(p.department)}</small></span></label>`).join("")}</div></details><div class="field-row"><label for="cc-input">참조</label><div class="recipient-box" id="cc-box"><input id="cc-input" autocomplete="off" placeholder="참조할 선생님 선택 (선택)" aria-label="참조 검색"><div class="suggestions" id="cc-suggestions" hidden></div></div></div><div class="field-row"><label for="mail-title">제목 (선택)</label><input id="mail-title" class="input" placeholder="비워 두어도 발송할 수 있습니다" value="${esc(title)}" maxlength="150"></div><div><div class="editor-tools" aria-label="본문 서식">${button("editor-bold", "B", "", "", 'aria-label="굵게"')}${button("editor-italic", "I", "", "", 'aria-label="기울임"')}${button("editor-underline", "U", "", "", 'aria-label="밑줄"')}${button("editor-list", "목록", "checklist")}${button("editor-clear", "서식 지우기")}</div><div class="rich-editor" id="mail-editor" contenteditable="true" role="textbox" aria-label="쪽지 본문" aria-multiline="true" data-placeholder="선생님께 전할 이야기와 자료를 적어 주세요.">${richBody?safeRichHTML(richBody):esc(body).replace(/\n/g, "<br>")}</div></div><div class="drop-zone" id="file-drop" tabindex="0" role="button" aria-label="첨부 파일 선택">${icon("clip", 16)} 파일을 끌어 놓거나 눌러서 첨부하세요 <small>· 최대 2 MB, 브라우저에만 저장</small></div><input type="file" id="mail-files" multiple hidden><div class="compose-files" id="compose-files">${composeFilesHTML()}</div><div class="compose-options"><label><input type="checkbox" id="mail-important"> 중요 쪽지</label><label><input type="checkbox" id="mail-link-calendar"> 일정으로 등록</label><label><input type="checkbox" id="mail-schedule"> ${native ? "예약 발송" : "예약 초안"}</label><input type="datetime-local" id="mail-scheduled-at" class="input" style="width:200px;padding:6px" hidden></div><p class="muted" style="font-size:10px">${native ? "서버에 등록된 교직원에게 전달되는 쪽지입니다." : "받는 사람은 예시 교직원입니다. 보내기를 눌러도 실제로 전송되지 않습니다."}</p><div id="compose-error" class="form-error" role="alert"></div></form>`,
+      `<form id="compose-form" class="compose-form"><label>안내 종류<select id="lesson-kind" class="input"><option value="">일반 쪽지</option><option value="makeup">보강 안내</option><option value="lessonChange">수업 변경 안내</option></select></label><section id="lesson-assignment" hidden><label>수업 날짜<input id="lesson-date" class="input" type="date" value="${state.today}"></label><p class="muted">필요한 교시를 체크하고 담당 교사를 배정하세요. 보강에서 반을 선택하면 담임과 보강 교사에게 함께 발송합니다. 수업 변경은 기존·교체 교사에게 안내하고 캘린더에 자동 등록합니다.</p><div class="lesson-table-scroll"><table class="lesson-table"><thead><tr><th>교시</th><th>반</th><th class="lesson-original" hidden>기존 교사</th><th id="lesson-teacher-heading">보강 교사</th></tr></thead><tbody>${Array.from({length:7},(_,i)=>`<tr data-lesson-row="${i+1}"><td><label><input type="checkbox" data-lesson-period="${i+1}">${i+1}교시</label><small data-lesson-time="${i+1}"></small></td><td><input class="input" data-lesson-class="${i+1}" list="school-classes" placeholder="반 선택/입력" maxlength="40" aria-label="${i+1}교시 반"><small data-lesson-homeroom="${i+1}"></small></td><td class="lesson-original" hidden><select class="input" data-lesson-original="${i+1}" aria-label="${i+1}교시 기존 교사"><option value="">교사 선택</option>${lessonPeople.map(p=>`<option value="${p.id}">${esc(p.name)} · ${esc(p.department)}</option>`).join("")}</select></td><td><select class="input" data-lesson-teacher="${i+1}" aria-label="${i+1}교시 배정 교사"><option value="">교사 선택</option>${lessonPeople.map(p=>`<option value="${p.id}">${esc(p.name)} · ${esc(p.department)}</option>`).join("")}</select></td></tr>`).join("")}</tbody></table></div><datalist id="school-classes">${[...new Set([...(state.data.classTeachers||[]).map(c=>c.className),...Array.from({length:36},(_,i)=>`${Math.floor(i/12)+1}학년 ${i%12+1}반`)])].map(name=>`<option value="${esc(name)}">`).join("")}</datalist></section><div class="field-row"><label for="recipient-input">받는 사람</label><div class="recipient-box" id="recipient-box">${recipientChips()}<input id="recipient-input" autocomplete="off" placeholder="이름을 입력해 선택하세요" aria-label="받는 사람 검색"><div class="suggestions" id="recipient-suggestions" hidden></div></div></div><details class="recipient-picker"><summary>목록에서 필요한 수신자 선택</summary><p class="muted">받는 사람만 체크하세요. 전체 선택은 필요하지 않습니다.</p><div class="recipient-options">${state.data.people.map(p=>`<label><input type="checkbox" data-compose-person="${p.id}" ${composeDraft.to.includes(p.id)?"checked":""}><span>${esc(p.name)} <small>${esc(p.department)}</small></span></label>`).join("")}</div></details><div class="field-row"><label for="cc-input">참조</label><div class="recipient-box" id="cc-box"><input id="cc-input" autocomplete="off" placeholder="참조할 선생님 선택 (선택)" aria-label="참조 검색"><div class="suggestions" id="cc-suggestions" hidden></div></div></div><div class="field-row"><label for="mail-title">제목 (선택)</label><input id="mail-title" class="input" placeholder="비워 두어도 발송할 수 있습니다" value="${esc(title)}" maxlength="150"></div><div><div class="editor-tools" aria-label="본문 서식">${button("editor-bold", "B", "", "", 'aria-label="굵게"')}${button("editor-italic", "I", "", "", 'aria-label="기울임"')}${button("editor-underline", "U", "", "", 'aria-label="밑줄"')}${button("editor-list", "목록", "checklist")}${button("editor-clear", "서식 지우기")}</div><div class="rich-editor" id="mail-editor" contenteditable="true" role="textbox" aria-label="쪽지 본문" aria-multiline="true" data-placeholder="선생님께 전할 이야기와 자료를 적어 주세요.">${richBody?safeRichHTML(richBody):esc(body).replace(/\n/g, "<br>")}</div></div><div class="drop-zone" id="file-drop" tabindex="0" role="button" aria-label="첨부 파일 선택">${icon("clip", 16)} 파일을 끌어 놓거나 눌러서 첨부하세요 <small>· 최대 2 MB, 브라우저에만 저장</small></div><input type="file" id="mail-files" multiple hidden><div class="compose-files" id="compose-files">${composeFilesHTML()}</div><div class="compose-options"><label><input type="checkbox" id="mail-important"> 중요 쪽지</label><label><input type="checkbox" id="mail-link-calendar"> 직접 일정 추가</label><label><input type="checkbox" id="mail-schedule"> ${native ? "예약 발송" : "예약 초안"}</label><input type="datetime-local" id="mail-scheduled-at" class="input" style="width:200px;padding:6px" hidden></div><p class="muted" style="font-size:10px">${native ? "서버에 등록된 교직원에게 전달되는 쪽지입니다." : "받는 사람은 예시 교직원입니다. 보내기를 눌러도 실제로 전송되지 않습니다."}</p><div id="automatic-deadline-preview" class="automatic-deadline-preview" role="status" aria-live="polite"></div><div id="compose-error" class="form-error" role="alert"></div></form>`,
       button("close-modal", "취소") +
         `<button class="btn btn-primary" type="submit" form="compose-form">${icon("send", 16)} 쪽지 보내기</button>`,
       "compose-modal",
@@ -895,6 +895,13 @@
     });
     $("#mail-schedule").onchange = (e) =>
       ($("#mail-scheduled-at").hidden = !e.target.checked);
+    const preview=()=>{
+      const out=$("#automatic-deadline-preview");
+      if($("#lesson-kind").value){out.textContent="선택한 수업 안내는 교시별 일정으로 자동 등록됩니다.";return;}
+      const entries=window.IeumDeadlines.extract($("#mail-editor").innerText,Date.now(),state.data);
+      out.textContent=entries.length?"발송 시 자동 등록: "+entries.map(d=>`${d.date} ${d.dueTime} 마감`).join(" / ")+" · 발신자·수신자 캘린더":"본문의 마감 표현은 발송 시 자동 등록됩니다. 예: 내일까지 제출, 다음 주 수요일 오후 3시까지 회신. ‘직접 일정 추가’는 별도 일정을 작성할 때 사용합니다.";
+    };
+    $("#mail-editor").addEventListener("input",preview);$("#lesson-kind").addEventListener("change",preview);preview();
     $("#compose-form").onsubmit = sendMail;
   }
   function recipientSuggestions(input, kind) {
@@ -976,6 +983,7 @@
       error.textContent = "예약 초안의 날짜를 현재보다 이후로 지정해 주세요.";
       return;
     }
+    const sentAt=Date.now();
     const m = {
       id: uid("user-mail"),
       from: "me",
@@ -987,8 +995,9 @@
       folder: "sent",
       unread: false,
       important: $("#mail-important").checked,
-      date: Mock.today,
-      time: currentTime(),
+      createdAt: sentAt,
+      date: window.IeumDeadlines.sentDate(sentAt),
+      time: new Date(sentAt).toLocaleTimeString("en-GB",{timeZone:"Asia/Seoul",hour:"2-digit",minute:"2-digit"}),
       files: composeDraft.files,
       receipts: [...new Set([...composeDraft.to, ...composeDraft.cc,...(notice?notice.rows.flatMap(row=>[row.teacher,row.originalTeacher,row.homeroomTeacher].filter(Boolean)):[])])].map(
         () => "unread",
@@ -2226,12 +2235,14 @@
         text = input.value.trim(),
         room = state.data.rooms.find((r) => r.id === rid);
       if (!text || !room) return;
+      const sentAt=Date.now();
       room.messages.push({
         id: uid("user-message"),
         sender: "me",
         text,
-        date: Mock.today,
-        time: currentTime(),
+        createdAt: sentAt,
+        date: window.IeumDeadlines.sentDate(sentAt),
+        time: new Date(sentAt).toLocaleTimeString("en-GB",{timeZone:"Asia/Seoul",hour:"2-digit",minute:"2-digit"}),
         likes: 0,
         liked: false,
         reply: state.reply?.room === rid ? state.reply.text : "",
