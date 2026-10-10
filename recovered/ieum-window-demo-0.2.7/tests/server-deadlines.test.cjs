@@ -32,6 +32,9 @@ test('LAN send -> sender and recipient deadlines; atomic retry, deletion, restar
   await server.close();server=await start();admin=(await request('/login',{username:'admin',password})).token;recipient=(await request('/login',{username:'recipient',password:password+'x'})).token;
   await sync(admin,[msg,mail,delayed]);assert.equal((await boot(recipient)).data.deadlines.length,3);
   const senderData=(await boot(admin)).data;assert.equal(senderData.deadlines.length,4);assert.equal(senderData.mails.find(m=>m.id==='mail-test').eventId,senderData.deadlines.find(d=>d.source.id==='mail-test').id);
+  const training={type:'message.send',id:'m-training',room:'r-test',value:{text:'내일 1시에서 3시까지 교직원 연수가 있습니다.'}};
+  await sync(admin,[training]);await sync(admin,[training]);for(const token of [admin,recipient]){const data=(await boot(token)).data;const e=data.events.filter(e=>e.source?.id==='m-training');assert.equal(e.length,1);assert.equal(e[0].start,'13:00');assert.equal(e[0].end,'15:00');assert.ok(!data.deadlines.some(d=>d.source?.id==='m-training'));}
+  const event=(await boot(recipient)).data.events.find(e=>e.source?.id==='m-training');await sync(recipient,[{type:'event.delete',id:event.id}]);await sync(admin,[training]);assert.ok(!(await boot(recipient)).data.events.some(e=>e.source?.id==='m-training'));
   const privateId=(await boot(recipient)).data.deadlines[0].id;assert.equal((await sync(admin,[{type:'item.delete',id:privateId}])).status,403);
  }finally{if(server)await server.close();fs.rmSync(dataDir,{recursive:true,force:true});}
 });

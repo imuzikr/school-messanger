@@ -16,20 +16,25 @@
   const periods=(context.bellSchedules||[]).find(s=>s.date===date)?.periods||(context.deadlineDefaultPeriodsChanged===false?undefined:context.defaultPeriods);
   return periods?.find(p=>Number(p.period)===4)?.end?.match(/^([01]\d|2[0-3]):[0-5]\d$/)?.[0]||'12:05';
  }
- function extract(text,sentAt,context={}){
-  const base=sentDate(sentAt);if(!base||typeof text!=='string')return [];
-  const result=[];
-  // Sentence boundaries retain dotted numeric dates and HH:mm times.
-  for(const clause of text.slice(0,100000).split(/\n+|[!?。]+|\.(?=\s|$)/)){
-   if(!/까지|마감|오전\s*중/.test(clause))continue;
-   if(/(?:마감|제출|등록|신청).{0,8}(?:취소|철회)|(?:제출|등록|신청)(?:하지\s*마|할\s*필요\s*없)/.test(clause))continue;
-   let date=base,m,hasDate=false;
+ function resolveDate(clause,base){
+  let date=base,m,hasDate=false;
    if((m=clause.match(/(?:(\d{4})\s*년\s*)?(\d{1,2})\s*월\s*(\d{1,2})\s*일/))){date=`${m[1]||base.slice(0,4)}-${pad(m[2])}-${pad(m[3])}`;hasDate=true;}
    else if((m=clause.match(/(\d{4})-(\d{2})-(\d{2})/))){date=m[0];hasDate=true;}
    else if((m=clause.match(/(이번|다음)\s*주\s*([월화수목금토일])요일/))){const dow=new Date(base+'T00:00:00Z').getUTCDay();date=add(base,-((dow+6)%7)+(m[1]==='다음'?7:0)+'월화수목금토일'.indexOf(m[2]));hasDate=true;}
    else if((m=clause.match(/오늘|내일|모레/))){date=add(base,{오늘:0,내일:1,모레:2}[m[0]]);hasDate=true;}
    else if((m=clause.match(/(?:^|[^\d])(\d{1,2})\s*일/))){date=base.slice(0,8)+pad(m[1]);hasDate=true;}
    else if((m=clause.match(/([월화수목금토일])요일/))){const dow=(new Date(base+'T00:00:00Z').getUTCDay()+6)%7;date=add(base,('월화수목금토일'.indexOf(m[1])-dow+7)%7);hasDate=true;}
+  return {date,hasDate};
+ }
+ function extract(text,sentAt,context={}){
+  const base=sentDate(sentAt);if(!base||typeof text!=='string')return [];
+  const result=[];
+  // Sentence boundaries retain dotted numeric dates and HH:mm times.
+  for(const clause of text.slice(0,100000).split(/\n+|[!?。]+|\.(?=\s|$)/)){
+   if(!/까지|마감|오전\s*중/.test(clause)||extractEvents(clause,sentAt).length)continue;
+   if(/회의|연수|수업|상담|행사|협의회|출장|교육|설명회|간담회|면담|모임/.test(clause)&&!/제출|회신|마감|신청/.test(clause)&&/(?:시|:\d{2}).*(?:에서|부터|[~～–—-]).*(?:시|:\d{2})/.test(clause))continue;
+   if(/(?:마감|제출|등록|신청).{0,8}(?:취소|철회)|(?:제출|등록|신청)(?:하지\s*마|할\s*필요\s*없)/.test(clause))continue;
+   let m;const {date,hasDate}=resolveDate(clause,base);
    if(!valid(date))continue;
    let dueTime='',rule='date';
    // Explicit time must be associated with the deadline, not a meeting earlier in the sentence.
@@ -43,14 +48,34 @@
   }
   return result;
  }
+ function extractEvents(text,sentAt){
+  const base=sentDate(sentAt);if(!base||typeof text!=='string')return [];
+  const result=[];
+  for(const clause of text.slice(0,100000).split(/\n+|[!?。]+|\.(?=\s|$)/)){
+   if(!/회의|연수|수업|상담|행사|협의회|출장|교육|설명회|간담회|면담|모임/.test(clause)||/제출|회신|마감|취소|철회|없습니다|하지\s*마/.test(clause))continue;
+   const {date,hasDate}=resolveDate(clause,base);if(!hasDate||!valid(date))continue;
+   const times=[...clause.matchAll(/(오전|오후)?\s*(\d{1,2})(?::(\d{2})|\s*시(?:\s*(\d{1,2})\s*분|\s*(반))?)/g)];
+   if(times.length!==2)continue;
+   const between=clause.slice(times[0].index+times[0][0].length,times[1].index);if(!/에서|부터|[~～–—-]/.test(between))continue;
+   let meridiem=times[0][1]||times[1][1];
+   const convert=m=>{let h=Number(m[2]),min=Number(m[3]||m[4]||(m[5]?30:0));const zone=m[1]||meridiem;
+    if(zone){if(h<1||h>12)return null;h=h%12+(zone==='오후'?12:0);}
+    else if(!m[3]&&h>=1&&h<=7)h+=12; // School-day shorthand: 1–7시 means afternoon.
+    return h<24&&min<60?pad(h)+':'+pad(min):null;};
+   const start=convert(times[0]),end=convert(times[1]);if(!start||!end||start>=end)continue;
+   result.push({date,start,end,title:clause.trim().slice(0,150),note:clause.trim().slice(0,1000),type:'personal',place:'',targets:[],rule:'event'});
+  }
+  return result;
+ }
  const sourceKey=(kind,id,owner,index)=>JSON.stringify([kind,id,owner,index]);
  function applyDemo(data,owner='me'){
-  data.autoDeadlineSources ||= {};data.deadlines ||= [];
+  data.autoDeadlineSources ||= {};data.deadlines ||= [];data.events ||= [];
   const sources=[];
   for(const room of data.rooms||[])for(const m of room.messages||[])sources.push({kind:'message',id:m.id,text:m.text,at:m.createdAt??m.date});
   for(const m of data.mails||[])if(m.folder!=='trash'&&!m.notice&&!m.calendarEvent&&!m.scheduleAnnouncement&&!m.scheduled)sources.push({kind:'mail',id:m.id,text:(m.title||'')+'\n'+m.body,at:m.createdAt??m.date,mail:m});
   for(const item of data.deadlines)if(item.rule==='lunch')item.dueTime=lunchTime(item.date,data);
+  for(const s of sources)extractEvents(s.text,s.at).forEach((entry,i)=>{const k=sourceKey(s.kind+'-event',s.id,owner,i);if(data.autoDeadlineSources[k])return;const id='auto-'+encodeURIComponent(k);data.autoDeadlineSources[k]=id;data.events.push({id,...entry,source:{kind:s.kind,id:s.id}});data.deadlines=data.deadlines.filter(d=>!(d.source?.kind===s.kind&&d.source?.id===s.id&&d.note===entry.note));if(s.mail&&!s.mail.eventId)s.mail.eventId=id;});
   for(const s of sources)extract(s.text,s.at,data).forEach((d,i)=>{const k=sourceKey(s.kind,s.id,owner,i);if(data.autoDeadlineSources[k])return;const id='auto-'+encodeURIComponent(k);data.autoDeadlineSources[k]=id;data.deadlines.push({id,...d,done:false,source:{kind:s.kind,id:s.id}});if(s.mail&&!s.mail.eventId)s.mail.eventId=id;});
  }
- return {extract,sentDate,lunchTime,sourceKey,applyDemo};
+ return {extract,extractEvents,sentDate,lunchTime,sourceKey,applyDemo};
 });

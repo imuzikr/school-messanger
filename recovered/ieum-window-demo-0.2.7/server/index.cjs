@@ -117,8 +117,15 @@ async function startServer(options = {}) {
     if(payload.notice||payload.calendarEvent||payload.scheduleAnnouncement)return;
     const context={bellSchedules:db.prepare('SELECT * FROM bell_schedules').all().map(r=>({date:r.date,periods:parse(r.periods)})),
       defaultPeriods:db.prepare("SELECT value FROM metadata WHERE key='defaultPeriods'").get()?defaultPeriods():undefined};
-    const entries=deadlines.extract(kind==='message'?payload.text:(payload.title||'')+'\n'+payload.body,payload.scheduled||payload.createdAt||payload.date,context);
+    const text=kind==='message'?payload.text:(payload.title||'')+'\n'+payload.body,at=payload.scheduled||payload.createdAt||payload.date;
+    const entries=deadlines.extract(text,at,context),appointments=deadlines.extractEvents(text,at);
     for(const owner of new Set([sender,...recipients])){
+      appointments.forEach((entry,index)=>{const key=deadlines.sourceKey(kind+'-event',sourceId,owner,index),itemId='auto-'+hash(key);
+        const inserted=db.prepare('INSERT OR IGNORE INTO auto_deadline_sources VALUES(?,?)').run(key,itemId);
+        if(inserted.changes){db.prepare('INSERT INTO events VALUES(?,?,?)').run(itemId,owner,json({...entry,source:{kind,id:sourceId}}));
+          if(kind==='mail'&&owner===sender)db.prepare('UPDATE mails SET event_id=coalesce(event_id,?) WHERE id=?').run(itemId,sourceId);
+          if(kind==='mail')db.prepare('UPDATE recipients SET event_id=coalesce(event_id,?) WHERE mail_id=? AND user_id=?').run(itemId,sourceId,owner);}
+      });
       entries.forEach((entry,index)=>{const key=deadlines.sourceKey(kind,sourceId,owner,index),itemId='auto-'+hash(key);
         const inserted=db.prepare('INSERT OR IGNORE INTO auto_deadline_sources VALUES(?,?)').run(key,itemId);
         if(inserted.changes){db.prepare('INSERT INTO items VALUES(?,?,?,?)').run(itemId,owner,'deadlines',json({...entry,done:false,source:{kind,id:sourceId}}));
@@ -238,6 +245,19 @@ async function startServer(options = {}) {
     let bytes=0;const chunks=[];for await(const chunk of req){bytes+=chunk.length;if(bytes>8*1024*1024)fail(413,'요청 크기가 너무 큽니다.');chunks.push(chunk);}try{return parse(Buffer.concat(chunks).toString('utf8'));}catch{fail(400,'요청 데이터가 올바르지 않습니다.');}
   }
   const send=(res,status,value)=>{res.writeHead(status,{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'});res.end(json(value));};
+  // Reclassify only existing auto-created items; deleted items stay deleted.
+  db.exec('BEGIN IMMEDIATE');
+  try{for(const item of db.prepare("SELECT * FROM items WHERE kind='deadlines'").all()){
+    const old=parse(item.payload);if(!old.source)continue;
+    const source=db.prepare(old.source.kind==='message'?'SELECT payload FROM messages WHERE id=?':'SELECT payload FROM mails WHERE id=?').get(old.source.id);if(!source)continue;
+    const original=parse(source.payload),entry=deadlines.extractEvents(old.note||old.title,original.scheduled||original.createdAt||original.date)[0];if(!entry)continue;
+    const ledger=db.prepare('SELECT source_key FROM auto_deadline_sources WHERE item_id=?').get(item.id);if(!ledger)continue;
+    const index=JSON.parse(ledger.source_key)[3],key=deadlines.sourceKey(old.source.kind+'-event',old.source.id,item.owner,index),eventId='auto-'+hash(key);
+    const added=db.prepare('INSERT OR IGNORE INTO auto_deadline_sources VALUES(?,?)').run(key,eventId);
+    if(added.changes)db.prepare('INSERT INTO events VALUES(?,?,?)').run(eventId,item.owner,json({...entry,source:old.source}));
+    db.prepare('DELETE FROM items WHERE id=?').run(item.id);
+    db.prepare('UPDATE mails SET event_id=? WHERE event_id=?').run(eventId,item.id);db.prepare('UPDATE recipients SET event_id=? WHERE event_id=?').run(eventId,item.id);
+  }db.exec('COMMIT');}catch(error){db.exec('ROLLBACK');db.close();throw error;}
   const server=https.createServer({key:tls.key,cert:tls.cert,minVersion:'TLSv1.2'},async(req,res)=>{
     try{
       const url=new URL(req.url,'https://localhost');const route=url.pathname;

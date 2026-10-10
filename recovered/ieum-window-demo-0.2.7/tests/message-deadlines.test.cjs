@@ -34,3 +34,12 @@ test('multiple deadlines and durable demo dedup, including user deletion',()=>{
  rules.applyDemo(data);assert.equal(data.deadlines.length,3);rules.applyDemo(data);assert.equal(data.deadlines.length,3);
  data.deadlines.shift();const restored=JSON.parse(JSON.stringify(data));rules.applyDemo(restored);assert.equal(restored.deadlines.length,2);
 });
+test('training time ranges are appointments, not submission deadlines',()=>{
+ const text='내일 1시에서 3시까지 교직원 연수가 있습니다.';const events=rules.extractEvents(text,sent);assert.equal(events.length,1);assert.equal(events[0].date,'2026-10-12');assert.equal(events[0].start,'13:00');assert.equal(events[0].end,'15:00');assert.deepEqual(rules.extract(text,sent),[]);
+ assert.equal(rules.extractEvents('다음 주 수요일 오전 9시부터 11시까지 회의가 있습니다.',sent)[0].start,'09:00');
+ assert.equal(rules.extractEvents('내일 오후 1시~3시 연수',sent)[0].end,'15:00');
+ for(const text of ['내일 3시까지 연수 계획서 제출','내일 15:00~14:00 회의','내일 오전 13시~14시 회의','내일 1시~3시 연수 취소'])assert.deepEqual(rules.extractEvents(text,sent),[]);
+});
+test('demo converts an incorrectly classified existing training and deduplicates appointments',()=>{
+ const text='내일 1시에서 3시까지 교직원 연수가 있습니다';const data={rooms:[{messages:[{id:'training',text,createdAt:sent}]}],mails:[],deadlines:[{id:'old-wrong',source:{kind:'message',id:'training'},note:text}],events:[]};rules.applyDemo(data);assert.equal(data.deadlines.length,0);assert.equal(data.events.length,1);rules.applyDemo(data);assert.equal(data.events.length,1);data.events=[];rules.applyDemo(data);assert.equal(data.events.length,0);
+});
