@@ -8,7 +8,7 @@ const role=app.isPackaged?require('../package.json').ieumRole||'client':process.
 app.setName(role==='demo'?'IeumDemo':role==='server'?'IeumServer':'IeumClient');
 if(!app.isPackaged&&process.env.IEUM_TEST_DATA_DIR)app.setPath('userData',process.env.IEUM_TEST_DATA_DIR);
 const windows=new Set();
-let todayWindow=null,todaySide='left',todayAnimation=null,todayOpen=false;
+let todayWindow=null,todaySide='left',todayAnimation=null,todayOpen=false,todayVelocity=0;
 const connectionPath=()=>path.join(app.getPath('userData'),'connection.json');
 const configPath=()=>path.join(app.getPath('userData'),'server-config.json');
 function readJSON(file){try{return JSON.parse(fs.readFileSync(file,'utf8'));}catch{return null;}}
@@ -64,7 +64,7 @@ else app.whenReady().then(async()=>{
  connection=role==='demo'?null:readJSON(connectionPath());if(connection){try{connection=validateConnection(connection)}catch{connection=null}}
  Menu.setApplicationMenu(null);
  mainWindow=createWindow(role==='server'?'ieum://app/desktop/server.html':'ieum://app/index.html',{width:role==='server'?760:430,height:role==='server'?760:830,minWidth:role==='server'?650:390});
- for(const name of ['move','resize'])mainWindow.on(name,()=>{if(todayWindow&&!todayWindow.isDestroyed()&&todayWindow.isVisible()){clearInterval(todayAnimation);todayWindow.setBounds(todayBounds());}});
+ for(const name of ['move','resize'])mainWindow.on(name,()=>{if(todayWindow&&!todayWindow.isDestroyed()&&todayWindow.isVisible()){clearInterval(todayAnimation);todayVelocity=0;todayWindow.setBounds(todayBounds());}});
  mainWindow.on('minimize',()=>{if(todayWindow&&!todayWindow.isDestroyed())todayWindow.hide();todayOpen=false;emit({kind:'today-panel',open:false});});
  mainWindow.on('close',e=>{if(!quitting){e.preventDefault();mainWindow.hide();todayWindow?.hide();}});
  const {nativeImage}=require('electron');const trayImage=nativeImage.createFromPath(path.join(ROOT,'assets','ieum-icon.png'));tray=new Tray(trayImage.resize({width:20,height:20}));tray.setToolTip(role==='server'?'이음 교내 서버':'이음 학교 메신저');tray.on('double-click',bringMain);tray.setContextMenu(Menu.buildFromTemplate([{label:role==='server'?'서버 관리 열기':'메신저 열기',click:bringMain},{type:'separator'},{label:'이음 종료',click:()=>{quitting=true;app.quit()}}]));
@@ -79,12 +79,27 @@ expose('ieum:request',async(event,route,payload)=>{
 });
 expose('ieum:window',(event,action)=>{const w=BrowserWindow.fromWebContents(event.sender);if(action==='minimize')w.minimize();else if(action==='close')w.close();else if(action==='maximize')w.isMaximized()?w.unmaximize():w.maximize();else if(action==='show')w.show();});
 function todayBounds(){const b=mainWindow.getBounds(),area=screen.getDisplayMatching(b).workArea;const width=330,height=Math.min(b.height,area.height);return {x:Math.max(area.x,Math.min(todaySide==='right'?b.x+b.width:b.x-width,area.x+area.width-width)),y:Math.max(area.y,Math.min(b.y,area.y+area.height-height)),width,height};}
-function openTodayPanel(){const target=todayBounds(),b=mainWindow.getBounds();todayWindow.setBounds({...target,x:todaySide==='right'?b.x+b.width-target.width:b.x});todayWindow.showInactive();mainWindow.moveTop();animateToday(true);}
+function openTodayPanel(){
+ if(!todayWindow.isVisible()){const target=todayBounds(),b=mainWindow.getBounds();todayWindow.setBounds({...target,x:todaySide==='right'?b.x+b.width-target.width:b.x});todayVelocity=0;todayWindow.showInactive();}
+ mainWindow.moveTop();animateToday(true);
+}
 function animateToday(open){
  clearInterval(todayAnimation);if(!todayWindow||todayWindow.isDestroyed())return;
- const target=todayBounds(),b=mainWindow.getBounds(),start=todayWindow.getBounds(),end=open?target:{...target,x:todaySide==='right'?b.x+b.width-target.width:b.x};
+ const target=todayBounds(),b=mainWindow.getBounds(),end=open?target:{...target,x:todaySide==='right'?b.x+b.width-target.width:b.x};
+ // A critically damped spring keeps position and velocity continuous on reversal.
+ // Move only the panel; repeated z-order changes can interrupt Windows compositing.
+ let position=todayWindow.getBounds().x,last=performance.now(),lastPixel=Math.round(position);
  mainWindow.moveTop();
- const began=Date.now();todayAnimation=setInterval(()=>{if(!todayWindow||todayWindow.isDestroyed()){clearInterval(todayAnimation);return;}const t=Math.min(1,(Date.now()-began)/220),ease=1-Math.pow(1-t,3);todayWindow.setBounds({...end,x:Math.round(start.x+(end.x-start.x)*ease)});mainWindow.moveTop();if(t===1){clearInterval(todayAnimation);if(!open)todayWindow.hide();}},16);
+ todayAnimation=setInterval(()=>{
+  if(!todayWindow||todayWindow.isDestroyed()){clearInterval(todayAnimation);todayVelocity=0;return;}
+  const now=performance.now(),dt=Math.min((now-last)/1000,.05);last=now;
+  const offset=position-end.x,coefficient=todayVelocity+22*offset,decay=Math.exp(-22*dt);
+  position=end.x+(offset+coefficient*dt)*decay;
+  todayVelocity=(todayVelocity-22*coefficient*dt)*decay;
+  const pixel=Math.round(position);
+  if(pixel!==lastPixel){todayWindow.setPosition(pixel,end.y,false);lastPixel=pixel;}
+  if(Math.abs(position-end.x)<.5&&Math.abs(todayVelocity)<8){clearInterval(todayAnimation);todayAnimation=null;todayVelocity=0;todayWindow.setBounds(end,false);if(!open)todayWindow.hide();}
+ },16);
 }
 expose('ieum:resize',()=>({ok:true}));
 expose('ieum:today',(event,open,position)=>{

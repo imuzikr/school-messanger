@@ -61,7 +61,7 @@ body{background:#edf0ed}.desktop-frame{display:flex;width:min(760px,calc(100vw -
 .school-work-menu{display:grid;gap:10px}.school-work-menu .btn{justify-content:flex-start;padding:14px}
 .today-panel-window .compact-today{width:100vw;height:100vh;border:0}.today-panel-window .agenda-header{-webkit-app-region:no-drag}
 .desktop-frame{position:relative}.desktop-frame>.shell{flex-shrink:0}
-.today-drawer{position:absolute;top:0;bottom:0;width:330px;z-index:20;opacity:0;pointer-events:none;transition:transform 220ms ease,opacity 220ms ease;box-shadow:var(--shadow)}
+.today-drawer{position:absolute;top:0;bottom:0;width:330px;z-index:20;opacity:0;pointer-events:none;transition:transform 440ms cubic-bezier(.22,.8,.25,1),opacity 320ms ease;will-change:transform;box-shadow:var(--shadow)}
 .today-drawer.left{right:100%;transform:translateX(100%)}.today-drawer.right{left:100%;transform:translateX(-100%)}.today-drawer.open{transform:translateX(0);opacity:1;pointer-events:auto}.today-drawer>.compact-today{height:100%}
 @media(prefers-reduced-motion:reduce){.today-drawer{transition:none}}
 
