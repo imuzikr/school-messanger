@@ -47,5 +47,32 @@ test('LAN send -> sender and recipient deadlines; atomic retry, deletion, restar
   server=await start();admin=(await request('/login',{username:'admin',password})).token;recipient=(await request('/login',{username:'recipient',password:password+'x'})).token;
   assert.equal((await boot(admin)).data.events.filter(e=>e.source?.id==='mail-start').length,1);assert.equal((await boot(recipient)).data.events.filter(e=>e.source?.id==='mail-start').length,0);
   const privateId=(await boot(recipient)).data.deadlines[0].id;assert.equal((await sync(admin,[{type:'item.delete',id:privateId}])).status,403);
+
+  const ccUser=await request('/admin/users',{username:'cc',password,name:'참조',department:'교무부'},admin),outside=await request('/admin/users',{username:'outside',password,name:'외부 참여자',department:'행정실'},admin);
+  const ccToken=(await request('/login',{username:'cc',password})).token,outToken=(await request('/login',{username:'outside',password})).token;
+  await request('/password',{current:password,password:password+'y'},ccToken);await request('/password',{current:password,password:password+'z'},outToken);
+  const sharedMail={type:'mail.send',id:'mail-resize',value:{title:'공유 일정',body:'내일 오후 1시부터 2시까지 회의. 내일 오후 3시부터 4시까지 회의.',to:[r.id],cc:[ccUser.id],files:[]}};
+  assert.equal((await sync(admin,[sharedMail])).status,200);
+  const allTokens=[admin,recipient,ccToken],bySource=async token=>(await boot(token)).data.events.filter(e=>e.source?.id==='mail-resize');
+  for(const token of allTokens)assert.equal((await bySource(token)).length,2);
+  const ccEvent=(await bySource(ccToken)).find(e=>e.start==='13:00'),newDate='2026-10-16';
+  assert.equal((await sync(ccToken,[{type:'event.reschedule',id:ccEvent.id,value:{date:newDate,start:'06:30',end:'08:00'}}])).status,200);
+  for(const token of allTokens){const events=await bySource(token);assert.ok(events.some(e=>e.date===newDate&&e.start==='06:30'&&e.end==='08:00'));assert.ok(events.some(e=>e.start==='15:00'&&e.end==='16:00'));}
+  assert.equal((await sync(outToken,[{type:'event.reschedule',id:ccEvent.id,value:{date:newDate,start:'09:00',end:'10:00'}}])).status,403);
+  assert.equal((await sync(ccToken,[{type:'event.reschedule',id:ccEvent.id,value:{date:newDate,start:'10:00',end:'09:00'}}])).status,400);
+  assert.equal((await sync(ccToken,[{type:'event.reschedule',id:ccEvent.id,value:{date:newDate,start:'09:00',end:'10:00'}},{type:'invalid'}])).status,400);
+  assert.equal((await bySource(admin)).find(e=>e.date===newDate).start,'06:30');
+  const recipientCopy=(await bySource(recipient)).find(e=>e.date===newDate);await sync(recipient,[{type:'event.delete',id:recipientCopy.id}]);
+  await sync(admin,[{type:'event.reschedule',id:(await bySource(admin)).find(e=>e.date===newDate).id,value:{date:newDate,start:'19:00',end:'20:30'}}]);assert.equal((await bySource(recipient)).length,1);
+  const central={id:'event-central',title:'직접 공유',date:newDate,start:'09:00',end:'10:00',type:'group',targets:[r.id,ccUser.id],place:'',note:''};assert.equal((await sync(admin,[{type:'event.upsert',value:central}])).status,200);
+  assert.equal((await boot(recipient)).data.events.find(e=>e.id===central.id).canReschedule,true);
+  assert.equal((await sync(recipient,[{type:'event.reschedule',id:central.id,value:{date:newDate,start:'11:00',end:'12:15'}}])).status,200);
+  for(const token of allTokens)assert.equal((await boot(token)).data.events.find(e=>e.id===central.id).end,'12:15');
+  assert.equal((await sync(outToken,[{type:'event.reschedule',id:central.id,value:{date:newDate,start:'11:00',end:'12:00'}}])).status,403);
+  const dueMail={type:'mail.send',id:'mail-move-due',value:{title:'기한 공유',body:'내일 점심시간 전까지 제출',to:[r.id],cc:[ccUser.id],files:[]}};await sync(admin,[dueMail]);
+  const due=(await boot(ccToken)).data.deadlines.find(d=>d.source?.id===dueMail.id);assert.equal((await sync(ccToken,[{type:'deadline.reschedule',id:due.id,value:{date:newDate,dueTime:'17:15'}}])).status,200);
+  for(const token of allTokens){const d=(await boot(token)).data.deadlines.find(d=>d.source?.id===dueMail.id);assert.equal(d.date,newDate);assert.equal(d.dueTime,'17:15');assert.equal(d.rule,'explicit');assert.ok(d.source);}
+  await server.close();server=await start();admin=(await request('/login',{username:'admin',password})).token;recipient=(await request('/login',{username:'recipient',password:password+'x'})).token;
+  assert.equal((await bySource(admin)).find(e=>e.date===newDate).start,'19:00');assert.equal((await bySource(recipient)).length,1);
  }finally{if(server)await server.close();fs.rmSync(dataDir,{recursive:true,force:true});}
 });

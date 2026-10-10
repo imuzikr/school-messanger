@@ -3,6 +3,7 @@
 (function(){
 const clone=v=>JSON.parse(JSON.stringify(v));
 const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+const timingOnly=(before,after,fields)=>before&&!same(before,after)&&same({...before,...Object.fromEntries(fields.map(k=>[k,after[k]]))},after);
 const keys=['rooms','mails','events','notes','deadlines','tasks','shortcuts'];
 class IeumBackend{
  constructor(native,callbacks){this.native=native;this.callbacks=callbacks;this.active=false;this.baseline=null;this.queue=Promise.resolve();this.pending=0;this.generation=0;this.refreshTimer=null;this.native.subscribe(event=>this.onEvent(event));}
@@ -21,8 +22,8 @@ class IeumBackend{
   if(!same(before.defaultPeriods,after.defaultPeriods))operations.push({type:'schedule.upsert',value:{periods:after.defaultPeriods}});
   for(const schedule of after.bellSchedules||[]){const old=(before.bellSchedules||[]).find(s=>s.date===schedule.date);if(!same(old,schedule))operations.push({type:'schedule.upsert',value:schedule});}
   for(const schedule of before.bellSchedules||[])if(!(after.bellSchedules||[]).some(s=>s.date===schedule.date))operations.push({type:'schedule.delete',value:{date:schedule.date}});
-  const previousEvents=new Map(before.events.map(e=>[e.id,e]));for(const event of after.events){if(!event.readonly&&!(event.noticeMail&&!previousEvents.has(event.id))&&!same(previousEvents.get(event.id),event))operations.push({type:'event.upsert',value:event});}for(const event of before.events)if(!event.readonly&&!after.events.some(e=>e.id===event.id))operations.push({type:'event.delete',id:event.id});
-  for(const kind of ['notes','deadlines','tasks','shortcuts']){const previous=new Map((before[kind]||[]).map(i=>[i.id,i]));for(const value of after[kind]||[])if(!same(previous.get(value.id),value))operations.push({type:'item.upsert',kind,value});for(const value of before[kind]||[])if(!(after[kind]||[]).some(i=>i.id===value.id))operations.push({type:'item.delete',id:value.id});}
+  const previousEvents=new Map(before.events.map(e=>[e.id,e]));for(const event of after.events){const prev=previousEvents.get(event.id);if(!event.noticeMail&&!['makeup','lessonChange'].includes(event.type)&&timingOnly(prev,event,['date','start','end']))operations.push({type:'event.reschedule',id:event.id,value:{date:event.date,start:event.start,end:event.end}});else if(!event.readonly&&!(event.noticeMail&&!prev)&&!same(prev,event))operations.push({type:'event.upsert',value:event});}for(const event of before.events)if(!event.readonly&&!after.events.some(e=>e.id===event.id))operations.push({type:'event.delete',id:event.id});
+  for(const kind of ['notes','deadlines','tasks','shortcuts']){const previous=new Map((before[kind]||[]).map(i=>[i.id,i]));for(const value of after[kind]||[])if(kind==='deadlines'&&value.dueTime&&timingOnly(previous.get(value.id),value,['date','dueTime','rule']))operations.push({type:'deadline.reschedule',id:value.id,value:{date:value.date,dueTime:value.dueTime}});else if(!same(previous.get(value.id),value))operations.push({type:'item.upsert',kind,value});for(const value of before[kind]||[])if(!(after[kind]||[]).some(i=>i.id===value.id))operations.push({type:'item.delete',id:value.id});}
   // Event links are applied after the corresponding event has been inserted.
   const mailUpdates=operations.filter(op=>op.type==='mail.update'&&op.eventId||op.type==='mail.send'&&(op.value.calendarEvent||op.value.scheduleAnnouncement));for(const op of mailUpdates){operations.splice(operations.indexOf(op),1);operations.push(op);}
   return operations;

@@ -156,10 +156,17 @@ async function startServer(options = {}) {
     });
     const mailRows=db.prepare("SELECT * FROM mails WHERE sender=? OR id IN(SELECT mail_id FROM recipients WHERE user_id=? AND status NOT IN('recalled','scheduled'))").all(user.id,user.id);
     const mails=mailRows.map(m=>{const recipients=db.prepare('SELECT * FROM recipients WHERE mail_id=?').all(m.id),mine=m.sender===user.id,r=recipients.find(r=>r.user_id===user.id);const payload=parse(m.payload);return {...payload,files:payload.files.map((file,index)=>({name:file.name,size:file.size,bytes:file.bytes,stored:true,sourceMail:m.id,index})),id:m.id,from:me(m.sender),to:recipients.map(r=>r.user_id),receipts:recipients.map(r=>r.status==='scheduled'?'unread':r.status),folder:mine?m.sender_folder:r.folder,important:!!(mine?m.sender_important:r.important),unread:!mine&&r.status==='unread',eventId:(mine?m.event_id:r.event_id)||null,previousFolder:mine?'sent':'inbox',canRecall:mine};}).sort((a,b)=>b.createdAt-a.createdAt);
-    const events=db.prepare('SELECT * FROM events').all().filter(e=>{const p=parse(e.payload);return e.owner===user.id||(['group','makeup','lessonChange'].includes(p.type)&&p.targets.includes(user.id)&&(!p.noticeMail||db.prepare("SELECT 1 FROM recipients WHERE mail_id=? AND user_id=? AND status NOT IN('recalled','scheduled')").get(p.noticeMail,user.id)));}).map(e=>({...parse(e.payload),id:e.id,owner:e.owner,readonly:e.owner!==user.id}));
+    const events=db.prepare('SELECT * FROM events').all().filter(e=>{const p=parse(e.payload);return e.owner===user.id||(['group','makeup','lessonChange'].includes(p.type)&&p.targets.includes(user.id)&&(!p.noticeMail||db.prepare("SELECT 1 FROM recipients WHERE mail_id=? AND user_id=? AND status NOT IN('recalled','scheduled')").get(p.noticeMail,user.id)));}).map(e=>({...parse(e.payload),id:e.id,owner:e.owner,readonly:e.owner!==user.id,canReschedule:!parse(e.payload).noticeMail&&!['makeup','lessonChange'].includes(parse(e.payload).type)}));
     const items=db.prepare('SELECT * FROM items WHERE owner=?').all(user.id), data={today:dateKey(),schoolName:db.prepare("SELECT value FROM metadata WHERE key='schoolName'").get()?.value||'우리 학교',people,departments:[...new Set(people.map(p=>p.department))],rooms,mails,events,classTeachers:parse(db.prepare("SELECT value FROM metadata WHERE key='classTeachers'").get()?.value||'[]'),defaultPeriods:defaultPeriods(),bellSchedules:db.prepare('SELECT * FROM bell_schedules ORDER BY date').all().map(row=>({date:row.date,periods:parse(row.periods)})),academic:[],deadlines:[],notes:[],tasks:[],shortcuts:[]};
     for(const item of items)data[item.kind].push({...parse(item.payload),id:item.id});
     return {user:userPublic(user),data};
+  }
+  // Owner-specific extracted copies share a ledger identity except for owner.
+  // Update existing copies only: deletion tombstones must not be resurrected.
+  function linkedIds(itemId){
+    const ledger=db.prepare('SELECT source_key FROM auto_deadline_sources WHERE item_id=?').get(itemId);
+    if(!ledger)return [itemId];const key=parse(ledger.source_key);
+    return db.prepare('SELECT source_key,item_id FROM auto_deadline_sources').all().filter(row=>{const k=parse(row.source_key);return k[0]===key[0]&&k[1]===key[1]&&k[3]===key[3];}).map(row=>row.item_id);
   }
   function operation(user,op){
     if(!op||typeof op.type!=='string')fail(400,'변경 요청이 올바르지 않습니다.');
@@ -192,7 +199,7 @@ async function startServer(options = {}) {
       let notice=null;
       if(v.notice){const n=v.notice;if(!['makeup','lessonChange'].includes(n.kind)||!Array.isArray(n.rows)||!n.rows.length||n.rows.length>7)fail(400,'보강/수업 변경 안내의 교시 배정이 올바르지 않습니다.');
         const seen=new Set(),date=validDate(n.date);const rows=n.rows.map(row=>{const period=Number(row.period);if(!Number.isInteger(period)||period<1||period>7||seen.has(period))fail(400,'1~7교시를 중복 없이 선택하세요.');seen.add(period);resolvePeriod(date,period);const teacher=knownUsers([row.teacher])[0],className=str(row.className||'',40,n.kind==='lessonChange');let homeroomTeacher;if(n.kind==='makeup'&&className){const classes=parse(db.prepare("SELECT value FROM metadata WHERE key='classTeachers'").get()?.value||'[]');const mapping=classes.find(c=>c.className.replace(/\s+/g,'')===className.replace(/\s+/g,''));if(!mapping)fail(409,'선택한 반의 담임이 등록되지 않았습니다. 관리자에게 반·담임 설정을 요청하세요.');homeroomTeacher=knownUsers([mapping.teacher])[0];}let originalTeacher;if(n.kind==='lessonChange'){originalTeacher=knownUsers([row.originalTeacher])[0];if(originalTeacher===teacher)fail(400,'기존 교사와 교체 교사는 달라야 합니다.');}return {period,teacher,className,...(originalTeacher?{originalTeacher}:{}),...(homeroomTeacher?{homeroomTeacher}:{})};});notice={kind:n.kind,date,rows};if(v.scheduled)fail(400,'수업 안내는 예약 발송을 지원하지 않습니다.');}
-      const to=broadcast&&!v.to.length?[]:knownUsers([...new Set([...(Array.isArray(v.to)?v.to:[]),...(notice?notice.rows.flatMap(r=>[r.teacher,r.originalTeacher,r.homeroomTeacher].filter(Boolean)):[])])]),files=Array.isArray(v.files)?v.files:[];if(files.length>20)fail(400,'첨부 파일은 20개까지 가능합니다.');let bytes=0;
+      const to=broadcast&&!v.to.length?[]:knownUsers([...new Set([...(Array.isArray(v.to)?v.to:[]),...(Array.isArray(v.cc)?v.cc:[]),...(notice?notice.rows.flatMap(r=>[r.teacher,r.originalTeacher,r.homeroomTeacher].filter(Boolean)):[])])]),files=Array.isArray(v.files)?v.files:[];if(files.length>20)fail(400,'첨부 파일은 20개까지 가능합니다.');let bytes=0;
       const cleanFiles=files.map(f=>{const data=str(f.data,3*1024*1024,false);if(!/^data:[a-zA-Z0-9.+\/-]+;base64,[A-Za-z0-9+/=]*$/.test(data))fail(400,'첨부 파일 데이터 형식이 올바르지 않습니다.');const count=Buffer.from(data.split(',')[1],'base64').length;bytes+=count;if(count>2*1024*1024||bytes>3*1024*1024)fail(413,'첨부 파일 크기 제한을 초과했습니다.');return {name:str(f.name,180),size:str(f.size||Math.ceil(count/1024)+' KB',30),bytes:count,data};});
       let scheduled='';if(v.scheduled){scheduled=str(v.scheduled,40);const at=new Date(scheduled).getTime();if(!Number.isFinite(at)||at<=Date.now())fail(400,'예약 발송 시간은 현재 이후여야 합니다.');scheduled=new Date(at).toISOString();}
       let calendarEvent='';if(v.calendarEvent){calendarEvent=str(v.calendarEvent,100);const event=db.prepare('SELECT * FROM events WHERE id=?').get(calendarEvent);if(!event||event.owner!==user.id)fail(403,'본인의 일정만 메시지로 공유할 수 있습니다.');const shared=parse(event.payload);if(!shared.targets.length||to.some(id=>!shared.targets.includes(id))||shared.targets.some(id=>!to.includes(id)))fail(400,'메시지 수신자와 일정 수신자가 일치해야 합니다.');}
@@ -210,6 +217,19 @@ async function startServer(options = {}) {
       const folder=op.folder||(mine?mail.sender_folder:r.folder);if(!(mine?['sent','trash']:['inbox','trash']).includes(folder))fail(400,'쪽지 폴더가 올바르지 않습니다.');
       if(mine)db.prepare('UPDATE mails SET sender_folder=?,sender_important=?,event_id=coalesce(?,event_id) WHERE id=?').run(folder,op.important?1:0,op.eventId||null,opId);
       else db.prepare("UPDATE recipients SET folder=?,important=?,status=CASE WHEN ? AND status='unread' THEN 'read' ELSE status END,event_id=coalesce(?,event_id) WHERE mail_id=? AND user_id=?").run(folder,op.important?1:0,op.read?1:0,op.eventId||null,opId,user.id);break;}
+    case 'event.reschedule':{
+      const row=db.prepare('SELECT * FROM events WHERE id=?').get(opId);if(!row)fail(404,'일정을 찾을 수 없습니다.');const existing=parse(row.payload);
+      if(row.owner!==user.id&&!(existing.type==='group'&&existing.targets?.includes(user.id)))fail(403,'함께 등록된 일정만 이동할 수 있습니다.');
+      if(existing.noticeMail||['makeup','lessonChange'].includes(existing.type))fail(409,'교시에 연결된 수업은 일과표에서 변경해 주세요.');
+      const date=validDate(v.date),start=str(v.start,5),end=str(v.end,5);
+      if(!/^([01]\d|2[0-3]):[0-5]\d$/.test(start)||!/^(([01]\d|2[0-3]):[0-5]\d|24:00)$/.test(end)||start>=end)fail(400,'시작·종료 시간이 올바르지 않습니다.');
+      for(const targetId of linkedIds(opId)){const target=db.prepare('SELECT payload FROM events WHERE id=?').get(targetId);if(target)db.prepare('UPDATE events SET payload=? WHERE id=?').run(json({...parse(target.payload),date,start,end}),targetId);}
+      break;}
+    case 'deadline.reschedule':{
+      const row=db.prepare("SELECT * FROM items WHERE id=? AND kind='deadlines'").get(opId);if(!row)fail(404,'마감 일정을 찾을 수 없습니다.');if(row.owner!==user.id)fail(403,'본인의 마감 일정만 이동할 수 있습니다.');
+      const date=validDate(v.date),dueTime=str(v.dueTime,5);if(!/^([01]\d|2[0-3]):[0-5]\d$/.test(dueTime))fail(400,'마감 시간이 올바르지 않습니다.');
+      for(const targetId of linkedIds(opId)){const target=db.prepare("SELECT payload FROM items WHERE id=? AND kind='deadlines'").get(targetId);if(target)db.prepare('UPDATE items SET payload=? WHERE id=?').run(json({...parse(target.payload),date,dueTime,rule:'explicit'}),targetId);}
+      break;}
     case 'event.upsert':{
       const existing=db.prepare('SELECT owner,payload FROM events WHERE id=?').get(opId);if(existing&&existing.owner!==user.id)fail(403,'다른 선생님의 일정은 수정할 수 없습니다.');
       if(existing&&parse(existing.payload).noticeMail){const event=parse(existing.payload),slot=resolvePeriod(event.date,event.period);event.start=slot.start;event.end=slot.end;db.prepare('UPDATE events SET payload=? WHERE id=?').run(json(event),opId);break;}
@@ -218,7 +238,7 @@ async function startServer(options = {}) {
       const start=slot?slot.start:str(v.start,5),end=slot?slot.end:str(v.end,5);if(!/^\d{2}:\d{2}$/.test(start)||!/^\d{2}:\d{2}$/.test(end)||start<'08:00'||end>'18:00'||start>=end||Number(start.slice(3))>59||Number(end.slice(3))>59)fail(400,'일정 시간은 08:00~18:00 범위에서 종료 시간이 더 늦어야 합니다.');
       const targets=['group','makeup'].includes(v.type)&&v.targets?.length?knownUsers(v.targets):[];
       if(v.type==='makeup'&&(!targets.length||!String(v.note||'').trim()))fail(400,'보강 안내에는 수신자와 안내 내용이 필요합니다.');
-      const payload={title:str(v.title,100),date:validDate(v.date),start,end,type:v.type,place:str(v.place||'',100,false),note:str(v.note||'',1000,false),targets,...(slot?{period:slot.period}: {})};
+      const payload={title:str(v.title,100),date:validDate(v.date),start,end,type:v.type,place:str(v.place||'',100,false),note:str(v.note||'',1000,false),targets,...(slot?{period:slot.period}: {}),...(existing&&parse(existing.payload).source?{source:parse(existing.payload).source,rule:parse(existing.payload).rule}: {})};
       db.prepare('INSERT INTO events VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload').run(opId,user.id,json(payload));break;}
     case 'event.delete':{const existing=db.prepare('SELECT owner FROM events WHERE id=?').get(opId);if(!existing)return;if(existing.owner!==user.id)fail(403,'다른 선생님의 일정은 삭제할 수 없습니다.');db.prepare('DELETE FROM events WHERE id=?').run(opId);break;}
     case 'classes.upsert':{
@@ -238,10 +258,10 @@ async function startServer(options = {}) {
       break;
     }
     case 'item.upsert':{
-      if(!['notes','deadlines','tasks','shortcuts'].includes(op.kind))fail(400,'개인 항목 종류가 올바르지 않습니다.');const existing=db.prepare('SELECT owner,kind FROM items WHERE id=?').get(opId);if(existing&&(existing.owner!==user.id||existing.kind!==op.kind))fail(403,'본인의 항목만 수정할 수 있습니다.');
+      if(!['notes','deadlines','tasks','shortcuts'].includes(op.kind))fail(400,'개인 항목 종류가 올바르지 않습니다.');const existing=db.prepare('SELECT owner,kind,payload FROM items WHERE id=?').get(opId);if(existing&&(existing.owner!==user.id||existing.kind!==op.kind))fail(403,'본인의 항목만 수정할 수 있습니다.');
       let payload;
       if(op.kind==='notes')payload={date:validDate(v.date),time:str(v.time,5),text:str(v.text,1200)};
-      if(op.kind==='deadlines'){const dueTime=str(v.dueTime||'',5,false);if(dueTime&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(dueTime))fail(400,'마감 시간 형식이 올바르지 않습니다.');payload={title:str(v.title,150),date:validDate(v.date),dueTime,note:str(v.note||'',1000,false),done:!!v.done};}
+      if(op.kind==='deadlines'){const dueTime=str(v.dueTime||'',5,false);if(dueTime&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(dueTime))fail(400,'마감 시간 형식이 올바르지 않습니다.');payload={title:str(v.title,150),date:validDate(v.date),dueTime,note:str(v.note||'',1000,false),done:!!v.done,...(existing&&parse(existing.payload).source?{source:parse(existing.payload).source,rule:parse(existing.payload).rule}: {})};}
       if(op.kind==='tasks')payload={title:str(v.title,150),done:!!v.done};
       if(op.kind==='shortcuts'){const url=new URL(str(v.url,2000));if(!['https:','http:'].includes(url.protocol)||url.username||url.password)fail(400,'웹 주소 형식이 올바르지 않습니다.');payload={title:str(v.title,100),desc:str(v.desc||'',200,false),url:url.href,icon:'link'};}
       db.prepare('INSERT INTO items VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload').run(opId,user.id,op.kind,json(payload));break;}

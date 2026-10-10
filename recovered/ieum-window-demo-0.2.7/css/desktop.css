@@ -101,3 +101,15 @@ body.today-panel-window{background:transparent!important;overflow:hidden}
 .timeline-point{position:absolute;z-index:3;height:28px;border:0;border-top:2px solid #64875c;border-radius:0 4px 4px 4px;background:#eaf4e6;color:#31562a;padding:3px 7px;text-align:left;cursor:pointer}
 .timeline-point:before{content:"";position:absolute;left:-3px;top:-4px;width:6px;height:6px;border-radius:50%;background:#64875c}
 .timeline-point strong{display:block;font-size:10px;line-height:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.timeline-point.done{opacity:.6}
+
+[data-calendar-timeline] .event.movable,[data-calendar-timeline] .timeline-point{cursor:grab;touch-action:none;user-select:none}
+.event-resize{position:absolute;left:0;right:0;height:8px;z-index:3;cursor:ns-resize;touch-action:none}
+.event-resize.top{top:0}.event-resize.bottom{bottom:0}
+.event-resize:after{content:"";position:absolute;left:calc(50% - 12px);width:24px;height:2px;background:currentColor;opacity:.25}
+.event-resize.top:after{top:2px}.event-resize.bottom:after{bottom:2px}
+.event.movable:hover .event-resize:after{opacity:.7}
+
+[data-calendar-timeline] .event{min-height:14px}
+[data-calendar-timeline] .event.short{padding:0 8px}
+.event.short strong{line-height:14px}.event.short small{display:none}.event.short .event-resize{height:5px}
+.toast.timeline-feedback{pointer-events:none}.toast.timeline-feedback .toast-close{display:none}

@@ -296,6 +296,8 @@
     const notes=state.data.notes.filter(n=>n.date===state.today).sort((a,b)=>a.time.localeCompare(b.time));
     return `<aside class="compact-today agenda-list-panel" aria-label="오늘 일정 목록"><header class="agenda-header"><div><h2>${ib("today-prev","이전 날짜","left")}${fmtDate(state.today,{month:"long",day:"numeric",weekday:"short"})}${ib("today-next","다음 날짜","right")}</h2><small>오늘의 일정 · 목록</small></div>${button("add-event","일정 추가","plus")}</header><div class="agenda-list" role="list">${deadlines.map(d=>`<div class="agenda-list-row ${d.done?"done":""}" role="listitem"><input type="checkbox" data-deadline="${d.id}" aria-label="${esc(d.title)} 완료" ${d.done?"checked":""}><button data-action="deadline-detail" data-deadline="${d.id}"><span class="agenda-list-time">${d.dueTime?esc(d.dueTime)+"까지":"오늘 마감"}</span><strong>${esc(d.title)}</strong><small>제출 마감${d.done?" · 완료":""}</small></button></div>`).join("")}${events.map(e=>`<div class="agenda-list-row" role="listitem"><button data-action="view-event" data-event="${e.id}"><span class="agenda-list-time">${esc(e.start)}–${esc(e.end)}</span><strong>${esc(e.title)}</strong><small>${esc(e.place || typeLabel(e.type))}</small></button></div>`).join("")}${notes.map(n=>`<div class="agenda-list-row" role="listitem"><button data-action="view-note" data-note="${n.id}"><span class="agenda-list-time">${esc(n.time)}</span><strong>${esc(n.text)}</strong><small>메모</small></button></div>`).join("")}${!events.length&&!deadlines.length&&!notes.length?'<p class="agenda-list-empty">이날 등록된 일정이 없어요.</p>':""}</div></aside>`;
   }
+  function canMoveEvent(event){return !event.noticeMail&&!['makeup','lessonChange'].includes(event.type)&&(!event.readonly||event.canReschedule);}
+  function eventHandles(event){return canMoveEvent(event)?'<span class="event-resize top" data-resize="start" title="시작 시간 조절"></span><span class="event-resize bottom" data-resize="end" title="종료 시간 조절"></span>':'';}
   function timelineRange(days){
     const events=state.data.events.filter(e=>days.includes(e.date)),points=state.data.deadlines.filter(d=>d.source&&d.dueTime&&days.includes(d.date));
     const start=Math.max(0,Math.min(480,...events.map(e=>Math.floor(minutes(e.start)/60)*60),...points.map(d=>Math.floor(minutes(d.dueTime)/60)*60)));
@@ -311,7 +313,7 @@
     const events=state.data.events.filter(e=>e.date===state.today).sort((a,b)=>a.start.localeCompare(b.start));
     const manual=state.data.deadlines.filter(d=>!d.source),extracted=state.data.deadlines.filter(d=>d.source&&d.date===state.today);
     const range=timelineRange([state.today]),position=(minutes(new Date().toLocaleTimeString("en-GB",{timeZone:"Asia/Seoul",hour:"2-digit",minute:"2-digit"}))-range.start)*56/60;
-    return `<aside class="compact-today"><header class="agenda-header"><div><h2>${ib("today-prev","이전 날짜","left")}${fmtDate(state.today,{month:"long",day:"numeric",weekday:"short"})}${ib("today-next","다음 날짜","right")}</h2><small>오늘의 일정</small></div>${ib("toggle-today","오늘 일정 닫기","x")}</header><section class="agenda-deadlines"><h3>제출 마감</h3>${manual.length?manual.map(d=>{const diff=Math.round((parseDate(d.date)-parseDate(Mock.today))/86400000);return `<label class="task-row"><input type="checkbox" data-deadline="${d.id}" ${d.done?'checked':''}><span class="${d.done?'done':''}">${esc(d.title)}${d.dueTime ? `<small> · ${esc(d.dueTime)}까지</small>` : ""}</span><span class="due">${d.done?'완료':diff<0?'기한 지남':diff===0?'D-Day':'D-'+diff}</span></label>`}).join(""):'<p class="muted">등록된 제출 마감이 없어요.</p>'}</section><section class="agenda-body"><h3>내 일정 ${events.length+extracted.length?'· '+(events.length+extracted.length):''}</h3><div class="agenda-timeline"><div class="agenda-hours">${Array.from({length:range.hours},(_,i)=>`<div class="agenda-hour">${String(i+range.start/60).padStart(2,'0')}</div>`).join("")}</div><div class="agenda-grid" style="height:${range.hours*56}px" data-timeline-start="${range.start}" data-timeline-end="${range.end}" data-calendar-timeline="${state.today}" aria-label="오늘 일정 시간대 드래그 선택">${events.map((e,i)=>{const overlapping=events.filter(o=>minutes(o.start)<minutes(e.end)&&minutes(o.end)>minutes(e.start));const n=overlapping.length,slot=overlapping.indexOf(e);return `<button class="event ${e.type}" data-action="view-event" data-event="${e.id}" style="top:${(minutes(e.start)-range.start)*56/60}px;height:${Math.max(28,(minutes(e.end)-minutes(e.start))*56/60)}px;left:calc(${slot*100/n}% + 4px);width:calc(${100/n}% - 8px);right:auto"><strong>${esc(e.title)}</strong><small>${e.start}–${e.end}</small><small>${esc(e.place)}</small></button>`}).join("")}${timelinePoints(state.today,range.start,56/60)}${state.today===Mock.today&&position>=0&&position<=range.hours*56?`<div class="now-line" style="top:${position}px"></div>`:""}</div></div>${state.data.notes.filter(n=>n.date===state.today).map(n=>`<button class="agenda-note" data-action="view-note" data-note="${n.id}">${esc(n.time)} · ${esc(n.text)}</button>`).join("")}</section><footer class="agenda-footer">${state.today!==Mock.today?button("today-reset","오늘로","calendar"):button("checklist","내 체크리스트","checklist")}</footer></aside>`;
+    return `<aside class="compact-today"><header class="agenda-header"><div><h2>${ib("today-prev","이전 날짜","left")}${fmtDate(state.today,{month:"long",day:"numeric",weekday:"short"})}${ib("today-next","다음 날짜","right")}</h2><small>오늘의 일정</small></div>${ib("toggle-today","오늘 일정 닫기","x")}</header><section class="agenda-deadlines"><h3>제출 마감</h3>${manual.length?manual.map(d=>{const diff=Math.round((parseDate(d.date)-parseDate(Mock.today))/86400000);return `<label class="task-row"><input type="checkbox" data-deadline="${d.id}" ${d.done?'checked':''}><span class="${d.done?'done':''}">${esc(d.title)}${d.dueTime ? `<small> · ${esc(d.dueTime)}까지</small>` : ""}</span><span class="due">${d.done?'완료':diff<0?'기한 지남':diff===0?'D-Day':'D-'+diff}</span></label>`}).join(""):'<p class="muted">등록된 제출 마감이 없어요.</p>'}</section><section class="agenda-body"><h3>내 일정 ${events.length+extracted.length?'· '+(events.length+extracted.length):''}</h3><div class="agenda-timeline"><div class="agenda-hours">${Array.from({length:range.hours},(_,i)=>`<div class="agenda-hour">${String(i+range.start/60).padStart(2,'0')}</div>`).join("")}</div><div class="agenda-grid" style="height:${range.hours*56}px" data-timeline-start="${range.start}" data-timeline-end="${range.end}" data-calendar-timeline="${state.today}" aria-label="오늘 일정 시간대 드래그 선택">${events.map((e,i)=>{const overlapping=events.filter(o=>minutes(o.start)<minutes(e.end)&&minutes(o.end)>minutes(e.start));const n=overlapping.length,slot=overlapping.indexOf(e);return `<button class="event ${e.type} ${canMoveEvent(e)?"movable":""} ${minutes(e.end)-minutes(e.start)<30?"short":""}" data-action="view-event" data-event="${e.id}" title="${esc(e.title)} · ${e.start}–${e.end}" style="top:${(minutes(e.start)-range.start)*56/60}px;height:${Math.max(14,(minutes(e.end)-minutes(e.start))*56/60)}px;left:calc(${slot*100/n}% + 4px);width:calc(${100/n}% - 8px);right:auto"><strong>${esc(e.title)}</strong><small>${e.start}–${e.end}</small><small>${esc(e.place)}</small>${eventHandles(e)}</button>`}).join("")}${timelinePoints(state.today,range.start,56/60)}${state.today===Mock.today&&position>=0&&position<=range.hours*56?`<div class="now-line" style="top:${position}px"></div>`:""}</div></div>${state.data.notes.filter(n=>n.date===state.today).map(n=>`<button class="agenda-note" data-action="view-note" data-note="${n.id}">${esc(n.time)} · ${esc(n.text)}</button>`).join("")}</section><footer class="agenda-footer">${state.today!==Mock.today?button("today-reset","오늘로","calendar"):button("checklist","내 체크리스트","checklist")}</footer></aside>`;
   }
   function heading(eyebrow, title, desc, actions = "") {
     return `<div class="page-heading"><div><div class="eyebrow">${esc(eyebrow)}</div><h1>${esc(title)}</h1><p>${esc(desc)}</p></div><div class="heading-actions">${actions}</div></div>`;
@@ -353,7 +355,7 @@
         )
         .join(
           "",
-        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.21</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 쪽지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
+        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.22</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 쪽지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
     );
   }
   const groupLabel=p=>String(p[state.group]||"").trim()||({grade:"학년 미지정",otherGroup:"기타 미지정"}[state.group]||"미지정");
@@ -1120,7 +1122,7 @@
           height = minutes(e.end) - minutes(e.start),
           n = clusterCount(e),
           slot = layouts.get(e.id);
-        return `<button class="event ${e.type}" data-action="view-event" data-event="${e.id}" style="top:${Math.max(0, top)}px;height:${Math.max(28, Math.min(range.end-range.start - Math.max(0, top), height))}px;left:calc(${(slot * 100) / n}% + 5px);width:calc(${100 / n}% - 10px);right:auto" title="${esc(e.title)} · ${e.start}–${e.end}"><strong>${e.type === "personal" ? icon("lock", 10) + " " : ""}${esc(e.title)}</strong><small>${e.start}–${e.end}</small><small>${esc(e.place)}</small></button>`;
+        return `<button class="event ${e.type} ${canMoveEvent(e)?"movable":""} ${minutes(e.end)-minutes(e.start)<30?"short":""}" data-action="view-event" data-event="${e.id}" style="top:${Math.max(0, top)}px;height:${Math.max(14, Math.min(range.end-range.start - Math.max(0, top), height))}px;left:calc(${(slot * 100) / n}% + 5px);width:calc(${100 / n}% - 10px);right:auto" title="${esc(e.title)} · ${e.start}–${e.end}"><strong>${e.type === "personal" ? icon("lock", 10) + " " : ""}${esc(e.title)}</strong><small>${e.start}–${e.end}</small><small>${esc(e.place)}</small>${eventHandles(e)}</button>`;
       })
       .join("")}${state.data.notes
       .filter((n) => n.date === day)
@@ -1303,6 +1305,7 @@
       state.data.deadlines.push({ id, title, date, dueTime: $("#event-due-time").value, note: $("#event-note").value.trim(), done: eventDraft.done });
     } else {
       const ev = {
+        ...state.data.events.find(e=>e.id===id),
         id,
         title,
         date,
@@ -1337,7 +1340,7 @@
     if (!e) return;
     openModal(
       e.title,
-      `<div class="chip ${e.type === "personal" ? "" : e.type === "repeat" ? "orange" : "blue"}">${typeLabel(e.type)}</div><div style="margin-top:22px;display:grid;gap:16px;font-size:13px"><p>${icon("calendar", 16)} ${fmtDate(e.date)}</p><p>${icon("clock", 16)} ${e.start} – ${e.end}</p><p>${icon("school", 16)} ${esc(e.place || "장소 미정")}</p>${e.targets?.length ? `<p>${icon("users", 16)} ${e.targets.map((id) => esc(person(id).name)).join(", ")}</p>` : ""}<p class="muted" style="white-space:pre-wrap">${esc(e.note || "등록된 메모가 없습니다.")}</p></div>`,
+      `<div class="chip ${e.type === "personal" ? "" : e.type === "repeat" ? "orange" : "blue"}">${typeLabel(e.type)}</div><div style="margin-top:22px;display:grid;gap:16px;font-size:13px"><p>${icon("calendar", 16)} ${fmtDate(e.date)}</p><p>${icon("clock", 16)} ${e.start} – ${e.end}</p><p>${icon("school", 16)} ${esc(e.place || "장소 미정")}</p>${e.targets?.length ? `<p>${icon("users", 16)} ${e.targets.map((id) => esc(person(id).name)).join(", ")}</p>` : ""}<p class="muted" style="white-space:pre-wrap">${esc(e.note || "등록된 메모가 없습니다.")}</p>${canMoveEvent(e)?`<p class="muted">블록을 드래그해 이동하고 위·아래 가장자리로 시간을 조절하세요.${e.source||e.targets?.length?" 함께 등록된 사람들의 일정 시간도 같이 바뀝니다.":""}</p>`:""}</div>`,
       button("close-modal", "닫기") +
         (e.readonly||e.noticeMail ? "" : button(
           "edit-event",
@@ -2509,6 +2512,42 @@
   });
   let cancelTimelineSelection = null;
   const formatTimelineTime = value => `${String(Math.floor(value/60)).padStart(2,"0")}:${String(value%60).padStart(2,"0")}`;
+  let timelineSaving=false,suppressTimelineClickUntil=0;
+  document.addEventListener('click',event=>{if(performance.now()<suppressTimelineClickUntil&&event.target.closest('[data-calendar-timeline]')){event.preventDefault();event.stopImmediatePropagation();}},true);
+  document.addEventListener('pointerdown',event=>{
+    const block=event.target.closest('[data-calendar-timeline] .event,[data-calendar-timeline] .timeline-point');
+    if(!block||event.button!==0||!event.isPrimary||timelineSaving||$('#modal-root').firstChild)return;
+    const point=block.classList.contains('timeline-point'),list=point?state.data.deadlines:state.data.events;
+    const item=list.find(e=>e.id===(point?block.dataset.deadline:block.dataset.event));if(!item||!point&&!canMoveEvent(item))return;
+    cancelTimelineSelection?.();
+    const original={...item},origin=block.closest('[data-calendar-timeline]'),pointer=event.pointerId,initialX=event.clientX,initialY=event.clientY;
+    const mode=point?'point':event.target.closest('[data-resize]')?.dataset.resize||'move';
+    const start=minutes(point?item.dueTime:item.start),end=point?start:minutes(item.end),duration=end-start;
+    const base=Number(origin.dataset.timelineStart||480),limit=Number(origin.dataset.timelineEnd||1080),scale=origin.getBoundingClientRect().height/(limit-base);
+    let moved=false,targetGrid=origin,proposal;const css=block.style.cssText,band=document.createElement('div');band.className='timeline-selection';band.setAttribute('aria-live','polite');
+    const paint=e=>{
+      moved ||= Math.abs(e.clientY-initialY)>=4||Math.abs(e.clientX-initialX)>=4;if(!moved)return;
+      const delta=Math.round((e.clientY-initialY)/scale/15)*15;
+      if(mode==='move'||point){const grids=Array.from(origin.parentElement.closest('.calendar-grid')?.querySelectorAll('[data-calendar-timeline]')||[origin]);targetGrid=grids.find(grid=>{const r=grid.getBoundingClientRect();return e.clientX>=r.left&&e.clientX<=r.right&&e.clientY>=r.top&&e.clientY<=r.bottom;})||origin;}
+      const lo=Number(targetGrid.dataset.timelineStart||480),hi=Number(targetGrid.dataset.timelineEnd||1080);let nextStart=start,nextEnd=end;
+      if(point)nextStart=Math.max(lo,Math.min(Math.min(1425,hi-15),start+delta));
+      else if(mode==='start')nextStart=Math.max(lo,Math.min(end-15,start+delta));
+      else if(mode==='end')nextEnd=Math.max(start+15,Math.min(hi,end+delta));
+      else{nextStart=Math.max(lo,Math.min(hi-duration,start+delta));nextEnd=nextStart+duration;}
+      proposal={date:targetGrid.dataset.calendarTimeline,...(point?{dueTime:formatTimelineTime(nextStart),rule:'explicit'}:{start:formatTimelineTime(nextStart),end:formatTimelineTime(nextEnd)})};
+      const targetScale=targetGrid.getBoundingClientRect().height/(hi-lo);targetGrid.append(band);band.style.top=((nextStart-lo)*targetScale)+'px';band.style.height=(point?28:Math.max(15,(nextEnd-nextStart)*targetScale))+'px';band.textContent=point?proposal.dueTime:proposal.start+'–'+proposal.end;block.style.opacity='.3';
+    };
+    const cleanup=()=>{band.remove();block.style.cssText=css;block.removeEventListener('pointermove',move);block.removeEventListener('pointerup',finish);block.removeEventListener('pointercancel',cancel);block.removeEventListener('lostpointercapture',cancel);document.removeEventListener('keydown',escape);window.removeEventListener('blur',cancel);if(block.hasPointerCapture(pointer))block.releasePointerCapture(pointer);if(cancelTimelineSelection===cancel)cancelTimelineSelection=null;if(moved)suppressTimelineClickUntil=performance.now()+400;};
+    const cancel=()=>cleanup(),escape=e=>{if(e.key==='Escape')cancel();},move=e=>{if(e.pointerId===pointer)paint(e);};
+    const finish=async e=>{
+      if(e.pointerId!==pointer)return;paint(e);const valid=moved&&block.isConnected&&proposal;cleanup();if(!valid)return;
+      const current=(point?state.data.deadlines:state.data.events).find(e=>e.id===item.id);if(!current||current.date!==original.date||(point?current.dueTime!==original.dueTime:current.start!==original.start||current.end!==original.end)){render();return;}
+      const fields=point?['date','dueTime']:['date','start','end'];if(fields.every(key=>current[key]===proposal[key]))return;
+      timelineSaving=true;const oldData=JSON.parse(JSON.stringify(state.data));Object.assign(current,proposal);render();const stored=await save();timelineSaving=false;
+      if(!stored){if(!native)state.data=oldData;render();return;}state.today=proposal.date;render();Notify.create({id:'calendar-time-saved',title:'일정 시간을 변경했어요',bodyHtml:esc(current.source||current.targets?.length?'연결된 발신자·수신자·참조자의 일정에도 반영됩니다.':'변경한 시간을 저장했습니다.'),type:'calendar timeline-feedback',duration:1800});
+    };
+    block.setPointerCapture(pointer);cancelTimelineSelection=cancel;block.addEventListener('pointermove',move);block.addEventListener('pointerup',finish);block.addEventListener('pointercancel',cancel);block.addEventListener('lostpointercapture',cancel);document.addEventListener('keydown',escape);window.addEventListener('blur',cancel);event.preventDefault();
+  });
   document.addEventListener("pointerdown", e => {
     const grid=e.target.closest("[data-calendar-timeline]");
     if(!grid || e.button!==0 || !e.isPrimary || e.target.closest("button,input,a,.event-note") || $("#modal-root").firstChild) return;
