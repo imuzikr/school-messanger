@@ -339,7 +339,7 @@
         )
         .join(
           "",
-        )}</div><div class="school-tools"><small class="muted" style="margin-right:auto" title="보강 안내·임시 일과표 포함">v0.2.9</small>${button("makeup-notice","보강 안내","calendar")}${button("lesson-change","수업 변경","calendar")}${button("bell-schedule","일과표","clock")}</div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 눌러 대화해 보세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div><footer class="org-footer"><small id="selection-summary">${state.selected.size ? state.selected.size + "명에게 보내기" : "함께 나누면 더 쉬워져요"}</small>${button("group-mail", "선택한 사람에게 쪽지", "mail", "", state.selected.size ? "" : "disabled")}${button("group-chat", "선택한 사람과 대화", "chat", "", state.selected.size ? "" : "disabled")}</footer></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
+        )}</div><div class="school-tools"><small class="muted" style="margin-right:auto" title="보강 안내·임시 일과표 포함">v0.2.10</small>${button("makeup-notice","보강 안내","calendar")}${button("lesson-change","수업 변경","calendar")}${button("bell-schedule","일과표","clock")}</div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 눌러 대화해 보세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div><footer class="org-footer"><small id="selection-summary">${state.selected.size ? state.selected.size + "명에게 보내기" : "함께 나누면 더 쉬워져요"}</small>${button("group-mail", "선택한 사람에게 쪽지", "mail", "", state.selected.size ? "" : "disabled")}${button("group-chat", "선택한 사람과 대화", "chat", "", state.selected.size ? "" : "disabled")}</footer></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
     );
   }
   const groupLabel=p=>String(p[state.group]||"").trim()||({grade:"학년 미지정",otherGroup:"기타 미지정"}[state.group]||"미지정");
@@ -361,8 +361,12 @@
       })
       .join("");
   }
-  function personRow(p, i = 0) {
-    return `<div class="person" data-person="${p.id}"><input type="checkbox" aria-label="${esc(p.name)} 선택" data-person-check="${p.id}" ${state.selected.has(p.id) ? "checked" : ""}>${avatar(p, "", i)}<div class="person-main"><button class="btn-quiet" style="padding:0;border:0;text-align:left" data-action="person-chat" data-person="${p.id}"><strong>${esc(p.name)}</strong> <small style="display:inline">${esc(p.role)}</small></button><small>${esc(p.subject)} · 내선 ${p.extension} <span class="sr-only">· ${statusLabel(p.status)}</span></small></div><div class="person-actions">${ib("person-mail", "쪽지 보내기", "mail", `data-person="${p.id}"`)}${ib("person-chat", "대화하기", "chat", `data-person="${p.id}"`)}</div></div>`;
+  function personRow(p) {
+    const presence=p.status==='online'?'online':['away','busy'].includes(p.status)?'away':'offline';
+    const label={online:'접속 중',away:'부재 중',offline:'미접속 중'}[presence];
+    const mark={online:'M4 8l2.5 2.5L12 5',away:'M8 4v4l2 1.5',offline:'M5 5l6 6 M11 5l-6 6'}[presence];
+    const organization=p.department||'조직 미지정',extension=p.extension||'미등록';
+    return `<div class="person" data-person="${p.id}"><input type="checkbox" aria-label="${esc(p.name)} 선택" data-person-check="${p.id}" ${state.selected.has(p.id) ? "checked" : ""}><span class="person-presence ${presence}" role="img" aria-label="${label}" title="${label}"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="${mark}"/></svg></span><div class="person-main"><button class="btn-quiet person-line" data-action="person-chat" data-person="${p.id}" title="${esc(p.name)} · ${esc(organization)} · 내선 ${esc(extension)} · ${label}"><strong>${esc(p.name)}</strong><span class="person-organization">${esc(organization)}</span><span class="person-extension">내선 ${esc(extension)}</span></button></div><div class="person-actions">${ib("person-mail", "쪽지 보내기", "mail", `data-person="${p.id}"`)}${ib("person-chat", "대화하기", "chat", `data-person="${p.id}"`)}</div></div>`;
   }
   function statusLabel(s) {
     return (

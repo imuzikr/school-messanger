@@ -1,4 +1,4 @@
-# 검증 기록 · 0.2.9
+# 검증 기록 · 0.2.10
 
 2026-10-11 한국 시간. Linux 관리형 작업 환경에서 수행했습니다.
 
@@ -16,3 +16,5 @@
 ## 재검증
 
 이 폴더에서 `npm install && npm test`. UI 검사에는 별도 Playwright 설치, Chromium과 (Electron 검사의 경우) Electron 44.7.0 및 DISPLAY가 필요합니다. 정적 HTTP 서버를 127.0.0.1:8000에 시작하고 `node tests/browser-deadlines.cjs`를 실행합니다. Electron 검사는 `IEUM_ROLE=demo node tests/electron-deadlines.cjs`로 실행합니다. 브라우저 검사의 Chromium 실행 경로는 `/usr/bin/chromium`입니다.
+
+0.2.10 조직도 추가 검증: Chromium 430×830 화면에서 이름·부서·내선 한 줄 표시, 기존 프로필 제거, 세 상태 아이콘/접근성 이름, 행 높이 30px, 사용자 체크박스 선택, 페이지 오류 없음 확인. release/directory-0.2.10.png에 화면을 저장했습니다.
