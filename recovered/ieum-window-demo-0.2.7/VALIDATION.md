@@ -1,4 +1,4 @@
-# 검증 기록 · 0.2.10
+# 검증 기록 · 0.2.11
 
 2026-10-11 한국 시간. Linux 관리형 작업 환경에서 수행했습니다.
 
@@ -17,4 +17,7 @@
 
 이 폴더에서 `npm install && npm test`. UI 검사에는 별도 Playwright 설치, Chromium과 (Electron 검사의 경우) Electron 44.7.0 및 DISPLAY가 필요합니다. 정적 HTTP 서버를 127.0.0.1:8000에 시작하고 `node tests/browser-deadlines.cjs`를 실행합니다. Electron 검사는 `IEUM_ROLE=demo node tests/electron-deadlines.cjs`로 실행합니다. 브라우저 검사의 Chromium 실행 경로는 `/usr/bin/chromium`입니다.
 
-0.2.10 조직도 추가 검증: Chromium 430×830 화면에서 이름·부서·내선 한 줄 표시, 기존 프로필 제거, 세 상태 아이콘/접근성 이름, 행 높이 30px, 사용자 체크박스 선택, 페이지 오류 없음 확인. release/directory-0.2.10.png에 화면을 저장했습니다.
+0.2.11 조직도 추가 검증: Chromium 430×830 화면에서 이름·부서·내선 한 줄 표시, 기존 프로필 제거, 세 상태 아이콘/접근성 이름, 행 높이 30px, 사용자 체크박스 선택, 페이지 오류 없음 확인. release/directory-0.2.11.png에 화면을 저장했습니다.
+
+
+0.2.11 추가 검증: `tests/desktop-navigation.cjs`를 Linux Electron에서 실행했습니다. 여섯 메뉴 순서, 교무업무 선택/일과표 폼 진입, 조직도의 직접 업무/하단 선택 버튼 제거, 이름 단일클릭 시 작성창 미개방/더블클릭 시 수신자 지정 쪽지 작성창 개방, 우클릭 대화창 개방, 오늘 일정 패널의 좌우 위치와 닫힘, 본창 getBounds의 위치·크기 불변 확인. 기존 정규식/HTTPS 통합 20개 테스트도 통과했습니다. 좁은 패널을 숨기던 기존 반응형 CSS를 패널 창에서 재정의했습니다.

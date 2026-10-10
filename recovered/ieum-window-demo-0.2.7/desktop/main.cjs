@@ -1,5 +1,5 @@
 'use strict';
-const {app,BrowserWindow,ipcMain,protocol,net:electronNet,dialog,Menu,Tray,Notification,shell,safeStorage}=require('electron');
+const {app,screen,BrowserWindow,ipcMain,protocol,net:electronNet,dialog,Menu,Tray,Notification,shell,safeStorage}=require('electron');
 const path=require('node:path');const fs=require('node:fs');const https=require('node:https');const crypto=require('node:crypto');const os=require('node:os');const {pathToFileURL}=require('node:url');
 const ROOT=path.resolve(__dirname,'..');
 protocol.registerSchemesAsPrivileged([{scheme:'ieum',privileges:{standard:true,secure:true,supportFetchAPI:true}}]);
@@ -8,6 +8,7 @@ const role=app.isPackaged?require('../package.json').ieumRole||'client':process.
 app.setName(role==='demo'?'IeumDemo':role==='server'?'IeumServer':'IeumClient');
 if(!app.isPackaged&&process.env.IEUM_TEST_DATA_DIR)app.setPath('userData',process.env.IEUM_TEST_DATA_DIR);
 const windows=new Set();
+let todayWindow=null,todaySide='left',todayAnimation=null,todayOpen=false;
 const connectionPath=()=>path.join(app.getPath('userData'),'connection.json');
 const configPath=()=>path.join(app.getPath('userData'),'server-config.json');
 function readJSON(file){try{return JSON.parse(fs.readFileSync(file,'utf8'));}catch{return null;}}
@@ -63,7 +64,9 @@ else app.whenReady().then(async()=>{
  connection=role==='demo'?null:readJSON(connectionPath());if(connection){try{connection=validateConnection(connection)}catch{connection=null}}
  Menu.setApplicationMenu(null);
  mainWindow=createWindow(role==='server'?'ieum://app/desktop/server.html':'ieum://app/index.html',{width:role==='server'?760:430,height:role==='server'?760:830,minWidth:role==='server'?650:390});
- mainWindow.on('close',e=>{if(!quitting){e.preventDefault();mainWindow.hide();}});
+ for(const name of ['move','resize'])mainWindow.on(name,()=>{if(todayWindow&&!todayWindow.isDestroyed()&&todayWindow.isVisible()){clearInterval(todayAnimation);todayWindow.setBounds(todayBounds());}});
+ mainWindow.on('minimize',()=>{if(todayWindow&&!todayWindow.isDestroyed())todayWindow.hide();todayOpen=false;emit({kind:'today-panel',open:false});});
+ mainWindow.on('close',e=>{if(!quitting){e.preventDefault();mainWindow.hide();todayWindow?.hide();}});
  const {nativeImage}=require('electron');const trayImage=nativeImage.createFromPath(path.join(ROOT,'assets','ieum-icon.png'));tray=new Tray(trayImage.resize({width:20,height:20}));tray.setToolTip(role==='server'?'이음 교내 서버':'이음 학교 메신저');tray.on('double-click',bringMain);tray.setContextMenu(Menu.buildFromTemplate([{label:role==='server'?'서버 관리 열기':'메신저 열기',click:bringMain},{type:'separator'},{label:'이음 종료',click:()=>{quitting=true;app.quit()}}]));
  if(role==='server'){const cfg=readJSON(configPath());if(cfg){try{await startLocal(cfg);}catch{emit({kind:'server-start-error'});}}}
 });
@@ -75,7 +78,22 @@ expose('ieum:request',async(event,route,payload)=>{
  if(route==='/logout'){token=null;liveUsername=null;stopStream();emit({kind:'logout'});}return result;
 });
 expose('ieum:window',(event,action)=>{const w=BrowserWindow.fromWebContents(event.sender);if(action==='minimize')w.minimize();else if(action==='close')w.close();else if(action==='maximize')w.isMaximized()?w.unmaximize():w.maximize();else if(action==='show')w.show();});
-expose('ieum:resize',(event,open,position)=>{const w=BrowserWindow.fromWebContents(event.sender);if(w===mainWindow&&['client','demo'].includes(role))w.setSize(open&&position!=='top'?760:430,w.getSize()[1],true);});
+function todayBounds(){const b=mainWindow.getBounds(),area=screen.getDisplayMatching(b).workArea;const width=330,height=Math.min(b.height,area.height);return {x:Math.max(area.x,Math.min(todaySide==='right'?b.x+b.width:b.x-width,area.x+area.width-width)),y:Math.max(area.y,Math.min(b.y,area.y+area.height-height)),width,height};}
+function animateToday(open){
+ clearInterval(todayAnimation);if(!todayWindow||todayWindow.isDestroyed())return;
+ const target=todayBounds(),b=mainWindow.getBounds(),start=todayWindow.getBounds(),end=open?target:{...target,x:todaySide==='right'?b.x+b.width-target.width:b.x};
+ const began=Date.now();todayAnimation=setInterval(()=>{if(!todayWindow||todayWindow.isDestroyed()){clearInterval(todayAnimation);return;}const t=Math.min(1,(Date.now()-began)/220),ease=1-Math.pow(1-t,3);todayWindow.setBounds({...end,x:Math.round(start.x+(end.x-start.x)*ease)});if(t===1){clearInterval(todayAnimation);if(!open)todayWindow.hide();}},16);
+}
+expose('ieum:resize',()=>({ok:true}));
+expose('ieum:today',(event,open,position)=>{
+ const caller=BrowserWindow.fromWebContents(event.sender);if(caller!==mainWindow&&caller!==todayWindow)throw new Error('본창에서만 오늘 일정을 열 수 있습니다.');
+ todayOpen=!!open;
+ todaySide=position==='right'?'right':position==='left'?'left':todaySide;
+ if(open){if(!todayWindow||todayWindow.isDestroyed()){todayWindow=createWindow('ieum://app/index.html?todayPanel=1',{width:330,height:mainWindow.getBounds().height,minWidth:330,minHeight:300,parent:mainWindow,skipTaskbar:true,resizable:false});todayWindow.once('ready-to-show',()=>{if(!todayOpen)todayWindow.hide();});todayWindow.on('close',()=>{todayOpen=false;clearInterval(todayAnimation);emit({kind:'today-panel',open:false});});}
+ const target=todayBounds(),b=mainWindow.getBounds();todayWindow.setBounds({...target,x:todaySide==='right'?b.x+b.width-target.width:b.x});todayWindow.show();animateToday(true);
+ }else animateToday(false);
+ emit({kind:'today-panel',open:!!open});return {ok:true};
+});
 expose('ieum:workspace',(event,page)=>{if(!['inbox','calendar','announcements','links'].includes(page))throw new Error('지원하지 않는 작업 창입니다.');const previous=[...windows].find(w=>!w.isDestroyed()&&w.ieumPage===page);if(previous){previous.show();previous.focus();return {ok:true};}const w=createWindow('ieum://app/index.html?workspace='+page,{width:page==='calendar'?1180:1080,height:800,minWidth:700});w.ieumPage=page;return {ok:true};});
 expose('ieum:compose',(event,draft={})=>{if(!draft||typeof draft!=='object'||JSON.stringify(draft).length>4*1024*1024)throw new Error('작성 내용이 너무 큽니다.');const w=createWindow('ieum://app/index.html?compose=1',{width:720,height:820,minWidth:620});w.ieumComposeDraft=draft;return {ok:true};});
 expose('ieum:compose-draft',event=>BrowserWindow.fromWebContents(event.sender).ieumComposeDraft||BrowserWindow.fromWebContents(event.sender).ieumEventDraft||{});
