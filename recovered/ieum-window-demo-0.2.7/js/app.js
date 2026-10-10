@@ -296,11 +296,22 @@
     const notes=state.data.notes.filter(n=>n.date===state.today).sort((a,b)=>a.time.localeCompare(b.time));
     return `<aside class="compact-today agenda-list-panel" aria-label="오늘 일정 목록"><header class="agenda-header"><div><h2>${ib("today-prev","이전 날짜","left")}${fmtDate(state.today,{month:"long",day:"numeric",weekday:"short"})}${ib("today-next","다음 날짜","right")}</h2><small>오늘의 일정 · 목록</small></div>${button("add-event","일정 추가","plus")}</header><div class="agenda-list" role="list">${deadlines.map(d=>`<div class="agenda-list-row ${d.done?"done":""}" role="listitem"><input type="checkbox" data-deadline="${d.id}" aria-label="${esc(d.title)} 완료" ${d.done?"checked":""}><button data-action="deadline-detail" data-deadline="${d.id}"><span class="agenda-list-time">${d.dueTime?esc(d.dueTime)+"까지":"오늘 마감"}</span><strong>${esc(d.title)}</strong><small>제출 마감${d.done?" · 완료":""}</small></button></div>`).join("")}${events.map(e=>`<div class="agenda-list-row" role="listitem"><button data-action="view-event" data-event="${e.id}"><span class="agenda-list-time">${esc(e.start)}–${esc(e.end)}</span><strong>${esc(e.title)}</strong><small>${esc(e.place || typeLabel(e.type))}</small></button></div>`).join("")}${notes.map(n=>`<div class="agenda-list-row" role="listitem"><button data-action="view-note" data-note="${n.id}"><span class="agenda-list-time">${esc(n.time)}</span><strong>${esc(n.text)}</strong><small>메모</small></button></div>`).join("")}${!events.length&&!deadlines.length&&!notes.length?'<p class="agenda-list-empty">이날 등록된 일정이 없어요.</p>':""}</div></aside>`;
   }
+  function timelineRange(days){
+    const events=state.data.events.filter(e=>days.includes(e.date)),points=state.data.deadlines.filter(d=>d.source&&d.dueTime&&days.includes(d.date));
+    const start=Math.max(0,Math.min(480,...events.map(e=>Math.floor(minutes(e.start)/60)*60),...points.map(d=>Math.floor(minutes(d.dueTime)/60)*60)));
+    const end=Math.min(1440,Math.max(1080,...events.map(e=>Math.ceil(minutes(e.end)/60)*60),...points.map(d=>(Math.floor(minutes(d.dueTime)/60)+1)*60)));
+    return {start,end,hours:(end-start)/60};
+  }
+  function timelinePoints(date,start,scale){
+    const points=state.data.deadlines.filter(d=>d.source&&d.date===date&&d.dueTime).sort((a,b)=>a.dueTime.localeCompare(b.dueTime));
+    const groups=[];for(const d of points){const last=groups.at(-1);if(last&&(minutes(d.dueTime)-minutes(last.at(-1).dueTime))*scale<32)last.push(d);else groups.push([d]);}
+    return groups.map(group=>group.map((d,i)=>`<button class="timeline-point ${d.done?'done':''}" data-action="deadline-detail" data-deadline="${d.id}" data-time="${esc(d.dueTime)}" style="top:${(minutes(d.dueTime)-start)*scale}px;left:calc(${i*100/group.length}% + 4px);width:calc(${100/group.length}% - 8px)" title="${esc(d.title)} · ${esc(d.dueTime)}"><strong>${esc(d.dueTime)} · ${esc(d.title)}</strong></button>`).join('')).join('');
+  }
   function compactAgenda() {
     const events=state.data.events.filter(e=>e.date===state.today).sort((a,b)=>a.start.localeCompare(b.start));
     const manual=state.data.deadlines.filter(d=>!d.source),extracted=state.data.deadlines.filter(d=>d.source&&d.date===state.today);
-    const now=new Date(),position=(now.getHours()*60+now.getMinutes()-480)*56/60;
-    return `<aside class="compact-today"><header class="agenda-header"><div><h2>${ib("today-prev","이전 날짜","left")}${fmtDate(state.today,{month:"long",day:"numeric",weekday:"short"})}${ib("today-next","다음 날짜","right")}</h2><small>오늘의 일정</small></div>${ib("toggle-today","오늘 일정 닫기","x")}</header><section class="agenda-deadlines"><h3>제출 마감</h3>${manual.length?manual.map(d=>{const diff=Math.round((parseDate(d.date)-parseDate(Mock.today))/86400000);return `<label class="task-row"><input type="checkbox" data-deadline="${d.id}" ${d.done?'checked':''}><span class="${d.done?'done':''}">${esc(d.title)}${d.dueTime ? `<small> · ${esc(d.dueTime)}까지</small>` : ""}</span><span class="due">${d.done?'완료':diff<0?'기한 지남':diff===0?'D-Day':'D-'+diff}</span></label>`}).join(""):'<p class="muted">등록된 제출 마감이 없어요.</p>'}</section><section class="agenda-body"><h3>내 일정 ${events.length+extracted.length?'· '+(events.length+extracted.length):''}</h3>${extracted.map(d=>`<button class="extracted-agenda-item ${d.done?'done':''}" data-action="deadline-detail" data-deadline="${d.id}"><strong>${esc(d.title)}</strong><small>${esc(d.date)} · ${esc(d.dueTime)}까지 · 메시지에서 자동 등록</small></button>`).join('')}<div class="agenda-timeline"><div class="agenda-hours">${Array.from({length:10},(_,i)=>`<div class="agenda-hour">${String(i+8).padStart(2,'0')}</div>`).join("")}</div><div class="agenda-grid" data-calendar-timeline="${state.today}" aria-label="오늘 일정 시간대 드래그 선택">${events.map((e,i)=>{const overlapping=events.filter(o=>minutes(o.start)<minutes(e.end)&&minutes(o.end)>minutes(e.start));const n=overlapping.length,slot=overlapping.indexOf(e);return `<button class="event ${e.type}" data-action="view-event" data-event="${e.id}" style="top:${(minutes(e.start)-480)*56/60}px;height:${Math.max(28,(minutes(e.end)-minutes(e.start))*56/60)}px;left:calc(${slot*100/n}% + 4px);width:calc(${100/n}% - 8px);right:auto"><strong>${esc(e.title)}</strong><small>${e.start}–${e.end}</small><small>${esc(e.place)}</small></button>`}).join("")}${state.today===Mock.today&&position>=0&&position<=560?`<div class="now-line" style="top:${position}px"></div>`:""}</div></div>${state.data.notes.filter(n=>n.date===state.today).map(n=>`<button class="agenda-note" data-action="view-note" data-note="${n.id}">${esc(n.time)} · ${esc(n.text)}</button>`).join("")}</section><footer class="agenda-footer">${state.today!==Mock.today?button("today-reset","오늘로","calendar"):button("checklist","내 체크리스트","checklist")}</footer></aside>`;
+    const range=timelineRange([state.today]),position=(minutes(new Date().toLocaleTimeString("en-GB",{timeZone:"Asia/Seoul",hour:"2-digit",minute:"2-digit"}))-range.start)*56/60;
+    return `<aside class="compact-today"><header class="agenda-header"><div><h2>${ib("today-prev","이전 날짜","left")}${fmtDate(state.today,{month:"long",day:"numeric",weekday:"short"})}${ib("today-next","다음 날짜","right")}</h2><small>오늘의 일정</small></div>${ib("toggle-today","오늘 일정 닫기","x")}</header><section class="agenda-deadlines"><h3>제출 마감</h3>${manual.length?manual.map(d=>{const diff=Math.round((parseDate(d.date)-parseDate(Mock.today))/86400000);return `<label class="task-row"><input type="checkbox" data-deadline="${d.id}" ${d.done?'checked':''}><span class="${d.done?'done':''}">${esc(d.title)}${d.dueTime ? `<small> · ${esc(d.dueTime)}까지</small>` : ""}</span><span class="due">${d.done?'완료':diff<0?'기한 지남':diff===0?'D-Day':'D-'+diff}</span></label>`}).join(""):'<p class="muted">등록된 제출 마감이 없어요.</p>'}</section><section class="agenda-body"><h3>내 일정 ${events.length+extracted.length?'· '+(events.length+extracted.length):''}</h3><div class="agenda-timeline"><div class="agenda-hours">${Array.from({length:range.hours},(_,i)=>`<div class="agenda-hour">${String(i+range.start/60).padStart(2,'0')}</div>`).join("")}</div><div class="agenda-grid" style="height:${range.hours*56}px" data-timeline-start="${range.start}" data-timeline-end="${range.end}" data-calendar-timeline="${state.today}" aria-label="오늘 일정 시간대 드래그 선택">${events.map((e,i)=>{const overlapping=events.filter(o=>minutes(o.start)<minutes(e.end)&&minutes(o.end)>minutes(e.start));const n=overlapping.length,slot=overlapping.indexOf(e);return `<button class="event ${e.type}" data-action="view-event" data-event="${e.id}" style="top:${(minutes(e.start)-range.start)*56/60}px;height:${Math.max(28,(minutes(e.end)-minutes(e.start))*56/60)}px;left:calc(${slot*100/n}% + 4px);width:calc(${100/n}% - 8px);right:auto"><strong>${esc(e.title)}</strong><small>${e.start}–${e.end}</small><small>${esc(e.place)}</small></button>`}).join("")}${timelinePoints(state.today,range.start,56/60)}${state.today===Mock.today&&position>=0&&position<=range.hours*56?`<div class="now-line" style="top:${position}px"></div>`:""}</div></div>${state.data.notes.filter(n=>n.date===state.today).map(n=>`<button class="agenda-note" data-action="view-note" data-note="${n.id}">${esc(n.time)} · ${esc(n.text)}</button>`).join("")}</section><footer class="agenda-footer">${state.today!==Mock.today?button("today-reset","오늘로","calendar"):button("checklist","내 체크리스트","checklist")}</footer></aside>`;
   }
   function heading(eyebrow, title, desc, actions = "") {
     return `<div class="page-heading"><div><div class="eyebrow">${esc(eyebrow)}</div><h1>${esc(title)}</h1><p>${esc(desc)}</p></div><div class="heading-actions">${actions}</div></div>`;
@@ -342,7 +353,7 @@
         )
         .join(
           "",
-        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.18</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 쪽지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
+        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.19</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 쪽지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
     );
   }
   const groupLabel=p=>String(p[state.group]||"").trim()||({grade:"학년 미지정",otherGroup:"기타 미지정"}[state.group]||"미지정");
@@ -1039,7 +1050,7 @@
     a.click();
   }
   function calendarPage() {
-    const days = Array.from({ length: 5 }, (_, i) => addDays(state.week, i));
+    const days = Array.from({ length: 5 }, (_, i) => addDays(state.week, i)),range=timelineRange(days);
     return (
       heading(
         "MAKE ROOM FOR WHAT MATTERS",
@@ -1049,10 +1060,10 @@
         button("monthly", "월간 달력", "calendar") +
           button("add-event", "일정 등록", "plus", "btn-primary"),
       ) +
-      `<div style="display:flex;align-items:center;justify-content:space-between;margin:-3px 0 18px;gap:10px"><span class="stat-line">${icon("calendar", 15)} 이번 주 ${state.data.events.filter((e) => days.includes(e.date)).length}개의 일정</span><div class="calendar-toolbar">${ib("week-prev", "이전 주", "left")}<h2>${fmtDate(days[0], { month: "numeric", day: "numeric" })} — ${fmtDate(days[4], { month: "numeric", day: "numeric" })}</h2>${ib("week-next", "다음 주", "right")}${button("week-reset", "이번 주")}</div></div><div class="calendar-layout"><section class="panel calendar-grid"><div class="time-column"><div class="calendar-top">일정</div><div class="academic-row">학사 일정</div><div class="deadline-row">제출 마감</div><div class="hours">${Array.from({ length: 10 }, (_, i) => `<div class="hour-label">${String(i + 8).padStart(2, "0")}:00</div>`).join("")}</div></div>${days.map((day) => dayColumn(day)).join("")}</section><aside class="calendar-aside"><section class="panel mini-calendar">${miniMonth()}</section>${taskPanel()}${checklistPanel()}<div class="panel legend"><span><i style="background:#7898bb"></i>단체 일정</span><span><i style="background:#80aa71"></i>개인 일정</span><span><i style="background:#be9c64"></i>정기 업무</span></div></aside></div>`
+      `<div style="display:flex;align-items:center;justify-content:space-between;margin:-3px 0 18px;gap:10px"><span class="stat-line">${icon("calendar", 15)} 이번 주 ${state.data.events.filter((e) => days.includes(e.date)).length}개의 일정</span><div class="calendar-toolbar">${ib("week-prev", "이전 주", "left")}<h2>${fmtDate(days[0], { month: "numeric", day: "numeric" })} — ${fmtDate(days[4], { month: "numeric", day: "numeric" })}</h2>${ib("week-next", "다음 주", "right")}${button("week-reset", "이번 주")}</div></div><div class="calendar-layout"><section class="panel calendar-grid"><div class="time-column"><div class="calendar-top">일정</div><div class="academic-row">학사 일정</div><div class="deadline-row">제출 마감</div><div class="hours" style="height:${range.end-range.start}px">${Array.from({ length: range.hours }, (_, i) => `<div class="hour-label">${String(i + range.start/60).padStart(2, "0")}:00</div>`).join("")}</div></div>${days.map((day) => dayColumn(day,range)).join("")}</section><aside class="calendar-aside"><section class="panel mini-calendar">${miniMonth()}</section>${taskPanel()}${checklistPanel()}<div class="panel legend"><span><i style="background:#7898bb"></i>단체 일정</span><span><i style="background:#80aa71"></i>개인 일정</span><span><i style="background:#be9c64"></i>정기 업무</span></div></aside></div>`
     );
   }
-  function dayColumn(day) {
+  function dayColumn(day,range=timelineRange([day])) {
     const events = state.data.events
       .filter((e) => e.date === day)
       .sort((a, b) => a.start.localeCompare(b.start));
@@ -1091,36 +1102,35 @@
       }
       return Math.max(...cluster.map((c) => layouts.get(c.id))) + 1;
     };
-    const now = new Date(),
-      nowMin = now.getHours() * 60 + now.getMinutes();
+    const nowMin=minutes(new Date().toLocaleTimeString("en-GB",{timeZone:"Asia/Seoul",hour:"2-digit",minute:"2-digit"}));
     return `<div class="day-column ${day === Mock.today ? "today" : ""} ${state.expanded === day ? "expanded" : state.expanded ? "dim" : ""}"><button class="calendar-top" data-action="expand-day" data-date="${day}" aria-pressed="${state.expanded === day}">${fmtDate(day, { weekday: "short" })}<b>${parseDate(day).getDate()}</b></button><div class="academic-row">${state.data.academic
       .filter((a) => a.date === day)
       .map((a) => esc(a.title))
       .join("<br>")}</div><div class="deadline-row">${state.data.deadlines
-      .filter((d) => d.date === day)
+      .filter((d) => d.date === day&&!d.source)
       .map(
         (d) =>
           `<button class="deadline-pill ${d.done ? "done" : ""}" data-action="deadline-detail" data-deadline="${d.id}">${icon(d.done ? "check" : "clock", 10)}${esc(d.title)}${d.dueTime ? ` · ${esc(d.dueTime)}까지` : ""}</button>`,
       )
       .join(
         "",
-      )}</div><div class="hours" data-day-hours="${day}" data-calendar-timeline="${day}" title="드래그로 시간대를 선택하거나 두 번 클릭해 일정을 등록하세요">${events
+      )}</div><div class="hours" style="height:${range.end-range.start}px" data-timeline-start="${range.start}" data-timeline-end="${range.end}" data-day-hours="${day}" data-calendar-timeline="${day}" title="드래그로 시간대를 선택하거나 두 번 클릭해 일정을 등록하세요">${events
       .map((e) => {
-        const top = minutes(e.start) - 480,
+        const top = minutes(e.start) - range.start,
           height = minutes(e.end) - minutes(e.start),
           n = clusterCount(e),
           slot = layouts.get(e.id);
-        return `<button class="event ${e.type}" data-action="view-event" data-event="${e.id}" style="top:${Math.max(0, top)}px;height:${Math.max(28, Math.min(600 - Math.max(0, top), height))}px;left:calc(${(slot * 100) / n}% + 5px);width:calc(${100 / n}% - 10px);right:auto" title="${esc(e.title)} · ${e.start}–${e.end}"><strong>${e.type === "personal" ? icon("lock", 10) + " " : ""}${esc(e.title)}</strong><small>${e.start}–${e.end}</small><small>${esc(e.place)}</small></button>`;
+        return `<button class="event ${e.type}" data-action="view-event" data-event="${e.id}" style="top:${Math.max(0, top)}px;height:${Math.max(28, Math.min(range.end-range.start - Math.max(0, top), height))}px;left:calc(${(slot * 100) / n}% + 5px);width:calc(${100 / n}% - 10px);right:auto" title="${esc(e.title)} · ${e.start}–${e.end}"><strong>${e.type === "personal" ? icon("lock", 10) + " " : ""}${esc(e.title)}</strong><small>${e.start}–${e.end}</small><small>${esc(e.place)}</small></button>`;
       })
       .join("")}${state.data.notes
       .filter((n) => n.date === day)
       .map(
         (n) =>
-          `<button class="event-note" style="top:${Math.max(0, Math.min(575, minutes(n.time) - 480))}px" data-action="view-note" data-note="${n.id}" title="${esc(n.text)}">${icon("note", 11)} ${esc(n.text)}</button>`,
+          `<button class="event-note" style="top:${Math.max(0, Math.min(range.end-range.start-25, minutes(n.time) - range.start))}px" data-action="view-note" data-note="${n.id}" title="${esc(n.text)}">${icon("note", 11)} ${esc(n.text)}</button>`,
       )
       .join(
         "",
-      )}${day === Mock.today && nowMin >= 480 && nowMin <= 1080 ? `<div class="now-line" style="top:${nowMin - 480}px"></div>` : ""}</div></div>`;
+      )}${timelinePoints(day,range.start,1)}${day === Mock.today && nowMin >= range.start && nowMin <= range.end ? `<div class="now-line" style="top:${nowMin - range.start}px"></div>` : ""}</div></div>`;
   }
   function monthDates(anchor) {
     const d = parseDate(anchor);
@@ -2503,14 +2513,14 @@
     const grid=e.target.closest("[data-calendar-timeline]");
     if(!grid || e.button!==0 || !e.isPrimary || e.target.closest("button,input,a,.event-note") || $("#modal-root").firstChild) return;
     cancelTimelineSelection?.();
-    const pointer=e.pointerId, initialY=e.clientY;
-    const timeAt=y=>{const rect=grid.getBoundingClientRect();return Math.max(480,Math.min(1080,480+Math.round((y-rect.top)/rect.height*600/15)*15));};
+    const pointer=e.pointerId, initialY=e.clientY,base=Number(grid.dataset.timelineStart||480),limit=Number(grid.dataset.timelineEnd||1080),span=limit-base;
+    const timeAt=y=>{const rect=grid.getBoundingClientRect();return Math.max(base,Math.min(limit,base+Math.round((y-rect.top)/rect.height*span/15)*15));};
     const anchor=timeAt(e.clientY);let moved=false,range;
     const band=document.createElement("div");band.className="timeline-selection";band.setAttribute("aria-live","polite");grid.append(band);
     const paint=y=>{
       const edge=timeAt(y);let start=Math.min(anchor,edge),end=Math.max(anchor,edge);
-      if(start===end){start=Math.min(start,1065);end=start+15;}
-      range={start,end};band.style.top=((start-480)/600*100)+"%";band.style.height=((end-start)/600*100)+"%";
+      if(start===end){start=Math.min(start,limit-15);end=start+15;}
+      range={start,end};band.style.top=((start-base)/span*100)+"%";band.style.height=((end-start)/span*100)+"%";
       band.textContent=formatTimelineTime(start)+"–"+formatTimelineTime(end);
     };
     const cleanup=()=>{
@@ -2538,9 +2548,9 @@
     if (hours && !e.target.closest(".event,.event-note")) {
       const y = Math.max(
         0,
-        Math.min(570, e.clientY - hours.getBoundingClientRect().top),
+        Math.min(hours.getBoundingClientRect().height-30, e.clientY - hours.getBoundingClientRect().top),
       );
-      const start = 480 + Math.floor(y / 30) * 30;
+      const start = Number(hours.dataset.timelineStart||480) + Math.floor(y / 30) * 30;
       eventForm({
         date: hours.dataset.dayHours,
         start:
