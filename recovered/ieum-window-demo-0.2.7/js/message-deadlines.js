@@ -40,7 +40,7 @@
    // Explicit time must be associated with the deadline, not a meeting earlier in the sentence.
    m=clause.match(/(오전|오후)?\s*(\d{1,2})(?::(\d{2})|\s*시(?:\s*(\d{1,2})\s*분|\s*(반))?)\s*(?:전\s*)?(?:까지|마감)/);
    if(!m){const times=[...clause.matchAll(/(오전|오후)?\s*(\d{1,2})(?::(\d{2})|\s*시(?:\s*(\d{1,2})\s*분|\s*(반))?)/g)];if(times.length===1)m=times[0];}
-   if(m){let hour=Number(m[2]),minute=Number(m[3]||m[4]||(m[5]?30:0));if(m[1]){if(hour<1||hour>12)continue;hour=hour%12+(m[1]==='오후'?12:0);}if(hour>23||minute>59)continue;dueTime=pad(hour)+':'+pad(minute);rule='explicit';}
+   if(m){let hour=Number(m[2]),minute=Number(m[3]||m[4]||(m[5]?30:0));if(m[1]){if(hour<1||hour>12)continue;hour=hour%12+(m[1]==='오후'?12:0);}else if(!m[3]&&hour>=1&&hour<=7)hour+=12;if(hour>23||minute>59)continue;dueTime=pad(hour)+':'+pad(minute);rule='explicit';}
    else if(/오전\s*중|점심\s*시간\s*전\s*까지/.test(clause)){dueTime=lunchTime(date,context);rule='lunch';}
    else if(hasDate){dueTime='16:00';}
    else continue;

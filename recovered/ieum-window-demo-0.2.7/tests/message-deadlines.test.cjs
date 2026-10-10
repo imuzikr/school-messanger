@@ -62,3 +62,15 @@ test('existing mail with identical subject/body backfills once and stays deleted
  rules.applyDemo(data);assert.equal(data.events.length,1);assert.equal(data.events[0].start,'18:00');assert.equal(data.events[0].end,'19:00');assert.equal(data.deadlines.length,0);assert.equal(data.mails[0].eventId,data.events[0].id);
  rules.applyDemo(data);assert.equal(data.events.length,1);data.events=[];const restored=JSON.parse(JSON.stringify(data));rules.applyDemo(restored);assert.equal(restored.events.length,0);
 });
+
+test('every unqualified 1–7시 is afternoon for deadlines and appointments',()=>{
+ for(let h=1;h<=7;h++){
+  const expected=String(h+12)+':00';
+  assert.equal(rules.extract(`내일 ${h}시까지 제출`,sent)[0].dueTime,expected);
+  assert.equal(rules.extractStartEvents(`내일 ${h}시에 회의`,sent)[0].start,expected);
+  assert.equal(rules.extractEvents(`내일 ${h}시부터 ${h+1}시까지 회의`,sent)[0]?.start, h===7?undefined:expected);
+  assert.equal(rules.extract(`내일 오전 ${h}시까지 제출`,sent)[0].dueTime,'0'+h+':00');
+  assert.equal(rules.extract(`내일 0${h}:00까지 제출`,sent)[0].dueTime,'0'+h+':00');
+ }
+ assert.equal(rules.extract('내일 7시 반까지 제출',sent)[0].dueTime,'19:30');
+});
