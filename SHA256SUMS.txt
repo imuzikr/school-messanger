@@ -1,1 +1,1 @@
-d3a54bdfe215e8dd9f72b9f128fefb1241194dde0c1c9fe88d165694c9410c47  Ieum-demo-Setup-0.2.6-x64.exe
+e6408c2cfc5b0536da113e20d60ec06e3c3130331f015f6d0cebe23e168cd77a  Ieum-demo-Setup-0.2.7-x64.exe
