@@ -67,3 +67,10 @@ body{background:#edf0ed}.desktop-frame{display:flex;width:min(760px,calc(100vw -
 
 body:not(.installed) .desktop-frame{overflow:visible}body:not(.installed) .desktop-frame>.shell{overflow:hidden;border-radius:15px}
 .today-panel-window .compact-today,.today-drawer>.compact-today{display:flex}
+
+/* The calendar emerges from behind the messenger rather than covering it. */
+.desktop-frame>.shell{position:relative;z-index:2;background:var(--surface,#fff)}.today-drawer{z-index:1}
+.installed.compact-mode .desktop-frame{width:100vw;max-width:none;margin:0}
+.installed.compact-mode .desktop-frame>.shell{width:100%;min-width:0;flex:1 1 0}
+.compact-mode .compact-body>.workspace{margin:0;min-width:0;flex:1 1 0}
+.compact-mode .page,.compact-mode .people-layout,.compact-mode .people-panel{width:100%;max-width:none;margin:0}

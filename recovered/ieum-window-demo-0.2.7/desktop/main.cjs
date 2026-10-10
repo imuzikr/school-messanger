@@ -40,7 +40,7 @@ function connectStream(){
 }
 function createWindow(url,options={}){
  const window=new BrowserWindow({width:options.width||430,height:options.height||830,minWidth:options.minWidth||390,minHeight:600,show:false,frame:false,backgroundColor:'#f6f8f4',title:'이음',...options,webPreferences:{preload:path.join(__dirname,'preload.cjs'),additionalArguments:role==='demo'?['--ieum-demo']:[],contextIsolation:true,nodeIntegration:false,sandbox:true,webSecurity:true}});
- windows.add(window);window.once('ready-to-show',()=>window.show());window.on('closed',()=>windows.delete(window));
+ windows.add(window);window.once('ready-to-show',()=>{if(url.includes('todayPanel=1')){if(todayOpen)openTodayPanel();}else window.show();});window.on('closed',()=>windows.delete(window));
  window.webContents.setWindowOpenHandler(({url})=>{try{if(['https:','http:'].includes(new URL(url).protocol))shell.openExternal(url);}catch{}return {action:'deny'};});
  window.webContents.on('will-navigate',(e,target)=>{if(!target.startsWith('ieum://app/'))e.preventDefault();});
  window.loadURL(url);return window;
@@ -79,18 +79,20 @@ expose('ieum:request',async(event,route,payload)=>{
 });
 expose('ieum:window',(event,action)=>{const w=BrowserWindow.fromWebContents(event.sender);if(action==='minimize')w.minimize();else if(action==='close')w.close();else if(action==='maximize')w.isMaximized()?w.unmaximize():w.maximize();else if(action==='show')w.show();});
 function todayBounds(){const b=mainWindow.getBounds(),area=screen.getDisplayMatching(b).workArea;const width=330,height=Math.min(b.height,area.height);return {x:Math.max(area.x,Math.min(todaySide==='right'?b.x+b.width:b.x-width,area.x+area.width-width)),y:Math.max(area.y,Math.min(b.y,area.y+area.height-height)),width,height};}
+function openTodayPanel(){const target=todayBounds(),b=mainWindow.getBounds();todayWindow.setBounds({...target,x:todaySide==='right'?b.x+b.width-target.width:b.x});todayWindow.showInactive();mainWindow.moveTop();animateToday(true);}
 function animateToday(open){
  clearInterval(todayAnimation);if(!todayWindow||todayWindow.isDestroyed())return;
  const target=todayBounds(),b=mainWindow.getBounds(),start=todayWindow.getBounds(),end=open?target:{...target,x:todaySide==='right'?b.x+b.width-target.width:b.x};
- const began=Date.now();todayAnimation=setInterval(()=>{if(!todayWindow||todayWindow.isDestroyed()){clearInterval(todayAnimation);return;}const t=Math.min(1,(Date.now()-began)/220),ease=1-Math.pow(1-t,3);todayWindow.setBounds({...end,x:Math.round(start.x+(end.x-start.x)*ease)});if(t===1){clearInterval(todayAnimation);if(!open)todayWindow.hide();}},16);
+ mainWindow.moveTop();
+ const began=Date.now();todayAnimation=setInterval(()=>{if(!todayWindow||todayWindow.isDestroyed()){clearInterval(todayAnimation);return;}const t=Math.min(1,(Date.now()-began)/220),ease=1-Math.pow(1-t,3);todayWindow.setBounds({...end,x:Math.round(start.x+(end.x-start.x)*ease)});mainWindow.moveTop();if(t===1){clearInterval(todayAnimation);if(!open)todayWindow.hide();}},16);
 }
 expose('ieum:resize',()=>({ok:true}));
 expose('ieum:today',(event,open,position)=>{
  const caller=BrowserWindow.fromWebContents(event.sender);if(caller!==mainWindow&&caller!==todayWindow)throw new Error('본창에서만 오늘 일정을 열 수 있습니다.');
  todayOpen=!!open;
  todaySide=position==='right'?'right':position==='left'?'left':todaySide;
- if(open){if(!todayWindow||todayWindow.isDestroyed()){todayWindow=createWindow('ieum://app/index.html?todayPanel=1',{width:330,height:mainWindow.getBounds().height,minWidth:330,minHeight:300,parent:mainWindow,skipTaskbar:true,resizable:false});todayWindow.once('ready-to-show',()=>{if(!todayOpen)todayWindow.hide();});todayWindow.on('close',()=>{todayOpen=false;clearInterval(todayAnimation);emit({kind:'today-panel',open:false});});}
- const target=todayBounds(),b=mainWindow.getBounds();todayWindow.setBounds({...target,x:todaySide==='right'?b.x+b.width-target.width:b.x});todayWindow.show();animateToday(true);
+ if(open){if(!todayWindow||todayWindow.isDestroyed()){todayWindow=createWindow('ieum://app/index.html?todayPanel=1',{width:330,height:mainWindow.getBounds().height,minWidth:330,minHeight:300,skipTaskbar:true,resizable:false});todayWindow.on('closed',()=>{todayWindow=null;});todayWindow.on('close',()=>{todayOpen=false;clearInterval(todayAnimation);emit({kind:'today-panel',open:false});});}
+ else if(!todayWindow.webContents.isLoadingMainFrame())openTodayPanel();
  }else animateToday(false);
  emit({kind:'today-panel',open:!!open});return {ok:true};
 });

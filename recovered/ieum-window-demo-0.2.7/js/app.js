@@ -341,7 +341,7 @@
         )
         .join(
           "",
-        )}</div><div class="school-tools"><small class="muted">v0.2.11</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 쪽지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
+        )}</div><div class="school-tools"><small class="muted">v0.2.12</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 쪽지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
     );
   }
   const groupLabel=p=>String(p[state.group]||"").trim()||({grade:"학년 미지정",otherGroup:"기타 미지정"}[state.group]||"미지정");
@@ -1571,11 +1571,11 @@
       d = target.dataset;
     $("#context-root").innerHTML = "";
     if(action === "window-minimize" || action === "window-close" || action === "window-maximize"){windowApi?.windowAction(action.slice(7));return;}
-    if(action === "makeup-notice"){composeMail({noticeType:"makeup",title:"보강 안내",to:[...state.selected]});return;}
-    if(action === "lesson-change"){composeMail({noticeType:"lessonChange",title:"수업 변경 안내",to:[...state.selected]});return;}
+    if(action === "makeup-notice"){if(target.closest(".school-work-menu"))closeModal();composeMail({noticeType:"makeup",title:"보강 안내",to:[...state.selected]});return;}
+    if(action === "lesson-change"){if(target.closest(".school-work-menu"))closeModal();composeMail({noticeType:"lessonChange",title:"수업 변경 안내",to:[...state.selected]});return;}
     if(action === "editor-link"){insertEditorLink();return;}
     if(action === "class-teachers"){classTeachersForm();return;}
-    if(action === "bell-schedule"){bellScheduleForm();return;}
+    if(action === "bell-schedule"){if(target.closest(".school-work-menu"))closeModal();bellScheduleForm();return;}
     if(action === "nav-school-work"){openModal("교무업무",'<div class="school-work-menu">'+button("makeup-notice","보강 안내","calendar")+button("lesson-change","수업 변경","calendar")+button("bell-schedule","일과표","clock")+'</div>',button("close-modal","닫기"));return;}
     if(action === "back-main"){state.page="people";render();return;}
     if(action === "import-server"){native.importConnection().then(value=>{if(value?.error)toast("서버 연결 실패",value.error);else if(value){network.connection=value;login();toast("서버 연결 파일을 가져왔어요",value.schoolName);}});return;}
