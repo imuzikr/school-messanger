@@ -43,3 +43,22 @@ test('training time ranges are appointments, not submission deadlines',()=>{
 test('demo converts an incorrectly classified existing training and deduplicates appointments',()=>{
  const text='내일 1시에서 3시까지 교직원 연수가 있습니다';const data={rooms:[{messages:[{id:'training',text,createdAt:sent}]}],mails:[],deadlines:[{id:'old-wrong',source:{kind:'message',id:'training'},note:text}],events:[]};rules.applyDemo(data);assert.equal(data.deadlines.length,0);assert.equal(data.events.length,1);rules.applyDemo(data);assert.equal(data.events.length,1);data.events=[];rules.applyDemo(data);assert.equal(data.events.length,0);
 });
+
+test('single start notices become one-hour appointments; explicit times and Korean send date win',()=>{
+ for(const [text,start,end,date] of [
+  ['6시에 교무실로 모여주세요','18:00','19:00','2026-10-11'],
+  ['오늘 6시에 교무실로 모여주세요','18:00','19:00','2026-10-11'],
+  ['오늘 오전 6시에 교무실로 모여주세요','06:00','07:00','2026-10-11'],
+  ['내일 오후 3시 반에 회의','15:30','16:30','2026-10-12'],
+  ['다음 주 수요일 09:40에 모여주세요','09:40','10:40','2026-10-14']
+ ]){const entries=rules.extractStartEvents(text,sent);assert.equal(entries.length,1);assert.equal(entries[0].start,start);assert.equal(entries[0].end,end);assert.equal(entries[0].date,date);assert.equal(entries[0].type,'personal');assert.deepEqual(rules.extract(text,sent),[]);}
+ for(const text of ['오늘 25:00에 모여주세요','오늘 오전 13시에 회의','오늘 10시 회의 취소','오늘 10시까지 모여주세요','오늘 10시에 제출','오늘 회의','오늘 10시부터 11시까지 회의'])assert.deepEqual(rules.extractStartEvents(text,sent),[]);
+});
+test('one-hour appointments across midnight remain sixty minutes',()=>{
+ const e=rules.extractStartEvents('오늘 23:30에 회의',sent);assert.deepEqual(e.map(x=>[x.date,x.start,x.end]),[['2026-10-11','23:30','24:00'],['2026-10-12','00:00','00:30']]);
+});
+test('existing mail with identical subject/body backfills once and stays deleted after re-query',()=>{
+ const text='오늘 6시에 교무실로 모여주세요';const data={mails:[{id:'old-start',title:text,body:text,createdAt:sent,folder:'inbox'}],rooms:[],deadlines:[],events:[]};
+ rules.applyDemo(data);assert.equal(data.events.length,1);assert.equal(data.events[0].start,'18:00');assert.equal(data.events[0].end,'19:00');assert.equal(data.deadlines.length,0);assert.equal(data.mails[0].eventId,data.events[0].id);
+ rules.applyDemo(data);assert.equal(data.events.length,1);data.events=[];const restored=JSON.parse(JSON.stringify(data));rules.applyDemo(restored);assert.equal(restored.events.length,0);
+});

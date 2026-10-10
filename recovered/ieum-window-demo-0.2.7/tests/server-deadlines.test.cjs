@@ -35,6 +35,17 @@ test('LAN send -> sender and recipient deadlines; atomic retry, deletion, restar
   const training={type:'message.send',id:'m-training',room:'r-test',value:{text:'내일 1시에서 3시까지 교직원 연수가 있습니다.'}};
   await sync(admin,[training]);await sync(admin,[training]);for(const token of [admin,recipient]){const data=(await boot(token)).data;const e=data.events.filter(e=>e.source?.id==='m-training');assert.equal(e.length,1);assert.equal(e[0].start,'13:00');assert.equal(e[0].end,'15:00');assert.ok(!data.deadlines.some(d=>d.source?.id==='m-training'));}
   const event=(await boot(recipient)).data.events.find(e=>e.source?.id==='m-training');await sync(recipient,[{type:'event.delete',id:event.id}]);await sync(admin,[training]);assert.ok(!(await boot(recipient)).data.events.some(e=>e.source?.id==='m-training'));
+  const text='오늘 6시에 교무실로 모여주세요',single={type:'mail.send',id:'mail-start',value:{title:text,body:text,to:[r.id],files:[]}};
+  await sync(admin,[single]);await sync(admin,[single]);
+  for(const token of [admin,recipient]){const d=(await boot(token)).data,e=d.events.filter(e=>e.source?.id==='mail-start');assert.equal(e.length,1);assert.equal(e[0].start,'18:00');assert.equal(e[0].end,'19:00');assert.ok(!d.deadlines.some(d=>d.source?.id==='mail-start'));}
+  const singleEvent=(await boot(recipient)).data.events.find(e=>e.source?.id==='mail-start');await sync(recipient,[{type:'event.delete',id:singleEvent.id}]);
+  const senderEvent=(await boot(admin)).data.events.find(e=>e.source?.id==='mail-start');
+  await server.close();server=null;
+  // Simulate an older version that saved the mail but could not extract its start time.
+  const fixture=new (require('node:sqlite').DatabaseSync)(path.join(dataDir,'ieum.sqlite'));
+  fixture.prepare('DELETE FROM events WHERE id=?').run(senderEvent.id);fixture.prepare('DELETE FROM auto_deadline_sources WHERE item_id=?').run(senderEvent.id);fixture.close();
+  server=await start();admin=(await request('/login',{username:'admin',password})).token;recipient=(await request('/login',{username:'recipient',password:password+'x'})).token;
+  assert.equal((await boot(admin)).data.events.filter(e=>e.source?.id==='mail-start').length,1);assert.equal((await boot(recipient)).data.events.filter(e=>e.source?.id==='mail-start').length,0);
   const privateId=(await boot(recipient)).data.deadlines[0].id;assert.equal((await sync(admin,[{type:'item.delete',id:privateId}])).status,403);
  }finally{if(server)await server.close();fs.rmSync(dataDir,{recursive:true,force:true});}
 });

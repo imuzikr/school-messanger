@@ -353,7 +353,7 @@
         )
         .join(
           "",
-        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.19</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 쪽지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
+        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.20</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 쪽지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
     );
   }
   const groupLabel=p=>String(p[state.group]||"").trim()||({grade:"학년 미지정",otherGroup:"기타 미지정"}[state.group]||"미지정");
@@ -911,8 +911,8 @@
     const preview=()=>{
       const out=$("#automatic-deadline-preview");
       if($("#lesson-kind").value){out.textContent="선택한 수업 안내는 교시별 일정으로 자동 등록됩니다.";return;}
-      const entries=[...window.IeumDeadlines.extract($("#mail-editor").innerText,Date.now(),state.data),...window.IeumDeadlines.extractEvents($("#mail-editor").innerText,Date.now())];
-      out.textContent=entries.length?"발송 시 자동 등록: "+entries.map(d=>d.start?`${d.date} ${d.start}–${d.end}`:`${d.date} ${d.dueTime}까지`).join(" / ")+" · 발신자·수신자 캘린더":"본문의 일정·마감 표현은 발송 시 내 일정에 자동 등록됩니다. 예: 내일까지 제출, 다음 주 수요일 오후 3시까지 회신. ‘직접 일정 추가’는 별도 일정을 작성할 때 사용합니다.";
+      const entries=[...window.IeumDeadlines.extract($("#mail-editor").innerText,Date.now(),state.data),...window.IeumDeadlines.extractEvents($("#mail-editor").innerText,Date.now()),...window.IeumDeadlines.extractStartEvents($("#mail-editor").innerText,Date.now())];
+      out.textContent=entries.length?"발송 시 자동 등록: "+entries.map(d=>d.start?`${d.date} ${d.start}–${d.end}`:`${d.date} ${d.dueTime}${d.rule==='appointment'?'':'까지'}`).join(" / ")+" · 발신자·수신자 캘린더":"본문의 일정·마감 표현은 발송 시 내 일정에 자동 등록됩니다. 예: 내일까지 제출, 다음 주 수요일 오후 3시까지 회신. ‘직접 일정 추가’는 별도 일정을 작성할 때 사용합니다.";
     };
     $("#mail-editor").addEventListener("input",preview);$("#lesson-kind").addEventListener("change",preview);preview();
     $("#compose-form").onsubmit = sendMail;
@@ -2092,11 +2092,11 @@
         let messageId=null;
         $("#demo-deadline-form").onsubmit=event=>{
           event.preventDefault();const text=$("#demo-deadline-text").value,at=$("#demo-deadline-sent").value+':00+09:00';
-          const entries=window.IeumDeadlines.extract(text,at,state.data);
+          const entries=[...window.IeumDeadlines.extract(text,at,state.data),...window.IeumDeadlines.extractStartEvents(text,at)];
           if(!entries.length){$("#demo-deadline-result").textContent="인식한 마감 일정이 없습니다. 예: 내일까지 제출, 다음 주 수요일 오후 3시까지 회신";return;}
           if(!messageId){messageId=uid("user-incoming");state.data.mails.unshift({id:messageId,from:state.data.people[0].id,to:["me"],title:"마감 안내 체험",body:text,createdAt:new Date(at).getTime(),date:window.IeumDeadlines.sentDate(at),time:at.slice(11,16),folder:"inbox",files:[],receipts:["unread"],unread:true});}
-          save();const added=state.data.deadlines.filter(d=>d.source?.id===messageId);
-          $("#demo-deadline-result").textContent=added.map(d=>`${d.date} ${d.dueTime} 마감`).join(" / ")+" · 다시 눌러도 중복 등록되지 않습니다.";
+          save();const added=[...state.data.deadlines,...state.data.events].filter(d=>d.source?.id===messageId);
+          $("#demo-deadline-result").textContent=added.map(d=>d.start?`${d.date} ${d.start}–${d.end}`:`${d.date} ${d.dueTime} 마감`).join(" / ")+" · 다시 눌러도 중복 등록되지 않습니다.";
           if(added[0]){state.today=added[0].date;state.week=weekStart(added[0].date);}render();
         };
         break;

@@ -67,6 +67,22 @@
   }
   return result;
  }
+ function extractStartEvents(text,sentAt){
+  const base=sentDate(sentAt);if(!base||typeof text!=='string')return [];
+  const result=[],seen=new Set();
+  for(const clause of text.slice(0,100000).split(/\n+|[!?。]+|\.(?=\s|$)/)){
+   if(!/모여|모이|모입|모일|집합|참석|회의|연수|수업|상담|행사|협의회|출장|교육|설명회|간담회|면담|모임|만나|만납/.test(clause)||/까지|제출|회신|마감|취소|철회|없습니다|하지\s*마|않[아습을]/.test(clause))continue;
+   const {date}=resolveDate(clause,base);if(!valid(date))continue;
+   const times=[...clause.matchAll(/(오전|오후)?\s*(\d{1,2})(?::(\d{2})|\s*시(?:\s*(\d{1,2})\s*분|\s*(반))?)/g)];if(times.length!==1)continue;
+   const m=times[0];let h=Number(m[2]),min=Number(m[3]||m[4]||(m[5]?30:0));
+   if(m[1]){if(h<1||h>12)continue;h=h%12+(m[1]==='오후'?12:0);}else if(!m[3]&&h>=1&&h<=7)h+=12;
+   if(h>23||min>59)continue;const dueTime=pad(h)+':'+pad(min),title=clause.trim().slice(0,150),identity=JSON.stringify([date,dueTime,title]);if(seen.has(identity))continue;seen.add(identity);
+   const endMinutes=h*60+min+60,entry={date,start:dueTime,end:pad(Math.floor(Math.min(endMinutes,1440)/60))+':'+pad(endMinutes>=1440?0:endMinutes%60),title,note:clause.trim().slice(0,1000),type:'personal',place:'',targets:[],rule:'start-event'};
+   result.push(entry);
+   if(endMinutes>1440)result.push({...entry,date:add(date,1),start:'00:00',end:'00:'+pad(endMinutes-1440)});
+  }
+  return result;
+ }
  const sourceKey=(kind,id,owner,index)=>JSON.stringify([kind,id,owner,index]);
  function applyDemo(data,owner='me'){
   data.autoDeadlineSources ||= {};data.deadlines ||= [];data.events ||= [];
@@ -75,7 +91,8 @@
   for(const m of data.mails||[])if(m.folder!=='trash'&&!m.notice&&!m.calendarEvent&&!m.scheduleAnnouncement&&!m.scheduled)sources.push({kind:'mail',id:m.id,text:(m.title||'')+'\n'+m.body,at:m.createdAt??m.date,mail:m});
   for(const item of data.deadlines)if(item.rule==='lunch')item.dueTime=lunchTime(item.date,data);
   for(const s of sources)extractEvents(s.text,s.at).forEach((entry,i)=>{const k=sourceKey(s.kind+'-event',s.id,owner,i);if(data.autoDeadlineSources[k])return;const id='auto-'+encodeURIComponent(k);data.autoDeadlineSources[k]=id;data.events.push({id,...entry,source:{kind:s.kind,id:s.id}});data.deadlines=data.deadlines.filter(d=>!(d.source?.kind===s.kind&&d.source?.id===s.id&&d.note===entry.note));if(s.mail&&!s.mail.eventId)s.mail.eventId=id;});
+  for(const s of sources)extractStartEvents(s.text,s.at).forEach((d,i)=>{const k=sourceKey(s.kind+'-start-event',s.id,owner,i);if(data.autoDeadlineSources[k])return;const id='auto-'+encodeURIComponent(k);data.autoDeadlineSources[k]=id;data.events.push({id,...d,source:{kind:s.kind,id:s.id}});if(s.mail&&!s.mail.eventId)s.mail.eventId=id;});
   for(const s of sources)extract(s.text,s.at,data).forEach((d,i)=>{const k=sourceKey(s.kind,s.id,owner,i);if(data.autoDeadlineSources[k])return;const id='auto-'+encodeURIComponent(k);data.autoDeadlineSources[k]=id;data.deadlines.push({id,...d,done:false,source:{kind:s.kind,id:s.id}});if(s.mail&&!s.mail.eventId)s.mail.eventId=id;});
  }
- return {extract,extractEvents,sentDate,lunchTime,sourceKey,applyDemo};
+ return {extract,extractEvents,extractStartEvents,sentDate,lunchTime,sourceKey,applyDemo};
 });

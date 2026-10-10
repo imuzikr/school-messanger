@@ -113,7 +113,20 @@ async function startServer(options = {}) {
     for(const userId of result)if(!db.prepare('SELECT id FROM users WHERE id=? AND disabled=0').get(userId))fail(400,'사용할 수 없는 교직원 계정입니다.');
     return result;
   };
+  function registerStartEvents(kind,sourceId,sender,recipients,payload){
+    if(payload.notice||payload.calendarEvent||payload.scheduleAnnouncement)return;
+    const text=kind==='message'?payload.text:(payload.title||'')+'\n'+payload.body;
+    const appointments=deadlines.extractStartEvents(text,payload.scheduled||payload.createdAt||payload.date);
+    for(const owner of new Set([sender,...recipients]))appointments.forEach((entry,index)=>{
+      const key=deadlines.sourceKey(kind+'-start-event',sourceId,owner,index),itemId='auto-'+hash(key);
+      const inserted=db.prepare('INSERT OR IGNORE INTO auto_deadline_sources VALUES(?,?)').run(key,itemId);
+      if(inserted.changes){db.prepare('INSERT INTO events VALUES(?,?,?)').run(itemId,owner,json({...entry,source:{kind,id:sourceId}}));
+        if(kind==='mail'&&owner===sender)db.prepare('UPDATE mails SET event_id=coalesce(event_id,?) WHERE id=?').run(itemId,sourceId);
+        if(kind==='mail')db.prepare('UPDATE recipients SET event_id=coalesce(event_id,?) WHERE mail_id=? AND user_id=?').run(itemId,sourceId,owner);}
+    });
+  }
   function registerDeadlines(kind,sourceId,sender,recipients,payload){
+    registerStartEvents(kind,sourceId,sender,recipients,payload);
     if(payload.notice||payload.calendarEvent||payload.scheduleAnnouncement)return;
     const context={bellSchedules:db.prepare('SELECT * FROM bell_schedules').all().map(r=>({date:r.date,periods:parse(r.periods)})),
       defaultPeriods:db.prepare("SELECT value FROM metadata WHERE key='defaultPeriods'").get()?defaultPeriods():undefined};
@@ -257,7 +270,13 @@ async function startServer(options = {}) {
     if(added.changes)db.prepare('INSERT INTO events VALUES(?,?,?)').run(eventId,item.owner,json({...entry,source:old.source}));
     db.prepare('DELETE FROM items WHERE id=?').run(item.id);
     db.prepare('UPDATE mails SET event_id=? WHERE event_id=?').run(eventId,item.id);db.prepare('UPDATE recipients SET event_id=? WHERE event_id=?').run(eventId,item.id);
-  }db.exec('COMMIT');}catch(error){db.exec('ROLLBACK');db.close();throw error;}
+  }
+  for(const message of db.prepare('SELECT id,room_id,sender,payload FROM messages').all())registerStartEvents('message',message.id,message.sender,roomUsers(message.room_id),parse(message.payload));
+  for(const mail of db.prepare('SELECT id,sender,payload FROM mails').all()){
+    const recipients=db.prepare("SELECT user_id,status FROM recipients WHERE mail_id=?").all(mail.id);if(recipients.some(r=>r.status==='scheduled'))continue;
+    registerStartEvents('mail',mail.id,mail.sender,recipients.filter(r=>r.status!=='recalled').map(r=>r.user_id),parse(mail.payload));
+  }
+  db.exec('COMMIT');}catch(error){db.exec('ROLLBACK');db.close();throw error;}
   const server=https.createServer({key:tls.key,cert:tls.cert,minVersion:'TLSv1.2'},async(req,res)=>{
     try{
       const url=new URL(req.url,'https://localhost');const route=url.pathname;
