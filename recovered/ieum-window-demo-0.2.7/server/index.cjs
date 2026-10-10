@@ -9,6 +9,7 @@ const { DatabaseSync } = require('node:sqlite');
 require('reflect-metadata');
 const x509 = require('@peculiar/x509');
 const bell=require('./schedule.cjs');
+const deadlines=require('../js/message-deadlines.js');
 x509.cryptoProvider.set(crypto.webcrypto);
 const { promisify } = require('node:util');
 const scrypt = promisify(crypto.scrypt);
@@ -27,8 +28,8 @@ function validDate(value) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || Number.isNaN(Date.parse(value + 'T12:00:00')) || new Date(value + 'T12:00:00Z').toISOString().slice(0, 10) !== value) fail(400, '날짜 형식이 올바르지 않습니다.');
   return value;
 }
-const dateKey = () => new Date().toLocaleDateString('sv-SE');
-const timeKey = () => new Date().toLocaleTimeString('ko-KR', {hour:'2-digit',minute:'2-digit',hour12:false});
+const dateKey = () => new Date().toLocaleDateString('sv-SE', {timeZone:'Asia/Seoul'});
+const timeKey = () => new Date().toLocaleTimeString('ko-KR', {hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'Asia/Seoul'});
 async function certificate(dataDir, address) {
   const keyPath = path.join(dataDir, 'server-key.pem'), certPath = path.join(dataDir, 'server-cert.pem');
   if (!fs.existsSync(keyPath) || !fs.existsSync(certPath)) {
@@ -80,6 +81,7 @@ async function startServer(options = {}) {
   CREATE TABLE IF NOT EXISTS events(id TEXT PRIMARY KEY,owner TEXT REFERENCES users(id),payload TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS items(id TEXT PRIMARY KEY,owner TEXT REFERENCES users(id),kind TEXT NOT NULL,payload TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS bell_schedules(date TEXT PRIMARY KEY,periods TEXT NOT NULL);
+  CREATE TABLE IF NOT EXISTS auto_deadline_sources(source_key TEXT PRIMARY KEY,item_id TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS metadata(key TEXT PRIMARY KEY,value TEXT NOT NULL);
   CREATE INDEX IF NOT EXISTS idx_messages_room ON messages(room_id,seq);
   CREATE INDEX IF NOT EXISTS idx_recipient_user ON recipients(user_id);
@@ -111,6 +113,19 @@ async function startServer(options = {}) {
     for(const userId of result)if(!db.prepare('SELECT id FROM users WHERE id=? AND disabled=0').get(userId))fail(400,'사용할 수 없는 교직원 계정입니다.');
     return result;
   };
+  function registerDeadlines(kind,sourceId,sender,recipients,payload){
+    if(payload.notice||payload.calendarEvent||payload.scheduleAnnouncement)return;
+    const context={bellSchedules:db.prepare('SELECT * FROM bell_schedules').all().map(r=>({date:r.date,periods:parse(r.periods)})),
+      defaultPeriods:db.prepare("SELECT value FROM metadata WHERE key='defaultPeriods'").get()?defaultPeriods():undefined};
+    const entries=deadlines.extract(kind==='message'?payload.text:(payload.title||'')+'\n'+payload.body,payload.scheduled||payload.createdAt||payload.date,context);
+    for(const owner of new Set(recipients)){if(owner===sender)continue;
+      entries.forEach((entry,index)=>{const key=deadlines.sourceKey(kind,sourceId,owner,index),itemId='auto-'+hash(key);
+        const inserted=db.prepare('INSERT OR IGNORE INTO auto_deadline_sources VALUES(?,?)').run(key,itemId);
+        if(inserted.changes){db.prepare('INSERT INTO items VALUES(?,?,?,?)').run(itemId,owner,'deadlines',json({...entry,done:false,source:{kind,id:sourceId}}));
+          if(kind==='mail')db.prepare('UPDATE recipients SET event_id=coalesce(event_id,?) WHERE mail_id=? AND user_id=?').run(itemId,sourceId,owner);}
+      });
+    }
+  }
   function bootstrap(user){
     const me=value=>value===user.id?'me':value;
     const people=db.prepare('SELECT * FROM users WHERE disabled=0 ORDER BY department,name').all().map(userPublic);
@@ -145,6 +160,7 @@ async function startServer(options = {}) {
       if(existing){if(existing.sender!==user.id||existing.room_id!==op.room)fail(409,'메시지 식별자가 중복되었습니다.');return;}
       const payload={text:str(v.text,5000),reply:typeof v.reply==='string'?str(v.reply,5000,false):'',date:dateKey(),time:timeKey(),createdAt:Date.now()};
       const row=db.prepare('INSERT INTO messages(id,room_id,sender,payload) VALUES(?,?,?,?)').run(opId,op.room,user.id,json(payload));
+      registerDeadlines('message',opId,user.id,roomUsers(op.room),payload);
       db.prepare('UPDATE room_members SET read_seq=? WHERE room_id=? AND user_id=?').run(Number(row.lastInsertRowid),op.room,user.id);break;}
     case 'message.like':{
       const m=db.prepare('SELECT * FROM messages WHERE id=?').get(opId);if(!m)fail(404,'메시지를 찾을 수 없습니다.');member(user,m.room_id);
@@ -162,6 +178,7 @@ async function startServer(options = {}) {
       const payload={title:str(v.title||'',150,false),body:str(v.body,100000),html:typeof v.html==='string'?str(v.html,150000,false):'',cc:Array.isArray(v.cc)?v.cc.filter(u=>to.includes(u)):[],files:cleanFiles,date:dateKey(),time:timeKey(),scheduled,createdAt:Date.now(),...(notice?{notice}:{}),...(calendarEvent?{calendarEvent}:{}),...(broadcast?{scheduleAnnouncement:{date:broadcast.date,scope:broadcast.scope}}:{})};
       db.prepare('INSERT INTO mails(id,sender,payload,sender_important) VALUES(?,?,?,?)').run(opId,user.id,json(payload),v.important?1:0);
       for(const userId of to)db.prepare('INSERT INTO recipients(mail_id,user_id,status,important) VALUES(?,?,?,?)').run(opId,userId,scheduled?'scheduled':'unread',v.important?1:0);
+      if(!scheduled)registerDeadlines('mail',opId,user.id,to,payload);
       if(calendarEvent){db.prepare('UPDATE mails SET event_id=? WHERE id=?').run(calendarEvent,opId);db.prepare('UPDATE recipients SET event_id=? WHERE mail_id=?').run(calendarEvent,opId);}
       if(notice)for(const row of notice.rows){const slot=resolvePeriod(notice.date,row.period);const event={title:`${notice.kind==='makeup'?'보강 안내':'수업 변경 안내'} · ${row.period}교시${row.className?' · '+row.className:''}`,date:notice.date,start:slot.start,end:slot.end,type:notice.kind,period:row.period,targets:[...new Set([row.teacher,row.originalTeacher,row.homeroomTeacher].filter(Boolean))],note:payload.body.slice(0,1000),place:row.className,assignment:row,noticeMail:opId};db.prepare('INSERT INTO events VALUES(?,?,?)').run(opId+'-p'+row.period,user.id,json(event));}break;}
     case 'mail.update':{
@@ -195,6 +212,7 @@ async function startServer(options = {}) {
         if(date)db.prepare('INSERT INTO bell_schedules VALUES(?,?) ON CONFLICT(date) DO UPDATE SET periods=excluded.periods').run(date,json(periods));
         else db.prepare("INSERT OR REPLACE INTO metadata VALUES('defaultPeriods',?)").run(json(periods));
       }
+      for(const item of db.prepare("SELECT * FROM items WHERE kind='deadlines'").all()){const payload=parse(item.payload);if(payload.rule!=='lunch'||date&&payload.date!==date)continue;payload.dueTime=deadlines.lunchTime(payload.date,{bellSchedules:db.prepare('SELECT * FROM bell_schedules').all().map(r=>({date:r.date,periods:parse(r.periods)})),defaultPeriods:db.prepare("SELECT value FROM metadata WHERE key='defaultPeriods'").get()?defaultPeriods():undefined});db.prepare('UPDATE items SET payload=? WHERE id=?').run(json(payload),item.id);}
       for(const event of db.prepare('SELECT * FROM events').all()){const payload=parse(event.payload);if(!['makeup','lessonChange'].includes(payload.type)||date&&payload.date!==date)continue;const slot=resolvePeriod(payload.date,payload.period);payload.start=slot.start;payload.end=slot.end;db.prepare('UPDATE events SET payload=? WHERE id=?').run(json(payload),event.id);}
       break;
     }
@@ -274,7 +292,7 @@ async function startServer(options = {}) {
   server.requestTimeout=20000;server.headersTimeout=10000;
   const scheduler=setInterval(()=>{
     const rows=db.prepare("SELECT DISTINCT m.* FROM mails m JOIN recipients r ON r.mail_id=m.id WHERE r.status='scheduled'").all();let changed=false;
-    for(const row of rows){if(new Date(parse(row.payload).scheduled).getTime()<=Date.now()){db.prepare("UPDATE recipients SET status='unread' WHERE mail_id=? AND status='scheduled'").run(row.id);changed=true;}}
+    for(const row of rows){if(new Date(parse(row.payload).scheduled).getTime()<=Date.now()){db.exec('BEGIN IMMEDIATE');try{db.prepare("UPDATE recipients SET status='unread' WHERE mail_id=? AND status='scheduled'").run(row.id);registerDeadlines('mail',row.id,row.sender,db.prepare("SELECT user_id FROM recipients WHERE mail_id=? AND status='unread'").all(row.id).map(r=>r.user_id),parse(row.payload));db.exec('COMMIT');changed=true;}catch(error){db.exec('ROLLBACK');options.onError?.(error);}}}
     if(changed)notify();db.prepare('DELETE FROM sessions WHERE expires<=?').run(Date.now());for(const [key,value] of loginAttempts)if(value.until<Date.now())loginAttempts.delete(key);
   },1000);
   await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(port,options.host||'0.0.0.0',resolve);}).catch(error=>{clearInterval(scheduler);db.close();throw error;});

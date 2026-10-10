@@ -142,6 +142,7 @@
     classTeachers:Array.from({length:36},(_,i)=>({className:`${Math.floor(i/12)+1}학년 ${i%12+1}반`,teacher:people[i%people.length].id})),
     defaultPeriods: Array.from({length:7},(_,i)=>({period:i+1,start:String(8+i).padStart(2,'0')+':00',end:String(8+i).padStart(2,'0')+':50'})),
     bellSchedules: [],
+    deadlineDefaultPeriodsChanged: false,
     today: key(today),
     people,
     departments,

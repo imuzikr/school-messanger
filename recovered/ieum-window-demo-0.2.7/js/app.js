@@ -144,7 +144,7 @@
           (key) => {
             state.data[key].push(
               ...(saved.data[key] || []).filter((item) =>
-                item.id.startsWith("user-"),
+                item.id.startsWith("user-") || item.id.startsWith("auto-"),
               ),
             );
           },
@@ -159,6 +159,8 @@
             room.muted = old.muted;
           }
         });
+        if (saved.data.deadlineDefaultPeriodsChanged!==undefined) state.data.deadlineDefaultPeriodsChanged=saved.data.deadlineDefaultPeriodsChanged;
+        if (saved.data.autoDeadlineSources) state.data.autoDeadlineSources=saved.data.autoDeadlineSources;
         if (saved.data.bellSchedules) state.data.bellSchedules=saved.data.bellSchedules;
         if (saved.data.classTeachers) state.data.classTeachers=saved.data.classTeachers;
         if (saved.data.defaultPeriods) state.data.defaultPeriods=saved.data.defaultPeriods;
@@ -170,6 +172,7 @@
     storageWorks = false;
   }
   function save() {
+    if (!native) window.IeumDeadlines.applyDemo(state.data);
     if (native) {
       try { localStorage.setItem("ieum-preferences", JSON.stringify({ settings: state.settings })); } catch {}
       return network?.active ? network.sync(state.data) : Promise.resolve(true);
@@ -262,6 +265,7 @@
 
     
   function render() {
+    if (!native) save();
     applySettings();
     document.body.classList.toggle("installed",!!windowApi);
     if(!state.user){login();return;}
@@ -335,7 +339,7 @@
         )
         .join(
           "",
-        )}</div><div class="school-tools"><small class="muted" style="margin-right:auto" title="보강 안내·임시 일과표 포함">v0.2.7</small>${button("makeup-notice","보강 안내","calendar")}${button("lesson-change","수업 변경","calendar")}${button("bell-schedule","일과표","clock")}${button("class-teachers","반·담임","users")}</div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 눌러 대화해 보세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div><footer class="org-footer"><small id="selection-summary">${state.selected.size ? state.selected.size + "명에게 보내기" : "함께 나누면 더 쉬워져요"}</small>${button("group-mail", "선택한 사람에게 쪽지", "mail", "", state.selected.size ? "" : "disabled")}${button("group-chat", "선택한 사람과 대화", "chat", "", state.selected.size ? "" : "disabled")}</footer></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
+        )}</div><div class="school-tools"><small class="muted" style="margin-right:auto" title="보강 안내·임시 일과표 포함">v0.2.8</small>${button("makeup-notice","보강 안내","calendar")}${button("lesson-change","수업 변경","calendar")}${button("bell-schedule","일과표","clock")}${button("class-teachers","반·담임","users")}</div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 눌러 대화해 보세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div><footer class="org-footer"><small id="selection-summary">${state.selected.size ? state.selected.size + "명에게 보내기" : "함께 나누면 더 쉬워져요"}</small>${button("group-mail", "선택한 사람에게 쪽지", "mail", "", state.selected.size ? "" : "disabled")}${button("group-chat", "선택한 사람과 대화", "chat", "", state.selected.size ? "" : "disabled")}</footer></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
     );
   }
   const groupLabel=p=>String(p[state.group]||"").trim()||({grade:"학년 미지정",otherGroup:"기타 미지정"}[state.group]||"미지정");
@@ -1024,6 +1028,7 @@
         "MAKE ROOM FOR WHAT MATTERS",
         "나의 일정",
         "함께하는 약속도, 나만의 시간도 한눈에.",
+        (!native ? button("demo-deadline", "메시지 일정 체험", "mail") : "") +
         button("monthly", "월간 달력", "calendar") +
           button("add-event", "일정 등록", "plus", "btn-primary"),
       ) +
@@ -1169,7 +1174,7 @@
     const store=async remove=>{if(!editable||saving)return;const date=$("#bell-scope").value==="default"?'':$("#bell-date").value;if(!date&&remove)return;
       const slots=$$("[data-bell-period]:checked").map(el=>({period:Number(el.dataset.bellPeriod),start:$(`[data-bell-start="${el.dataset.bellPeriod}"]`).value,end:$(`[data-bell-end="${el.dataset.bellPeriod}"]`).value}));
       let previous="08:00";if(!remove&&(!slots.length||slots.some(p=>{const bad=!p.start||!p.end||p.start<previous||p.start<"08:00"||p.end>"18:00"||p.start>=p.end;previous=p.end;return bad;}))){$("#bell-error").textContent="08:00~18:00 범위에서 교시 시간이 겹치지 않도록 입력하세요.";return;}
-      const old=JSON.parse(JSON.stringify(state.data));state.data.bellSchedules=(state.data.bellSchedules||[]).filter(s=>s.date!==date);if(date&&!remove)state.data.bellSchedules.push({date,periods:slots});if(!date&&!remove)state.data.defaultPeriods=slots;
+      const old=JSON.parse(JSON.stringify(state.data));state.data.bellSchedules=(state.data.bellSchedules||[]).filter(s=>s.date!==date);if(date&&!remove)state.data.bellSchedules.push({date,periods:slots});if(!date&&!remove){state.data.defaultPeriods=slots;state.data.deadlineDefaultPeriodsChanged=true;}
       for(const event of state.data.events.filter(e=>["makeup","lessonChange"].includes(e.type)&&(!date||e.date===date))){const slot=periodsForDate(event.date).find(p=>p.period===event.period);if(!slot){state.data=old;$("#bell-error").textContent="등록된 보강이 사용하는 교시는 삭제할 수 없습니다.";return;}if(!event.readonly){event.start=slot.start;event.end=slot.end;}}
       const noticeDate=date||state.today,periods=date?periodsForDate(date):(state.data.defaultPeriods||Mock.defaultPeriods),title=`${Number(noticeDate.slice(5,7))}월 ${Number(noticeDate.slice(8,10))}일 일과표${date?'':' (기본 일과표)'}`;
       const rows=[1,2,3,4,4.5,5,6,7].map(period=>{let slot=periods.find(p=>p.period===period);if(period===4.5&&!slot){const before=periods.find(p=>p.period===4),after=periods.find(p=>p.period===5);if(before&&after&&before.end<after.start)slot={start:before.end,end:after.start};}return [period===4.5?'점심시간':period+'교시',slot?slot.start+' ~ '+slot.end:'미설정'];});
@@ -2045,6 +2050,21 @@
                 `data-deadline="${deadline.id}"`,
               ),
           );
+        break;
+      }
+      case "demo-deadline": {
+        if(native)break;
+        openModal("수신 메시지 일정 체험",`<form id="demo-deadline-form" class="event-form"><p>메시지를 받으면 내 캘린더에 시작 시간 없는 마감 일정이 등록됩니다.</p><label>메시지 내용<textarea class="input" id="demo-deadline-text" maxlength="5000" rows="4" required>내일 점심시간 전까지 자료를 제출해 주세요.</textarea></label><label>발송 시각 (한국 시간)<input class="input" id="demo-deadline-sent" type="datetime-local" value="${window.IeumDeadlines.sentDate(Date.now())}T09:00" required></label><p class="muted">오전 중·점심시간 전까지는 12:05, 날짜만 있으면 16:00입니다. 해당 날짜의 일과표를 바꾸면 4교시 종료 시간을 적용합니다.</p><div id="demo-deadline-result" role="status"></div></form>`,button("close-modal","닫기")+'<button type="submit" class="btn btn-primary" form="demo-deadline-form">수신 체험</button>');
+        let messageId=null;
+        $("#demo-deadline-form").onsubmit=event=>{
+          event.preventDefault();const text=$("#demo-deadline-text").value,at=$("#demo-deadline-sent").value+':00+09:00';
+          const entries=window.IeumDeadlines.extract(text,at,state.data);
+          if(!entries.length){$("#demo-deadline-result").textContent="인식한 마감 일정이 없습니다. 예: 내일까지 제출, 다음 주 수요일 오후 3시까지 회신";return;}
+          if(!messageId){messageId=uid("user-incoming");state.data.mails.unshift({id:messageId,from:state.data.people[0].id,to:["me"],title:"마감 안내 체험",body:text,createdAt:new Date(at).getTime(),date:window.IeumDeadlines.sentDate(at),time:at.slice(11,16),folder:"inbox",files:[],receipts:["unread"],unread:true});}
+          save();const added=state.data.deadlines.filter(d=>d.source?.id===messageId);
+          $("#demo-deadline-result").textContent=added.map(d=>`${d.date} ${d.dueTime} 마감`).join(" / ")+" · 다시 눌러도 중복 등록되지 않습니다.";
+          if(added[0]){state.today=added[0].date;state.week=weekStart(added[0].date);}render();
+        };
         break;
       }
       case "edit-deadline": {
