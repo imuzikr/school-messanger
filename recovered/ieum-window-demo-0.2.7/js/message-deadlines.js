@@ -15,7 +15,7 @@
  }
  function lunchTime(date,context={}){
   const periods=(context.bellSchedules||[]).find(s=>s.date===date)?.periods||(context.deadlineDefaultPeriodsChanged===false?undefined:context.defaultPeriods);
-  return periods?.find(p=>Number(p.period)===4)?.end?.match(/^([01]\d|2[0-3]):[0-5]\d$/)?.[0]||'12:05';
+  return periods?.find(p=>Number(p.period)===4.5)?.start?.match(/^([01]\d|2[0-3]):[0-5]\d$/)?.[0]||periods?.find(p=>Number(p.period)===4)?.end?.match(/^([01]\d|2[0-3]):[0-5]\d$/)?.[0]||'12:05';
  }
  function resolveDate(clause,base){
   let date=base,m,hasDate=false;

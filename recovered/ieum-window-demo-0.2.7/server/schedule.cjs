@@ -4,7 +4,9 @@ function validate(periods){
  if(!Array.isArray(periods)||!periods.length||periods.length>13)throw new Error('일과표는 1~12개 교시를 입력하세요.');
  const result=periods.map(p=>({period:Number(p.period),start:p.start,end:p.end})).sort((a,b)=>a.period-b.period);
  const seen=new Set();let previous='08:00';
- for(const p of result){if((!Number.isInteger(p.period)&&p.period!==4.5)||p.period<1||p.period>12||seen.has(p.period)||!/^([01]\d|2[0-3]):[0-5]\d$/.test(p.start)||!/^([01]\d|2[0-3]):[0-5]\d$/.test(p.end)||p.start<'08:00'||p.end>'18:00'||p.start>=p.end||p.start<previous)throw new Error('교시는 중복 없이 시간순으로 입력하고, 08:00~18:00 범위에서 겹치지 않게 설정하세요.');seen.add(p.period);previous=p.end;}
+ for(const p of result){if((!Number.isInteger(p.period)&&p.period!==4.5)||p.period<1||p.period>12||seen.has(p.period)||!/^([01]\d|2[0-3]):[0-5]\d$/.test(p.start)||!/^([01]\d|2[0-3]):[0-5]\d$/.test(p.end)||p.start<'08:00'||p.end>'18:00'||p.start>=p.end||(p.period!==4.5&&p.start<previous))throw new Error('교시는 중복 없이 시간순으로 입력하고, 08:00~18:00 범위에서 겹치지 않게 설정하세요.');seen.add(p.period);if(p.period!==4.5)previous=p.end;}
+ const chronological=[...result].sort((a,b)=>a.start.localeCompare(b.start));
+ for(let i=1;i<chronological.length;i++)if(chronological[i].start<chronological[i-1].end)throw new Error('점심시간과 수업 시간이 겹치지 않도록 설정하세요.');
  return result;
 }
 function announcement(date,periods,scope='temporary',customTitle='',restored=false){

@@ -21,5 +21,7 @@ test('dated bell schedule: custom broadcast title, next-day defaults, migration,
   for(const token of [admin,tokens[0]]){const d=(await boot(token)).data;assert.equal(d.events.find(e=>e.noticeMail==='makeup-bell-0').end,'12:20');assert.equal(d.events.find(e=>e.noticeMail==='makeup-bell-1').end,'12:00');}
   assert.equal((await sync(tokens[0],[{type:'schedule.upsert',value:{date,title,periods:baseline}}])).status,403);
   await server.close();server=await start();admin=(await request('/login',{username:'admin',password})).token;const d=(await boot(admin)).data;assert.deepEqual(d.defaultPeriods,baseline);assert.deepEqual(d.bellSchedules.find(s=>s.date===date),{date,title,periods:temporary});assert.equal(d.events.find(e=>e.noticeMail==='makeup-bell-1').end,'12:00');
+  const generated=require('../js/bell-schedule.js').generate({start:'08:00',duration:40,count:6,lunchStart:'10:30',lunchEnd:'11:30'}),mailCount=(await boot(admin)).data.mails.length;
+  assert.equal((await sync(admin,[{type:'schedule.upsert',value:{periods:generated}}])).status,200);const generatedData=(await boot(admin)).data;assert.deepEqual(generatedData.defaultPeriods,generated);assert.equal(generatedData.mails.length,mailCount);assert.equal(generatedData.events.find(e=>e.noticeMail==='makeup-bell-1').start,'11:30');assert.deepEqual(generatedData.bellSchedules.find(s=>s.date===date).periods,temporary);
  }finally{if(server)await server.close();fs.rmSync(dataDir,{recursive:true,force:true});}
 });

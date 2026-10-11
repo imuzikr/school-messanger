@@ -228,3 +228,5 @@ body.minimal-main .minimal-bar{display:flex;align-items:center;width:100vw;heigh
 
 .unified-main .rail{overflow-y:auto;overflow-x:hidden}
 .unified-main .rail>.nav-item,.unified-main .rail-bottom{flex-shrink:0}
+
+.bell-quick{margin:0 0 12px;padding:14px;border:1px solid var(--line);border-radius:10px;background:var(--bg);display:grid;gap:10px;min-width:0}.bell-quick legend{font-weight:700;padding:0 5px}.bell-quick .two-fields{margin:0}.bell-quick .btn{justify-self:start}.bell-quick small{line-height:1.6}.bell-break{display:grid;align-content:center;gap:8px;font-size:13px}.bell-break strong{font-size:15px}
