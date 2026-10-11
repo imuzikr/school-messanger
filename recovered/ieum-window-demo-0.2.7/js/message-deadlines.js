@@ -69,13 +69,25 @@
   }
   return result;
  }
- function extractStartEvents(text,sentAt){
+ function extractStartEvents(text,sentAt,context={}){
   const base=sentDate(sentAt);if(!base||typeof text!=='string')return [];
   const result=[],seen=new Set();
   for(const clause of text.slice(0,100000).split(/\n+|[!?。]+|\.(?=\s|$)/)){
-   if(!/모여|모이|모입|모일|집합|참석|회의|연수|수업|상담|행사|협의회|출장|교육|설명회|간담회|면담|모임|만나|만납/.test(clause)||/까지|제출|회신|마감|취소|철회|없습니다|하지\s*마|않[아습을]/.test(clause))continue;
+   if(!/모여|모이|모입|모일|집합|참석|회의|연수|수업|상담|행사|협의회|출장|교육|설명회|간담회|면담|모임|만나|만납/.test(clause)||/까지|제출|회신|마감|취소|철회|없습니다|하지\s*마|지\s*마|않[아습을]/.test(clause))continue;
    const {date}=resolveDate(clause,base);if(!valid(date))continue;
-   const times=[...clause.matchAll(/(오전|오후)?\s*(\d{1,2})(?::(\d{2})|\s*시(?:\s*(\d{1,2})\s*분|\s*(반))?)/g)];if(times.length!==1)continue;
+   const times=[...clause.matchAll(/(오전|오후)?\s*(\d{1,2})(?::(\d{2})|\s*시(?:\s*(\d{1,2})\s*분|\s*(반))?)/g)];
+   if(times.length===0){
+    const mentions=[...clause.matchAll(/(?<!\d)(\d{1,2})\s*교시/g)];
+    if(mentions.length!==1||/\d+\s*[~～–—-]\s*\d+\s*교시/.test(clause))continue;
+    const period=Number(mentions[0][1]),periods=(context.bellSchedules||[]).find(s=>s.date===date)?.periods||context.defaultPeriods;
+    const slot=periods?.find(p=>Number(p.period)===period),validTime=value=>/^([01]\d|2[0-3]):[0-5]\d$/.test(value||'');
+    if(!slot||!validTime(slot.start)||!validTime(slot.end)||slot.start>=slot.end)continue;
+    const title=clause.trim().slice(0,150),identity=JSON.stringify([date,slot.start,title]);if(seen.has(identity))continue;seen.add(identity);
+    const place=clause.match(/(?:\d+\s*층\s*)?(?:[가-힣A-Za-z0-9-]*(?:교실|회의실|교무실|도서관|강당|체육관)|\d+호(?:실)?)(?=으로|로|에서|에|\s|$)/)?.[0]||'';
+    result.push({date,start:slot.start,end:slot.end,period,title,note:clause.trim().slice(0,1000),type:'personal',place,targets:[],rule:'start-event'});
+    continue;
+   }
+   if(times.length!==1)continue;
    const m=times[0];let h=Number(m[2]),min=Number(m[3]||m[4]||(m[5]?30:0));
    if(m[1]){if(h<1||h>12)continue;h=h%12+(m[1]==='오후'?12:0);}else if(!m[3]&&h>=1&&h<=7)h+=12;
    if(h>23||min>59)continue;const dueTime=pad(h)+':'+pad(min),title=clause.trim().slice(0,150),identity=JSON.stringify([date,dueTime,title]);if(seen.has(identity))continue;seen.add(identity);
@@ -83,7 +95,8 @@
    result.push(entry);
    if(endMinutes>1440)result.push({...entry,date:add(date,1),start:'00:00',end:'00:'+pad(endMinutes-1440)});
   }
-  return result;
+  // Keep previously recognized clock-time entries at their existing ledger indices.
+  return [...result.filter(entry=>entry.period===undefined),...result.filter(entry=>entry.period!==undefined)];
  }
  const sourceKey=(kind,id,owner,index)=>JSON.stringify([kind,id,owner,index]);
  function applyDemo(data,owner='me'){
@@ -93,7 +106,7 @@
   for(const m of data.mails||[])if(m.folder!=='trash'&&!m.notice&&!m.calendarEvent&&!m.scheduleAnnouncement&&!m.scheduled)sources.push({kind:'mail',id:m.id,text:(m.title||'')+'\n'+m.body,at:m.createdAt??m.date,mail:m});
   for(const item of data.deadlines)if(item.rule==='lunch')item.dueTime=lunchTime(item.date,data);
   for(const s of sources)extractEvents(s.text,s.at).forEach((entry,i)=>{const k=sourceKey(s.kind+'-event',s.id,owner,i);if(data.autoDeadlineSources[k])return;const id='auto-'+encodeURIComponent(k);data.autoDeadlineSources[k]=id;data.events.push({id,...entry,source:{kind:s.kind,id:s.id}});data.deadlines=data.deadlines.filter(d=>!(d.source?.kind===s.kind&&d.source?.id===s.id&&d.note===entry.note));if(s.mail&&!s.mail.eventId)s.mail.eventId=id;});
-  for(const s of sources)extractStartEvents(s.text,s.at).forEach((d,i)=>{const k=sourceKey(s.kind+'-start-event',s.id,owner,i);if(data.autoDeadlineSources[k])return;const id='auto-'+encodeURIComponent(k);data.autoDeadlineSources[k]=id;data.events.push({id,...d,source:{kind:s.kind,id:s.id}});if(s.mail&&!s.mail.eventId)s.mail.eventId=id;});
+  for(const s of sources)extractStartEvents(s.text,s.at,data).forEach((d,i)=>{const k=sourceKey(s.kind+'-start-event',s.id,owner,i);if(data.autoDeadlineSources[k])return;const id='auto-'+encodeURIComponent(k);data.autoDeadlineSources[k]=id;data.events.push({id,...d,source:{kind:s.kind,id:s.id}});if(s.mail&&!s.mail.eventId)s.mail.eventId=id;});
   for(const s of sources)extract(s.text,s.at,data).forEach((d,i)=>{const k=sourceKey(s.kind,s.id,owner,i);if(data.autoDeadlineSources[k])return;const id='auto-'+encodeURIComponent(k);data.autoDeadlineSources[k]=id;data.deadlines.push({id,...d,done:false,source:{kind:s.kind,id:s.id}});if(s.mail&&!s.mail.eventId)s.mail.eventId=id;});
  }
  return {extract,extractEvents,extractStartEvents,sentDate,lunchTime,sourceKey,applyDemo};

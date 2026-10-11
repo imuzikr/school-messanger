@@ -82,3 +82,20 @@ test('submission, stated closing time, informing and sending requests are deadli
  }
  assert.equal(rules.extract('내일까지 자료를 보내지 않아도 됩니다.',at).length,0);
 });
+
+
+test('period gathering uses target-date bell slots and preserves place; unknown and ambiguous periods stay unregistered',()=>{
+ const text='오늘 5교시에 3층 모둠교실로 모여주세요.';
+ const context={defaultPeriods:[{period:5,start:'12:00',end:'12:50'}],bellSchedules:[{date:'2026-10-12',periods:[{period:5,start:'13:10',end:'13:55'}]}]};
+ const e=rules.extractStartEvents(text,sent,context);assert.equal(e.length,1);assert.deepEqual([e[0].date,e[0].start,e[0].end,e[0].period,e[0].place],['2026-10-11','12:00','12:50',5,'3층 모둠교실']);
+ assert.equal(rules.extractStartEvents(text.replace('오늘','내일'),sent,context)[0].start,'13:10');
+ assert.equal(rules.extractStartEvents(text,'2026-10-12',context)[0].end,'13:55');
+ assert.equal(rules.extractStartEvents(text,'2026-10-13',context)[0].start,'12:00');
+ for(const text of ['오늘 8교시에 모여주세요','오늘 5교시와 6교시에 모여주세요','오늘 5~6교시에 모여주세요','오늘 5교시 회의 취소','오늘 5교시에 모이지 마세요'])assert.deepEqual(rules.extractStartEvents(text,sent,context),[]);
+ assert.deepEqual(rules.extractStartEvents(text,sent,{...context,bellSchedules:[{date:'2026-10-11',periods:[]}]}),[]);
+ assert.deepEqual(rules.extractStartEvents(text,sent,{defaultPeriods:[{period:5,start:'12:00',end:'11:50'}]}),[]);
+ assert.deepEqual(rules.extractStartEvents(text,sent),[]);
+ const mixedText=text+'\n오늘 6시에 교무실로 모여주세요',oldKey=rules.sourceKey('mail-start-event','mixed','me',0);
+ const mixed={...context,rooms:[],mails:[{id:'mixed',title:'안내',body:mixedText,createdAt:sent,folder:'inbox'}],events:[{id:'old-clock',start:'18:00',source:{kind:'mail',id:'mixed'}}],autoDeadlineSources:{[oldKey]:'old-clock'},deadlines:[]};rules.applyDemo(mixed);assert.equal(mixed.events.length,2);assert.equal(mixed.events.filter(e=>e.start==='18:00').length,1);assert.equal(mixed.events.filter(e=>e.period===5).length,1);
+ const data={...context,rooms:[],mails:[{id:'old-period',title:text,body:text,createdAt:sent,folder:'inbox'}],events:[],deadlines:[]};rules.applyDemo(data);assert.equal(data.events.length,1);assert.equal(data.deadlines.length,0);assert.equal(data.mails[0].eventId,data.events[0].id);rules.applyDemo(data);assert.equal(data.events.length,1);data.events=[];rules.applyDemo(data);assert.equal(data.events.length,0);
+});

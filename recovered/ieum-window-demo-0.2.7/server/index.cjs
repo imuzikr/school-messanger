@@ -117,7 +117,8 @@ async function startServer(options = {}) {
   function registerStartEvents(kind,sourceId,sender,recipients,payload){
     if(payload.notice||payload.calendarEvent||payload.scheduleAnnouncement)return;
     const text=kind==='message'?payload.text:(payload.title||'')+'\n'+payload.body;
-    const appointments=deadlines.extractStartEvents(text,payload.scheduled||payload.createdAt||payload.date);
+    const context={bellSchedules:db.prepare('SELECT * FROM bell_schedules').all().map(r=>({date:r.date,periods:parse(r.periods)})),defaultPeriods:defaultPeriods()};
+    const appointments=deadlines.extractStartEvents(text,payload.scheduled||payload.createdAt||payload.date,context);
     for(const owner of new Set([sender,...recipients]))appointments.forEach((entry,index)=>{
       const key=deadlines.sourceKey(kind+'-start-event',sourceId,owner,index),itemId='auto-'+hash(key);
       const inserted=db.prepare('INSERT OR IGNORE INTO auto_deadline_sources VALUES(?,?)').run(key,itemId);

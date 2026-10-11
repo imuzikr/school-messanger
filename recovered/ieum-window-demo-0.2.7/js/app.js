@@ -389,7 +389,7 @@
         )
         .join(
           "",
-        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.48</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
+        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.49</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
     );
   }
   const groupLabel=p=>String(p[state.group]||"").trim()||({grade:"학년 미지정",otherGroup:"기타 미지정"}[state.group]||"미지정");
@@ -2275,7 +2275,7 @@
         let messageId=null;
         $("#demo-deadline-form").onsubmit=event=>{
           event.preventDefault();const text=$("#demo-deadline-text").value,at=$("#demo-deadline-sent").value+':00+09:00';
-          const entries=[...window.IeumDeadlines.extract(text,at,state.data),...window.IeumDeadlines.extractStartEvents(text,at)];
+          const entries=[...window.IeumDeadlines.extract(text,at,state.data),...window.IeumDeadlines.extractStartEvents(text,at,state.data)];
           if(!entries.length){$("#demo-deadline-result").textContent="인식한 마감 일정이 없습니다. 예: 내일까지 제출, 다음 주 수요일 오후 3시까지 회신";return;}
           if(!messageId){messageId=uid("user-incoming");state.data.mails.unshift({id:messageId,from:state.data.people[0].id,to:["me"],title:"마감 안내 체험",body:text,createdAt:new Date(at).getTime(),date:window.IeumDeadlines.sentDate(at),time:at.slice(11,16),folder:"inbox",files:[],receipts:["unread"],unread:true});}
           save();const added=[...state.data.deadlines,...state.data.events].filter(d=>d.source?.id===messageId);
