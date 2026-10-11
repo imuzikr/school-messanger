@@ -135,3 +135,10 @@ body.unified-main[data-host-side="right"]{--organization-left:0px}
 .unified-main .agenda-header button{-webkit-app-region:no-drag}
 .unified-main .login-page{width:calc(100vw - 330px);margin-left:var(--organization-left);height:100vh}
 .unified-main:not(.today-expanded) .overlay{left:var(--organization-left);right:auto;width:calc(100vw - 330px)}
+
+/* Personal calendar entries use color and a text badge, so color is not the only cue. */
+.event.private-schedule,.timeline-card.private-schedule{background:#fff3cf;border-left:4px solid #d39a26;color:#604814}
+.event.private-schedule:hover{background:#ffedb4}
+.private-badge{display:inline-flex;align-items:center;gap:2px;padding:1px 4px;margin-right:4px;border-radius:4px;background:#f4d785;color:#59400e;font-size:9px;line-height:12px;vertical-align:middle;white-space:nowrap}
+.event.short .private-badge{padding:0 3px;line-height:12px}
+.agenda-footer{display:flex;gap:6px}.agenda-footer>.btn{flex:1}
