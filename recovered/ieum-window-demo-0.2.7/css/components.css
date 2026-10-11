@@ -2874,3 +2874,36 @@ input[type="checkbox"] {
 .recipient-options label { display:flex; align-items:center; gap:10px; padding:9px; border-radius:6px; cursor:pointer; font-size:13px; }
 .recipient-options label:has(input:checked) { background:var(--paper); }
 .event-form [hidden] { display:none !important; }
+/* The summary is a hinged page attached below the existing schedule dialog. */
+.schedule-detail-modal .modal-foot{flex-wrap:wrap;flex-shrink:0;gap:7px}
+.schedule-detail-modal .modal-foot .btn{padding:9px 12px;font-size:12px}
+.schedule-anchored{align-items:flex-start}
+.schedule-detail-modal{overflow:auto}
+.schedule-detail-modal .modal-body{flex-shrink:0;overflow:visible}
+.summary-fold{display:grid;grid-template-rows:0fr;flex-shrink:0;perspective:1000px;transition:grid-template-rows 520ms cubic-bezier(.22,.7,.18,1);border-radius:0 0 16px 16px}
+.summary-fold.is-open{grid-template-rows:1fr}
+.summary-fold-clip{min-height:0;overflow:hidden;border-radius:0 0 16px 16px}
+.summary-page{padding:21px 25px 20px;background:linear-gradient(180deg,#dfe9df 0,#f5f8ee 18px,#fafbf5 100%);border-top:1px solid #becdbf;transform-origin:center top;transform:rotateX(-82deg);opacity:0;transition:transform 560ms cubic-bezier(.2,.75,.15,1),opacity 240ms;backface-visibility:hidden;box-shadow:inset 0 8px 12px #294b3210}
+.summary-fold.is-open .summary-page{transform:rotateX(0);opacity:1}
+.summary-page-heading{display:flex;justify-content:space-between;align-items:center;gap:8px;color:var(--green-deep);margin-bottom:15px}
+.summary-page-heading span{display:flex;align-items:center;gap:6px;font-weight:700;font-size:13px}
+.summary-page-heading small{color:var(--muted);font-size:10px}
+.summary-page dl{display:grid;gap:12px;margin:0 0 16px}
+.summary-page dl>div{display:grid;grid-template-columns:95px 1fr;gap:8px;font-size:12px}
+.summary-page dt{display:flex;gap:6px;align-items:flex-start;color:var(--muted)}
+.summary-page dd{margin:0;font-weight:600;line-height:1.6;overflow-wrap:anywhere}
+.summary-page>small{font-size:10px}
+[data-action=schedule-summary] svg{transition:transform 350ms}
+[data-action=schedule-summary][aria-expanded=true] svg{transform:rotate(180deg)}
+.schedule-source-modal .modal-body{font-size:13px}
+.source-meta{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:18px}
+.source-meta time,.source-recipients{font-size:11px;color:var(--muted)}
+.source-recipients{margin-top:12px}
+.source-message-body{margin:20px 0;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.9}
+.source-chat-highlight{background:#edf4e7;border-left:3px solid var(--green);padding:16px;border-radius:6px}
+.schedule-source-modal .attachment{margin-top:12px}
+.schedule-source-modal .attachment small{display:block;color:var(--muted)}
+.dark .summary-page{background:linear-gradient(#283c34,#1b2e25);border-color:#435c4a}
+.dark .source-chat-highlight{background:#253d2d}
+@media(max-width:450px){.summary-page{padding:18px 15px}.summary-page dl>div{grid-template-columns:80px 1fr}.schedule-detail-modal .modal-foot{justify-content:flex-start}.schedule-detail-modal .modal-foot .btn{font-size:11px;padding:8px}}
+@media(prefers-reduced-motion:reduce){.summary-fold,.summary-page,[data-action=schedule-summary] svg{transition:none}}

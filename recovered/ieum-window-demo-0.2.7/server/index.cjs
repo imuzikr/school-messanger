@@ -317,6 +317,13 @@ async function startServer(options = {}) {
       }
       if(user.must_change)fail(403,'임시 비밀번호를 먼저 변경해 주세요.');
       if(route==='/bootstrap'&&req.method==='GET'){send(res,200,bootstrap(user));return;}
+      if(route==='/message-source'&&req.method==='POST'){
+        const p=await body(req),m=db.prepare('SELECT * FROM messages WHERE id=?').get(str(p.id,100));
+        if(!m)fail(404,'원본 대화를 찾을 수 없습니다.');
+        member(user,m.room_id);
+        const room=db.prepare('SELECT name FROM rooms WHERE id=?').get(m.room_id);
+        send(res,200,{room:m.room_id,roomName:room.name,message:{...parse(m.payload),id:m.id,sender:m.sender===user.id?'me':m.sender}});return;
+      }
       if(route==='/events'&&req.method==='GET'){
         res.writeHead(200,{'content-type':'text/event-stream','cache-control':'no-store','connection':'keep-alive','x-content-type-options':'nosniff'});res.ieumToken=user.tokenHash;
         const connections=streams.get(user.id)||new Set();connections.add(res);streams.set(user.id,connections);res.write('event: ready\ndata: {}\n\n');notify(null,'presence');

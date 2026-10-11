@@ -74,5 +74,15 @@ test('LAN send -> sender and recipient deadlines; atomic retry, deletion, restar
   for(const token of allTokens){const d=(await boot(token)).data.deadlines.find(d=>d.source?.id===dueMail.id);assert.equal(d.date,newDate);assert.equal(d.dueTime,'17:15');assert.equal(d.rule,'explicit');assert.ok(d.source);}
   await server.close();server=await start();admin=(await request('/login',{username:'admin',password})).token;recipient=(await request('/login',{username:'recipient',password:password+'x'})).token;
   assert.equal((await bySource(admin)).find(e=>e.date===newDate).start,'19:00');assert.equal((await bySource(recipient)).length,1);
+
+  // Related source remains available beyond bootstrap's latest-500 window, only to room members.
+  const oldSource=await request('/message-source',{id:'m-test'},recipient);
+  assert.equal(oldSource.status,200);assert.equal(oldSource.message.text,'내일까지 제출');assert.equal(oldSource.room,'r-test');
+  assert.equal((await request('/message-source',{id:'m-test'},outToken)).status,403);
+  assert.equal((await request('/message-source',{id:'missing'},recipient)).status,404);
+  const fillers=Array.from({length:501},(_,i)=>({type:'message.send',id:'history-'+i,room:'r-test',value:{text:'일반 대화 '+i}}));
+  await sync(admin,fillers.slice(0,300));await sync(admin,fillers.slice(300));
+  assert.ok(!(await boot(recipient)).data.rooms.find(r=>r.id==='r-test').messages.some(m=>m.id==='m-test'));
+  assert.equal((await request('/message-source',{id:'m-test'},recipient)).message.text,'내일까지 제출');
  }finally{if(server)await server.close();fs.rmSync(dataDir,{recursive:true,force:true});}
 });

@@ -356,7 +356,7 @@
         )
         .join(
           "",
-        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.23</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
+        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.24</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
     );
   }
   const groupLabel=p=>String(p[state.group]||"").trim()||({grade:"학년 미지정",otherGroup:"기타 미지정"}[state.group]||"미지정");
@@ -1310,10 +1310,88 @@
     render();
     toast(sharedEvent?.targets.length?"일정을 공유하고 메시지를 보냈어요":"개인 일정을 저장했어요", fmtDate(date) + " · " + title, "calendar");
   }
+  function relatedSource(item) {
+    if (item.source && ["mail", "message"].includes(item.source.kind)) return item.source;
+    const mail = state.data.mails.find(m=>m.id===item.noticeMail||m.id===item.mail||m.eventId===item.id||m.calendarEvent===item.id);
+    return mail ? {kind:"mail",id:mail.id} : null;
+  }
+  function sourceText(item) {
+    const source=relatedSource(item);
+    if(source?.kind==="mail") {const m=state.data.mails.find(m=>m.id===source.id);return m?.body||"";}
+    return state.data.rooms.flatMap(r=>r.messages).find(m=>m.id===source?.id)?.text||"";
+  }
+  function openScheduleDetail(item,title,body,footer) {
+    const extra=`data-schedule="${esc(item.id)}"`;
+    openModal(title,body,
+      button("schedule-summary","짧은 일정 요약","down","",extra+' aria-expanded="false" aria-controls="schedule-summary-panel"')+
+      (relatedSource(item)?button("schedule-source","관련 메시지 보기","mail","",extra):"")+footer,"schedule-detail-modal");
+    const summary=window.IeumScheduleSummary.summarize(item,sourceText(item));
+    const rows=[["할 일",summary.task,"checklist"],["날짜·시간",summary.date+" · "+summary.time,"clock"],["장소",summary.place,"school"],["준비·확인",summary.preparation,"note"]];
+    $(".schedule-detail-modal").insertAdjacentHTML("beforeend",`<section class="summary-fold" id="schedule-summary-panel" aria-hidden="true" aria-label="짧은 일정 요약"><div class="summary-fold-clip"><article class="summary-page" inert><div class="summary-page-heading"><span>${icon("leaf",16)} 한눈에 보는 일정</span><small>로컬 규칙 요약</small></div><dl>${rows.map(([label,value,name])=>`<div><dt>${icon(name,16)} ${esc(label)}</dt><dd>${esc(value)}</dd></div>`).join("")}</dl><small class="muted">날짜와 시간은 현재 캘린더 기준입니다.</small></article></div></section>`);
+  }
+  function toggleScheduleSummary(button) {
+    const modal=$(".schedule-detail-modal"), panel=$("#schedule-summary-panel");if(!modal||!panel)return;
+    const open=button.getAttribute("aria-expanded")!=="true";
+    if(!modal.parentElement.classList.contains("schedule-anchored")){
+      const top=modal.getBoundingClientRect().top;
+      modal.parentElement.classList.add("schedule-anchored");
+      // Reserve room below the hinge on short screens; leave the top fixed otherwise.
+      const anchor=Math.max(12,Math.min(top,innerHeight-modal.offsetHeight-260));
+      modal.parentElement.style.paddingTop=anchor+"px";
+      modal.style.maxHeight=`calc(100dvh - ${anchor+12}px)`;
+    }
+    panel.classList.toggle("is-open",open);panel.setAttribute("aria-hidden",String(!open));
+    $(".summary-page",panel).inert=!open;
+    button.setAttribute("aria-expanded",String(open));
+    button.innerHTML=icon("down",16)+ (open?"요약 접기":"짧은 일정 요약");
+  }
+  let sourceReaderToken=0;
+  async function showScheduleSource(item) {
+    const source=relatedSource(item);if(!source)return;
+    const token=++sourceReaderToken;
+    const back=button("schedule-return","일정으로 돌아가기","left","",`data-schedule="${esc(item.id)}"`)+button("close-modal","닫기");
+    const renderSource=(body)=>openModal("관련 메시지",body,back,"schedule-source-modal");
+    if(source.kind==="mail"){
+      const m=state.data.mails.find(m=>m.id===source.id);
+      if(!m){renderSource('<p class="muted">원본 메시지가 삭제·회수되었거나 현재 계정에서 볼 수 없습니다.</p>');return;}
+      renderSource(`<div class="source-meta"><span class="chip">원본 메시지</span><strong>${esc(person(m.from).name)}</strong><time>${fmtDate(m.date)} ${esc(m.time)}</time></div><h3>${esc(mailSubject(m))}</h3><div class="source-recipients">받는 사람: ${(m.to||[]).map(id=>esc(person(id).name)).join(", ")}${m.cc?.length?" · 참조: "+m.cc.map(id=>esc(person(id).name)).join(", "):""}</div><div class="source-message-body">${m.html?safeRichHTML(m.html):esc(m.body)}</div>${(m.files||[]).map((file,i)=>`<div class="attachment">${icon("file",22)}<div><strong>${esc(file.name)}</strong><small>${esc(file.size)}</small></div>${ib("download-file","첨부 다운로드","download",`data-mail="${esc(m.id)}" data-file="${i}"`)}</div>`).join("")}`);
+      return;
+    }
+    let room=state.data.rooms.find(r=>r.messages.some(m=>m.id===source.id));
+    let message=room?.messages.find(m=>m.id===source.id);
+    if(!message&&native){
+      renderSource('<p role="status">원본 대화를 확인하고 있습니다…</p>');
+      const reader=$(".schedule-source-modal");
+      try{
+        const result=await native.request("/message-source",{id:source.id});
+        if(token!==sourceReaderToken||reader!==$(".schedule-source-modal"))return;
+        if(result.error)throw new Error(result.error);
+        message=result.message;room=state.data.rooms.find(r=>r.id===result.room)||{name:result.roomName};
+      }catch{if(token===sourceReaderToken&&reader===$(".schedule-source-modal"))renderSource('<p class="muted">원본 대화가 삭제되었거나 대화방 참여 권한이 없습니다.</p>');return;}
+    }
+    if(!message){renderSource('<p class="muted">원본 대화가 없거나 대화방에서 나간 상태입니다.</p>');return;}
+    renderSource(`<div class="source-meta"><span class="chip blue">원본 대화</span><strong>${esc(person(message.sender).name)}</strong><time>${message.date?fmtDate(message.date):""} ${esc(message.time)}</time></div><h3>${esc(room.name||"대화")}</h3><div class="source-message-body source-chat-highlight">${esc(message.text)}</div><p class="muted">이 일정이 추출된 대화 메시지입니다.</p>`);
+  }
+  function viewDeadline(id) {
+    const deadline = state.data.deadlines.find(n=>n.id===id);
+        if (deadline)
+          openScheduleDetail(deadline,
+            deadline.title,
+            `<p>제출 기한: ${fmtDate(deadline.date)}${deadline.dueTime ? ` ${esc(deadline.dueTime)}까지` : " · 시간 미지정"}</p>${deadline.note ? `<p style="white-space:pre-wrap">${esc(deadline.note)}</p>` : ""}<p class="muted" style="margin-top:12px">${deadline.done ? "완료한 업무입니다." : "제출한 뒤 완료로 표시해 주세요."}</p>`,
+            button("close-modal", "닫기") + button("edit-deadline", "수정", "note", "", `data-deadline="${deadline.id}"`) +
+              button(
+                "toggle-deadline",
+                deadline.done ? "미완료로 변경" : "완료로 표시",
+                "check",
+                "btn-primary",
+                `data-deadline="${deadline.id}"`,
+              ),
+          );
+  }
   function viewEvent(id) {
     const e = state.data.events.find((e) => e.id === id);
     if (!e) return;
-    openModal(
+    openScheduleDetail(e,
       e.title,
       `<div class="chip ${e.type === "personal" ? "" : e.type === "repeat" ? "orange" : "blue"}">${typeLabel(e.type)}</div><div style="margin-top:22px;display:grid;gap:16px;font-size:13px"><p>${icon("calendar", 16)} ${fmtDate(e.date)}</p><p>${icon("clock", 16)} ${e.start} – ${e.end}</p><p>${icon("school", 16)} ${esc(e.place || "장소 미정")}</p>${e.targets?.length ? `<p>${icon("users", 16)} ${e.targets.map((id) => esc(person(id).name)).join(", ")}</p>` : ""}<p class="muted" style="white-space:pre-wrap">${esc(e.note || "등록된 메모가 없습니다.")}</p>${canMoveEvent(e)?`<p class="muted">블록을 드래그해 이동하고 위·아래 가장자리로 시간을 조절하세요.${e.source||e.targets?.length?" 함께 등록된 사람들의 일정 시간도 같이 바뀝니다.":""}</p>`:""}</div>`,
       button("close-modal", "닫기") +
@@ -2037,21 +2115,18 @@
         closeModal();
         renderPage();
         break;
+      case "schedule-summary": toggleScheduleSummary(target); break;
+      case "schedule-source": {
+        const item=[...state.data.events,...state.data.deadlines].find(i=>i.id===d.schedule);
+        if(item)showScheduleSource(item);break;
+      }
+      case "schedule-return": {
+        if(state.data.events.some(i=>i.id===d.schedule))viewEvent(d.schedule);
+        else viewDeadline(d.schedule);
+        break;
+      }
       case "deadline-detail": {
-        const deadline = state.data.deadlines.find((n) => n.id === d.deadline);
-        if (deadline)
-          openModal(
-            deadline.title,
-            `<p>제출 기한: ${fmtDate(deadline.date)}${deadline.dueTime ? ` ${esc(deadline.dueTime)}까지` : " · 시간 미지정"}</p>${deadline.note ? `<p style="white-space:pre-wrap">${esc(deadline.note)}</p>` : ""}<p class="muted" style="margin-top:12px">${deadline.done ? "완료한 업무입니다." : "제출한 뒤 완료로 표시해 주세요."}</p>`,
-            button("close-modal", "닫기") + button("edit-deadline", "수정", "note", "", `data-deadline="${deadline.id}"`) +
-              button(
-                "toggle-deadline",
-                deadline.done ? "미완료로 변경" : "완료로 표시",
-                "check",
-                "btn-primary",
-                `data-deadline="${deadline.id}"`,
-              ),
-          );
+        viewDeadline(d.deadline);
         break;
       }
       case "demo-deadline": {
