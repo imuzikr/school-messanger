@@ -383,7 +383,7 @@
         )
         .join(
           "",
-        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.37</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
+        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.38</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
     );
   }
   const groupLabel=p=>String(p[state.group]||"").trim()||({grade:"학년 미지정",otherGroup:"기타 미지정"}[state.group]||"미지정");
@@ -611,10 +611,20 @@
     });
   }
   const mailColumns = [
-    { key: "from", label: "보낸 사람", width: 38 },
-    { key: "title", label: "내용", width: 44 },
-    { key: "date", label: "받은 날짜", width: 18 },
+    { key: "from", label: "보낸 사람", width: 24, min: 12 },
+    { key: "title", label: "제목", width: 26, min: 12 },
+    { key: "body", label: "내용", width: 32, min: 12 },
+    { key: "date", label: "받은 날짜", width: 18, min: 12 },
   ];
+  const savedMailWidths=state.settings.mailColumnWidths;
+  if(savedMailWidths&&mailColumns.every(c=>Number.isFinite(savedMailWidths[c.key])&&savedMailWidths[c.key]>=c.min)&&Math.abs(mailColumns.reduce((sum,c)=>sum+savedMailWidths[c.key],0)-100)<.01){
+    mailColumns.forEach(c=>c.width=savedMailWidths[c.key]);
+  }
+  function mailPreview(mail){
+    let text=mail.body||"";
+    if(!text&&mail.html){const doc=new DOMParser().parseFromString(safeRichHTML(mail.html),"text/html");text=doc.body.textContent||"";}
+    return text.replace(/\s+/g," ").trim().slice(0,200);
+  }
   function filteredMails() {
     return state.data.mails
       .filter((m) =>
@@ -653,7 +663,11 @@
   }
   function mailListHTML() {
     const mails = filteredMails();
-    return `<div class="mail-list-header">${mailColumns.map((c) => `<span class="mail-column" draggable="true" data-column="${c.key}" style="width:${c.width}%">${state.folder === "sent" && c.key === "from" ? "수신 확인" : c.label}<i class="column-grip" data-column-resize="${c.key}"></i></span>`).join("")}</div>${mails.length ? mails.map((m) => `<div class="mail-row ${m.unread ? "unread" : ""} ${m.id === state.mail ? "active" : ""}" data-action="open-mail" data-mail="${m.id}" role="button" tabindex="0" aria-label="${esc(mailSubject(m))}"><div class="mail-row-top">${mailColumns.map((c) => `<span class="mail-data-column" style="width:${c.width}%">${c.key === "from" ? `<button class="star-button ${m.important ? "on" : ""}" data-action="star-mail" data-mail="${m.id}" aria-label="${m.important ? "중요 표시 해제" : "중요 표시"}" aria-pressed="${m.important}">${icon("star", 13)}</button><span>${state.folder === "sent" ? (m.receipts.every((r) => r === "recalled") ? "회수됨" : m.receipts.filter((r) => r === "read").length + "/" + m.to.length + " 읽음") : esc(person(m.from).name)}</span>` : c.key === "title" ? esc(mailSubject(m)) : `<time>${fmtDate(m.date, { month: "numeric", day: "numeric" })}</time>`}</span>`).join("")}${m.files.length ? icon("clip", 12) : ""}</div><strong class="mail-row-title">${esc(mailSubject(m))}</strong><p>${esc(m.body.slice(0, 50).replace(/\n/g, " "))}</p></div>`).join("") : empty("아직 메시지가 없어요", "새 메시지를 쓰거나 다른 폴더를 확인해 보세요.", "mail")}`;
+    const header=mailColumns.map((c,i)=>`<span class="mail-column" data-column="${c.key}" style="width:${c.width}%"><span class="mail-column-label" title="${c.label}">${c.label}</span>${i<mailColumns.length-1?`<span class="column-grip" data-column-resize="${c.key}" role="separator" tabindex="0" aria-orientation="vertical" aria-label="${c.label} 열 너비 조절" aria-valuemin="${c.min}" aria-valuemax="${c.width+mailColumns[i+1].width-mailColumns[i+1].min}" aria-valuenow="${c.width}" title="드래그하거나 방향키로 열 너비 조절"></span>`:""}</span>`).join("");
+    return `<div class="mail-list-header">${header}</div>${mails.length?mails.map(m=>{
+      const title=mailSubject(m),preview=mailPreview(m),sender=person(m.from).name;
+      return `<div class="mail-row mail-table-row ${m.unread?"unread":""} ${m.id===state.mail?"active":""}" data-action="open-mail" data-mail="${m.id}" role="button" tabindex="0" aria-label="${esc(sender)} · ${esc(title)}"><div class="mail-row-top">${mailColumns.map(c=>`<span class="mail-data-column mail-cell-${c.key}" style="width:${c.width}%">${c.key==="from"?`<button class="star-button ${m.important?"on":""}" data-action="star-mail" data-mail="${m.id}" aria-label="${m.important?"중요 표시 해제":"중요 표시"}" aria-pressed="${m.important}">${icon("star",13)}</button><span title="${esc(sender)}">${esc(sender)}</span>`:c.key==="title"?`<strong class="mail-row-title" title="${esc(title)}">${esc(title)}</strong>`:c.key==="body"?`<span class="mail-preview" title="${esc(preview)}">${esc(preview)}</span>`:`<time title="${esc(m.date)} ${esc(m.time||"")}">${fmtDate(m.date,{month:"numeric",day:"numeric"})}</time>${m.files.length?`<span class="mail-attachment-indicator" title="첨부 파일 ${m.files.length}개">${icon("clip",12)}</span>`:""}`}</span>`).join("")}</div></div>`;
+    }).join(""):empty("아직 메시지가 없어요", "새 메시지를 쓰거나 다른 폴더를 확인해 보세요.", "mail")}`;
   }
   function safeRichHTML(html) {
     const doc = new DOMParser().parseFromString(String(html), "text/html");
@@ -727,57 +741,29 @@
     initMailColumns();
   }
   function initMailColumns() {
-    $$("[data-column-resize]").forEach(
-      (grip) =>
-        (grip.onpointerdown = (e) => {
-          e.stopPropagation();
-          e.preventDefault();
-          const key = grip.dataset.columnResize,
-            col = mailColumns.find((c) => c.key === key),
-            start = e.clientX,
-            w = col.width,
-            total = $(".mail-list-header").clientWidth;
-          grip.setPointerCapture(e.pointerId);
-          const move = (ev) => {
-            col.width = Math.max(
-              12,
-              Math.min(70, w + ((ev.clientX - start) / total) * 100),
-            );
-            grip.parentElement.style.width = col.width + "%";
-            const index = mailColumns.findIndex((c) => c.key === key);
-            $$(".mail-row-top").forEach((row) => {
-              if (row.children[index])
-                row.children[index].style.width = col.width + "%";
-            });
-          };
-          const end = () => {
-            grip.removeEventListener("pointermove", move);
-            grip.removeEventListener("pointerup", end);
-          };
-          grip.addEventListener("pointermove", move);
-          grip.addEventListener("pointerup", end);
-        }),
-    );
-    $$("[data-column]").forEach((col) => {
-      col.ondragstart = (e) =>
-        e.dataTransfer.setData("text/plain", col.dataset.column);
-      col.ondragover = (e) => {
-        e.preventDefault();
-        col.style.borderLeft = "2px solid var(--green)";
+    const paint=()=>{
+      mailColumns.forEach((col,index)=>{
+        const header=$(`[data-column="${col.key}"]`);if(!header)return;
+        header.style.width=col.width+"%";
+        const grip=header.querySelector('[data-column-resize]');
+        if(grip){grip.setAttribute('aria-valuenow',String(Math.round(col.width*10)/10));grip.setAttribute('aria-valuemax',String(col.width+mailColumns[index+1].width-mailColumns[index+1].min));}
+        $$('.mail-table-row .mail-row-top').forEach(row=>row.children[index].style.width=col.width+"%");
+      });
+    };
+    const persist=()=>{state.settings.mailColumnWidths=Object.fromEntries(mailColumns.map(c=>[c.key,c.width]));save();};
+    $$('[data-column-resize]').forEach(grip=>{
+      const index=mailColumns.findIndex(c=>c.key===grip.dataset.columnResize),col=mailColumns[index],next=mailColumns[index+1];
+      const adjust=(width,total)=>{col.width=Math.max(col.min,Math.min(total-next.min,width));next.width=total-col.width;paint();};
+      grip.onpointerdown=e=>{
+        if(e.button!==0)return;e.stopPropagation();e.preventDefault();grip.focus();
+        const start=e.clientX,width=col.width,nextWidth=next.width,total=width+nextWidth;
+        const available=$('.mail-list-header').getBoundingClientRect().width-parseFloat(getComputedStyle($('.mail-list-header')).paddingLeft)-parseFloat(getComputedStyle($('.mail-list-header')).paddingRight);
+        grip.setPointerCapture(e.pointerId);
+        grip.onpointermove=ev=>adjust(width+(ev.clientX-start)/available*100,total);
+        const finish=cancel=>{grip.onpointermove=null;grip.onpointerup=null;grip.onpointercancel=null;grip.onlostpointercapture=null;if(cancel){col.width=width;next.width=nextWidth;paint();}else persist();};
+        grip.onpointerup=()=>finish(false);grip.onpointercancel=()=>finish(true);grip.onlostpointercapture=()=>finish(false);
       };
-      col.ondragleave = () => (col.style.borderLeft = "");
-      col.ondrop = (e) => {
-        e.preventDefault();
-        const src = mailColumns.findIndex(
-            (c) => c.key === e.dataTransfer.getData("text/plain"),
-          ),
-          dest = mailColumns.findIndex((c) => c.key === col.dataset.column);
-        if (src >= 0 && dest >= 0) {
-          mailColumns.splice(dest, 0, mailColumns.splice(src, 1)[0]);
-          $("#mail-list").innerHTML = mailListHTML();
-          initMailColumns();
-        }
-      };
+      grip.onkeydown=e=>{if(!['ArrowLeft','ArrowRight'].includes(e.key))return;e.preventDefault();e.stopPropagation();adjust(col.width+(e.key==='ArrowRight'?2:-2),col.width+next.width);persist();};
     });
   }
   let modalPreviousFocus = null,

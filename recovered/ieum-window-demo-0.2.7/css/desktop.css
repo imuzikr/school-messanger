@@ -171,3 +171,22 @@ body.unified-main[data-host-side="right"]{--organization-left:0px}
 .agenda-deadlines .deadline-content:hover{text-decoration:underline}
 .agenda-deadlines .deadline-content:focus-visible{outline:2px solid var(--green);outline-offset:3px;border-radius:2px}
 .timeline-end-label{position:absolute;bottom:0;left:0;right:0;padding:0 8px;font-size:9px;color:#9da891;line-height:12px}
+
+/* Message table: aligned single-line cells and visible adjacent-column dividers. */
+.mail-list-header{padding:10px 12px;min-height:42px;align-items:stretch}
+.mail-list-header .mail-column{flex-shrink:0;min-width:0;padding:2px 8px;cursor:default;text-overflow:ellipsis;overflow:visible}
+.mail-list-header .column-grip{right:-4px;width:9px;height:100%;touch-action:none;user-select:none;background:transparent;z-index:2}
+.mail-list-header .column-grip:after{content:"";position:absolute;left:4px;top:0;bottom:0;width:1px;background:#aebeb3}
+.mail-list-header .column-grip:hover:after,.mail-list-header .column-grip:focus-visible:after{width:2px;background:var(--green)}
+.mail-list-header .column-grip:focus-visible{outline:2px solid var(--green);outline-offset:1px}
+.mail-table-row,.mail-table-row.unread{padding:10px 12px;border-left:0;position:relative}
+.mail-table-row.unread:before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:#d5a965}
+.mail-table-row .mail-row-top{margin:0;gap:0;min-height:25px}
+.mail-table-row .mail-data-column{height:25px;flex-shrink:0;min-width:0;padding:0 8px;line-height:25px;font-size:14px}
+.mail-table-row .mail-row-title{color:var(--ink);font-size:17px;line-height:25px;font-weight:600;min-width:0}
+.mail-table-row .mail-preview{font-size:15px;line-height:25px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mail-table-row .star-button,.mail-table-row .mail-attachment-indicator{flex-shrink:0}
+.mail-table-row .mail-data-column time{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mail-table-row .mail-attachment-indicator{display:flex}
+
+.mail-column-label{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
