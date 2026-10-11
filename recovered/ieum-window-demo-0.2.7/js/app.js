@@ -308,7 +308,7 @@
     const workspace=!!requestedWorkspace||!!requestedChat||!["people","chat"].includes(state.page);
     document.body.classList.toggle("compact-mode",!workspace);
     const labels={people:"교직원",chat:"대화",inbox:"메시지함",calendar:"내 캘린더",announcements:"학교 소식",links:"바로가기"};
-    const nav=[["inbox","mail","메시지함"],["chat","chat","대화"],["calendar","calendar","내 캘린더"],["school-work","checklist","교무업무"],["announcements","notice","학교소식"],["links","link","바로가기"]];
+    const nav=[["people","users","조직도"],["inbox","mail","메시지함"],["chat","chat","대화"],["calendar","calendar","내 캘린더"],["school-work","checklist","교무업무"],["announcements","notice","학교소식"],["links","link","바로가기"]];
     const controls=`<div class="compact-window-controls">${windowApi?ib("window-minimize","최소화","left")+(windowApi.mainHost?ib("window-minimal","미니멀","minimal"):"")+ib("window-close","닫기","x"):workspace?ib("back-main","메신저 본창으로","x"):""}</div>`;
     const header=`<header class="compact-header">${avatar({name:state.user,status:"online"})}<div class="compact-profile"><div class="school-heading"><button class="btn-quiet" data-action="back-main" title="조직도로 돌아가기" style="padding:0;text-align:left"><strong>${esc(state.data.schoolName||"○○고등학교")}</strong></button><span class="school-population" aria-label="전체 ${state.data.people.length}명, 접속 ${state.data.people.filter(p=>p.status==='online').length}명"><span>전체 ${state.data.people.length}</span><span class="population-online">접속 ${state.data.people.filter(p=>p.status==='online').length}</span></span></div><small>${esc(state.user)} · ${esc(state.profile?.department||"교무기획부")}</small></div><button class="icon-btn" data-action="nav-inbox" aria-label="메시지함">${icon("mail",20)}${unreadMails()?`<span class="badge">${unreadMails()}</span>`:""}</button>${ib("nav-chat","대화 목록","chat")}${controls}</header>`;
     const rail=`<nav class="rail" aria-label="주 메뉴">${nav.map(([p,i,l])=>`<button class="nav-item ${state.page===p?"active":""}" data-action="nav-${p}" ${state.page===p?'aria-current="page"':''}>${icon(i,23)}<span>${l}</span>${p==="chat"&&unreadChats()?`<b class="badge">${unreadChats()}</b>`:p==="inbox"&&unreadMails()?`<b class="badge">${unreadMails()}</b>`:""}</button>`).join("")}<div class="rail-bottom">${ib("settings","설정","settings")}${ib("logout","로그아웃","logout")}<button class="nav-item" data-action="toggle-today" aria-pressed="${state.showToday}">${icon("calendar",20)}<span>오늘 일정</span></button></div></nav>`;
@@ -389,7 +389,7 @@
         )
         .join(
           "",
-        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.45</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
+        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.46</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
     );
   }
   const groupLabel=p=>String(p[state.group]||"").trim()||({grade:"학년 미지정",otherGroup:"기타 미지정"}[state.group]||"미지정");
@@ -689,25 +689,38 @@
       "UL",
       "OL",
       "LI",
-      "TABLE","THEAD","TBODY","TR","TH","TD",
+      "TABLE","THEAD","TBODY","TR","TH","TD","SPAN","FONT",
     ]);
+    const safeColor=value=>{
+      value=String(value||"").trim().toLowerCase();
+      if(/^#[0-9a-f]{3}(?:[0-9a-f]{3})?$/.test(value)||/^(transparent|black|white|red|green|blue|yellow|orange|purple|gr[ae]y)$/.test(value))return value;
+      const rgb=value.match(/^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})(?:\s*,\s*(0(?:\.\d+)?|1(?:\.0+)?))?\s*\)$/);
+      return rgb&&rgb.slice(1,4).every(n=>Number(n)<=255)?value:"";
+    };
+    const fontSizes={"x-small":10,small:13,medium:16,large:18,"x-large":24,"xx-large":32,"xxx-large":48};
+    const safeStyles=node=>{
+      const out=[];
+      for(const [property,value] of [["color",node.style.color||node.getAttribute("color")],["background-color",node.style.backgroundColor]]){const color=safeColor(value);if(color)out.push(property+":"+color);}
+      const size=node.style.fontSize,legacy={1:10,2:13,3:16,4:18,5:24,6:32,7:48}[node.getAttribute("size")];
+      const px=fontSizes[size]||(/^\d+(?:\.\d+)?px$/.test(size)?Number.parseFloat(size):legacy);
+      if(px>=10&&px<=48)out.push("font-size:"+px+"px");
+      if(/^(bold|normal|400|700)$/.test(node.style.fontWeight))out.push("font-weight:"+node.style.fontWeight);
+      if(/^(italic|normal)$/.test(node.style.fontStyle))out.push("font-style:"+node.style.fontStyle);
+      const decoration=node.style.textDecorationLine;
+      if(/^(underline|line-through|none)$/.test(decoration))out.push("text-decoration-line:"+decoration);
+      return out.length?' style="'+esc(out.join(';'))+'"':"";
+    };
     const walk = (node) => {
       if (node.nodeType === 3) return esc(node.textContent);
       if (node.nodeType !== 1) return "";
       if (["SCRIPT", "STYLE", "IFRAME", "OBJECT", "SVG"].includes(node.tagName))
         return "";
       const content = Array.from(node.childNodes).map(walk).join("");
-      if(node.tagName==="A"){try{const url=new URL(node.getAttribute("href")||"");if(!["http:","https:"].includes(url.protocol)||url.username||url.password)return content;return `<a href="${esc(url.href)}" target="_blank" rel="noopener noreferrer">${content}</a>`;}catch{return content;}}
+      if(node.tagName==="A"){try{const url=new URL(node.getAttribute("href")||"");if(!["http:","https:"].includes(url.protocol)||url.username||url.password)return content;return `<a href="${esc(url.href)}" target="_blank" rel="noopener noreferrer"${safeStyles(node)}>${content}</a>`;}catch{return content;}}
 
-      return allowed.has(node.tagName)
-        ? "<" +
-            node.tagName.toLowerCase() +
-            ">" +
-            content +
-            (node.tagName === "BR"
-              ? ""
-              : "</" + node.tagName.toLowerCase() + ">")
-        : content;
+      if(!allowed.has(node.tagName))return content;
+      const tag=node.tagName==="FONT"?"span":node.tagName.toLowerCase();
+      return "<"+tag+safeStyles(node)+">"+content+(node.tagName==="BR"?"":"</"+tag+">");
     };
     return Array.from(doc.body.childNodes).map(walk).join("");
   }
@@ -826,7 +839,7 @@
     };
     openModal(
       "새 메시지 쓰기",
-      `<form id="compose-form" class="compose-form"><div class="compose-mode-buttons" role="group" aria-label="메시지 작성 방식">${button("compose-mode","일반 메시지","mail","",'data-mode="general" aria-pressed="true"')}${button("compose-mode","예약 메시지","clock","",'data-mode="scheduled" aria-pressed="false"')}${button("compose-mode","일정 추가","calendar","",'data-mode="event" aria-pressed="false"')}</div><section id="compose-reservation" hidden><label>예약 날짜·시간<input type="datetime-local" id="mail-scheduled-at" class="input" disabled></label></section><section id="compose-event" hidden><div class="compose-event-fields"><label>날짜<input id="compose-event-date" class="input" type="date" value="${state.today}" disabled></label><label>장소<input id="compose-event-place" class="input" placeholder="장소 입력" maxlength="200" disabled></label><label>시작 시간<input id="compose-event-start" class="input" type="time" value="09:00" disabled></label><label>종료 시간<input id="compose-event-end" class="input" type="time" value="10:00" disabled></label></div></section><label ${noticeType?"":"hidden"}>안내 종류<select id="lesson-kind" class="input"><option value="">일반 메시지</option><option value="makeup">보강 안내</option><option value="lessonChange">수업 변경 안내</option></select></label><section id="lesson-assignment" hidden><label>수업 날짜<input id="lesson-date" class="input" type="date" value="${state.today}"></label><p class="muted">필요한 교시를 체크하고 담당 교사를 배정하세요. 보강에서 반을 선택하면 담임과 보강 교사에게 함께 발송합니다. 수업 변경은 기존·교체 교사에게 안내하고 캘린더에 자동 등록합니다.</p><div class="lesson-table-scroll"><table class="lesson-table"><thead><tr><th>교시</th><th>반</th><th class="lesson-original" hidden>기존 교사</th><th id="lesson-teacher-heading">보강 교사</th></tr></thead><tbody>${Array.from({length:7},(_,i)=>`<tr data-lesson-row="${i+1}"><td><label><input type="checkbox" data-lesson-period="${i+1}">${i+1}교시</label><small data-lesson-time="${i+1}"></small></td><td><input class="input" data-lesson-class="${i+1}" list="school-classes" placeholder="반 선택/입력" maxlength="40" aria-label="${i+1}교시 반"><small data-lesson-homeroom="${i+1}"></small></td><td class="lesson-original" hidden><select class="input" data-lesson-original="${i+1}" aria-label="${i+1}교시 기존 교사"><option value="">교사 선택</option>${lessonPeople.map(p=>`<option value="${p.id}">${esc(p.name)} · ${esc(p.department)}</option>`).join("")}</select></td><td><select class="input" data-lesson-teacher="${i+1}" aria-label="${i+1}교시 배정 교사"><option value="">교사 선택</option>${lessonPeople.map(p=>`<option value="${p.id}">${esc(p.name)} · ${esc(p.department)}</option>`).join("")}</select></td></tr>`).join("")}</tbody></table></div><datalist id="school-classes">${[...new Set([...(state.data.classTeachers||[]).map(c=>c.className),...Array.from({length:36},(_,i)=>`${Math.floor(i/12)+1}학년 ${i%12+1}반`)])].map(name=>`<option value="${esc(name)}">`).join("")}</datalist></section><div class="field-row"><label for="recipient-input">받는 사람</label><div class="recipient-box" id="recipient-box">${recipientChips()}<input id="recipient-input" autocomplete="off" placeholder="이름을 입력해 선택하세요" aria-label="받는 사람 검색"><div class="suggestions" id="recipient-suggestions" hidden></div></div></div><div class="field-row"><label for="cc-input">참조</label><div class="recipient-box" id="cc-box"><input id="cc-input" autocomplete="off" placeholder="참조할 선생님 선택 (선택)" aria-label="참조 검색"><div class="suggestions" id="cc-suggestions" hidden></div></div></div><div class="field-row"><label for="mail-title">제목 (선택)</label><input id="mail-title" class="input" placeholder="비워 두어도 발송할 수 있습니다" value="${esc(title)}" maxlength="150"></div><div class="compose-editor"><div class="editor-tools" aria-label="본문 서식">${button("editor-bold", "B", "", "", 'aria-label="굵게"')}${button("editor-italic", "I", "", "", 'aria-label="기울임"')}${button("editor-underline", "U", "", "", 'aria-label="밑줄"')}${button("editor-list", "목록", "checklist")}${button("editor-clear", "서식 지우기")}</div><div class="rich-editor" id="mail-editor" contenteditable="true" role="textbox" aria-label="메시지 본문" aria-multiline="true" data-placeholder="선생님께 전할 이야기와 자료를 적어 주세요.">${richBody?safeRichHTML(richBody):esc(body).replace(/\n/g, "<br>")}</div></div><input type="file" id="mail-files" multiple hidden><div class="compose-files" id="compose-files">${composeFilesHTML()}</div><div id="compose-error" class="form-error" role="alert"></div></form>`,
+      `<form id="compose-form" class="compose-form"><div class="compose-mode-buttons" role="group" aria-label="메시지 작성 방식">${button("compose-mode","일반 메시지","mail","",'data-mode="general" aria-pressed="true"')}${button("compose-mode","예약 메시지","clock","",'data-mode="scheduled" aria-pressed="false"')}${button("compose-mode","일정 추가","calendar","",'data-mode="event" aria-pressed="false"')}</div><section id="compose-reservation" hidden><label>예약 날짜·시간<input type="datetime-local" id="mail-scheduled-at" class="input" disabled></label></section><section id="compose-event" hidden><div class="compose-event-fields"><label>날짜<input id="compose-event-date" class="input" type="date" value="${state.today}" disabled></label><label>장소<input id="compose-event-place" class="input" placeholder="장소 입력" maxlength="200" disabled></label><label>시작 시간<input id="compose-event-start" class="input" type="time" value="09:00" disabled></label><label>종료 시간<input id="compose-event-end" class="input" type="time" value="10:00" disabled></label></div></section><label ${noticeType?"":"hidden"}>안내 종류<select id="lesson-kind" class="input"><option value="">일반 메시지</option><option value="makeup">보강 안내</option><option value="lessonChange">수업 변경 안내</option></select></label><section id="lesson-assignment" hidden><label>수업 날짜<input id="lesson-date" class="input" type="date" value="${state.today}"></label><p class="muted">필요한 교시를 체크하고 담당 교사를 배정하세요. 보강에서 반을 선택하면 담임과 보강 교사에게 함께 발송합니다. 수업 변경은 기존·교체 교사에게 안내하고 캘린더에 자동 등록합니다.</p><div class="lesson-table-scroll"><table class="lesson-table"><thead><tr><th>교시</th><th>반</th><th class="lesson-original" hidden>기존 교사</th><th id="lesson-teacher-heading">보강 교사</th></tr></thead><tbody>${Array.from({length:7},(_,i)=>`<tr data-lesson-row="${i+1}"><td><label><input type="checkbox" data-lesson-period="${i+1}">${i+1}교시</label><small data-lesson-time="${i+1}"></small></td><td><input class="input" data-lesson-class="${i+1}" list="school-classes" placeholder="반 선택/입력" maxlength="40" aria-label="${i+1}교시 반"><small data-lesson-homeroom="${i+1}"></small></td><td class="lesson-original" hidden><select class="input" data-lesson-original="${i+1}" aria-label="${i+1}교시 기존 교사"><option value="">교사 선택</option>${lessonPeople.map(p=>`<option value="${p.id}">${esc(p.name)} · ${esc(p.department)}</option>`).join("")}</select></td><td><select class="input" data-lesson-teacher="${i+1}" aria-label="${i+1}교시 배정 교사"><option value="">교사 선택</option>${lessonPeople.map(p=>`<option value="${p.id}">${esc(p.name)} · ${esc(p.department)}</option>`).join("")}</select></td></tr>`).join("")}</tbody></table></div><datalist id="school-classes">${[...new Set([...(state.data.classTeachers||[]).map(c=>c.className),...Array.from({length:36},(_,i)=>`${Math.floor(i/12)+1}학년 ${i%12+1}반`)])].map(name=>`<option value="${esc(name)}">`).join("")}</datalist></section><div class="field-row"><label for="recipient-input">받는 사람</label><div class="recipient-box" id="recipient-box">${recipientChips()}<input id="recipient-input" autocomplete="off" placeholder="이름을 입력해 선택하세요" aria-label="받는 사람 검색"><div class="suggestions" id="recipient-suggestions" hidden></div></div></div><div class="field-row"><label for="cc-input">참조</label><div class="recipient-box" id="cc-box"><input id="cc-input" autocomplete="off" placeholder="참조할 선생님 선택 (선택)" aria-label="참조 검색"><div class="suggestions" id="cc-suggestions" hidden></div></div></div><div class="field-row"><label for="mail-title">제목 (선택)</label><input id="mail-title" class="input" placeholder="비워 두어도 발송할 수 있습니다" value="${esc(title)}" maxlength="150"></div><div class="compose-editor"><div class="editor-tools" aria-label="본문 서식">${button("editor-bold", "B", "", "", 'aria-label="굵게"')}${button("editor-italic", "I", "", "", 'aria-label="기울임"')}${button("editor-underline", "U", "", "", 'aria-label="밑줄"')}${button("editor-list", "목록", "checklist")}${button("editor-clear", "서식 지우기")}<select id="editor-font-size" aria-label="글자 크기"><option value="">글자 크기</option><option value="2">13px</option><option value="3">16px</option><option value="4">18px</option><option value="5">24px</option><option value="6">32px</option></select>${button("editor-palette-toggle","글자 색상","","",'data-palette="text" aria-expanded="false" aria-controls="editor-text-palette"')}${button("editor-palette-toggle","형광펜","","",'data-palette="highlight" aria-expanded="false" aria-controls="editor-highlight-palette"')}${editorPaletteHTML("text")}${editorPaletteHTML("highlight")}</div><div class="rich-editor" id="mail-editor" contenteditable="true" role="textbox" aria-label="메시지 본문" aria-multiline="true" data-placeholder="선생님께 전할 이야기와 자료를 적어 주세요.">${richBody?safeRichHTML(richBody):esc(body).replace(/\n/g, "<br>")}</div></div><input type="file" id="mail-files" multiple hidden><div class="compose-files" id="compose-files">${composeFilesHTML()}</div><div id="compose-error" class="form-error" role="alert"></div></form>`,
       button("close-modal", "취소") + button("attach-mail", "파일 첨부", "clip") +
         `<button class="btn btn-primary" type="submit" form="compose-form">${icon("send", 16)} 보내기</button>`,
       "compose-modal",
@@ -859,6 +872,9 @@
       .join("");
   }
   function initCompose() {
+    editorFormatRange=null;editorTypingFormats={};editorTypingAnchor=null;
+    $(".editor-tools").onpointerdown=event=>{captureEditorFormat();if(event.target.closest("button"))event.preventDefault();};
+    $("#editor-font-size").onchange=event=>{if(["2","3","4","5","6"].includes(event.target.value))applyEditorFormat("fontSize",event.target.value);};
     const drop = $("#mail-editor");
     drop.addEventListener("dragover", e=>{
       if(!Array.from(e.dataTransfer.types).includes("Files"))return;
@@ -1599,6 +1615,43 @@
     state.members = false;
     renderFloating();
   }
+  let editorFormatRange=null,editorTypingFormats={},editorTypingAnchor=null;
+  function editorPaletteHTML(kind){
+    const colors=kind==="text"?[["기본","#22332f"],["빨강","#c65348"],["파랑","#2563eb"],["초록","#237a61"],["주황","#d97706"],["보라","#7c3aed"],["회색","#6b7280"]]:[["노랑","#fff59d"],["연두","#d9f99d"],["하늘","#bae6fd"],["분홍","#fbcfe8"],["주황","#fed7aa"],["보라","#e9d5ff"],["없음","transparent"]];
+    return `<div id="editor-${kind}-palette" class="editor-palette" role="group" aria-label="${kind==="text"?"글자 색상":"형광펜"} 색상 선택" hidden>${colors.map(([name,color])=>`<button type="button" class="editor-swatch" data-action="editor-color" data-command="${kind==="text"?"foreColor":"hiliteColor"}" data-color="${color}" aria-label="${name} ${kind==="text"?"글자 색상":"형광펜"}" title="${name}" style="--swatch:${color}">${color==="transparent"?"×":""}</button>`).join("")}</div>`;
+  }
+  function closeEditorPalettes(){
+    $$(".editor-palette").forEach(palette=>palette.hidden=true);
+    $$('[data-action="editor-palette-toggle"]').forEach(button=>button.setAttribute("aria-expanded","false"));
+  }
+  function captureEditorFormat(){
+    const editor=$("#mail-editor"),selection=window.getSelection();
+    if(editor&&selection?.rangeCount&&editor.contains(selection.getRangeAt(0).commonAncestorContainer)){
+      const range=selection.getRangeAt(0);
+      if(editorTypingAnchor&&(!range.collapsed||range.startContainer!==editorTypingAnchor.node||range.startOffset!==editorTypingAnchor.offset)){editorTypingFormats={};editorTypingAnchor=null;}
+      editorFormatRange=range.cloneRange();
+    }
+  }
+  function applyEditorFormat(command,value){
+    const editor=$("#mail-editor");if(!editor)return;
+    editor.focus();const selection=window.getSelection();
+    if(editorFormatRange&&editor.contains(editorFormatRange.commonAncestorContainer)){selection.removeAllRanges();selection.addRange(editorFormatRange.cloneRange());}
+    const range=selection.rangeCount?selection.getRangeAt(0):null;
+    if(command==="removeFormat"||!range?.collapsed){editorTypingFormats={};editorTypingAnchor=null;}
+    else if(["foreColor","hiliteColor","fontSize"].includes(command)){
+      editorTypingAnchor={node:range.startContainer,offset:range.startOffset};editorTypingFormats[command]=value;
+    }
+    document.execCommand("styleWithCSS",false,["foreColor","hiliteColor","fontSize"].includes(command));
+    document.execCommand(command,false,value);
+    if(range?.collapsed&&Object.keys(editorTypingFormats).length){
+      document.execCommand("styleWithCSS",false,true);
+      for(const [format,chosen] of Object.entries(editorTypingFormats))document.execCommand(format,false,chosen);
+    }
+    captureEditorFormat();closeEditorPalettes();
+  }
+  document.addEventListener("selectionchange",captureEditorFormat);
+  document.addEventListener("pointerdown",event=>{if(!event.target.closest(".editor-tools"))closeEditorPalettes();});
+  document.addEventListener("keydown",event=>{if(event.key==="Escape"&&$(".editor-palette:not([hidden])")){event.preventDefault();event.stopImmediatePropagation();closeEditorPalettes();$("#mail-editor")?.focus();}});
   let editorLinkRange=null;
   function captureEditorLink(event){
     const editor=$("#mail-editor"),selection=window.getSelection();
@@ -2052,21 +2105,20 @@
         composeDraft.files.splice(Number(d.file), 1);
         $("#compose-files").innerHTML = composeFilesHTML();
         break;
+      case "editor-palette-toggle": {
+        const palette=$("#editor-"+d.palette+"-palette"),open=palette.hidden;
+        closeEditorPalettes();palette.hidden=!open;target.setAttribute("aria-expanded",String(open));
+        break;
+      }
+      case "editor-color":
+        if(["foreColor","hiliteColor"].includes(d.command)&&/^(#[0-9a-f]{6}|transparent)$/.test(d.color))applyEditorFormat(d.command,d.color);
+        break;
       case "editor-bold":
       case "editor-italic":
       case "editor-underline":
       case "editor-list":
       case "editor-clear":
-        $("#mail-editor").focus();
-        document.execCommand(
-          {
-            "editor-bold": "bold",
-            "editor-italic": "italic",
-            "editor-underline": "underline",
-            "editor-list": "insertUnorderedList",
-            "editor-clear": "removeFormat",
-          }[action],
-        );
+        applyEditorFormat({"editor-bold":"bold","editor-italic":"italic","editor-underline":"underline","editor-list":"insertUnorderedList","editor-clear":"removeFormat"}[action]);
         break;
       case "mail-calendar": {
         const m = state.data.mails.find((m) => m.id === d.mail);

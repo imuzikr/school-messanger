@@ -225,3 +225,6 @@ body.minimal-main .minimal-bar{display:flex;align-items:center;width:100vw;heigh
 .minimal-count b{min-width:12px}
 .minimal-actions{display:flex;flex-shrink:0;gap:2px;-webkit-app-region:no-drag}
 .minimal-actions .icon-btn{width:22px;height:28px}
+
+.unified-main .rail{overflow-y:auto;overflow-x:hidden}
+.unified-main .rail>.nav-item,.unified-main .rail-bottom{flex-shrink:0}

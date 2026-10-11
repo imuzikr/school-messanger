@@ -2926,3 +2926,11 @@ input[type="checkbox"] {
 .compose-editor .rich-editor.over{outline:2px dashed var(--green);outline-offset:-3px;background:var(--green-soft)}
 .compose-files:empty,#compose-error:empty{display:none}
 .compose-files{max-height:64px;overflow:auto;flex-shrink:0}
+
+/* Small editor palettes overlay the body instead of taking another row. */
+.editor-tools{position:relative;flex-wrap:wrap;align-items:center}
+.editor-tools select{max-width:90px;border:1px solid var(--line);border-radius:5px;background:var(--surface);color:var(--ink);font-size:12px;padding:3px 4px}
+.editor-palette{position:absolute;right:8px;top:100%;z-index:3;display:flex;gap:6px;padding:9px;border:1px solid var(--line);border-radius:8px;background:var(--surface);box-shadow:var(--shadow)}
+.editor-tools .editor-swatch{width:27px;height:27px;padding:0;background:var(--swatch);border:1px solid #a9b8ad;font-size:20px;color:var(--ink);border-radius:5px}
+.editor-tools .editor-swatch:hover{background:var(--swatch);outline:2px solid var(--green);outline-offset:1px}
+.editor-tools button{padding:3px 7px}
