@@ -383,7 +383,7 @@
         )
         .join(
           "",
-        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.40</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
+        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.41</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
     );
   }
   const groupLabel=p=>String(p[state.group]||"").trim()||({grade:"학년 미지정",otherGroup:"기타 미지정"}[state.group]||"미지정");
@@ -883,10 +883,7 @@
             "#" + (kind === "to" ? "recipient" : "cc") + "-suggestions button",
           )?.click();
         }
-        if (e.key === "Escape")
-          $(
-            "#" + (kind === "to" ? "recipient" : "cc") + "-suggestions",
-          ).hidden = true;
+        if (e.key === "Escape") {e.preventDefault();e.stopPropagation();hideRecipientSuggestions(kind);}
       };
     });
     $("#mail-schedule").onchange = (e) =>
@@ -900,10 +897,15 @@
     $("#mail-editor").addEventListener("input",preview);$("#lesson-kind").addEventListener("change",preview);preview();
     $("#compose-form").onsubmit = sendMail;
   }
+  function hideRecipientSuggestions(kind){
+    const target=$("#"+(kind==="to"?"recipient":"cc")+"-suggestions");
+    if(target){target.hidden=true;target.innerHTML="";}
+  }
   function recipientSuggestions(input, kind) {
     const target = $(
       "#" + (kind === "to" ? "recipient" : "cc") + "-suggestions",
     );
+    if(!composeDraft||!input.value.trim()){hideRecipientSuggestions(kind);return;}
     const people = state.data.people
       .filter(
         (p) =>
@@ -1673,6 +1675,14 @@
           );
     }
   }
+  const selectedMessageRecipients=id=>state.selected.has(id)?[...state.selected]:[id];
+  const dismissRecipientSuggestions=event=>{
+    for(const [kind,prefix] of [["to","recipient"],["cc","cc"]]){
+      if(!event.target.closest("#"+prefix+"-box"))hideRecipientSuggestions(kind);
+    }
+  };
+  document.addEventListener("pointerdown",dismissRecipientSuggestions);
+  document.addEventListener("focusin",dismissRecipientSuggestions);
   document.addEventListener("click", (e) => {
     const target = e.target.closest("[data-action]");
     if (!target) {
@@ -1733,13 +1743,13 @@
         $("#org-tree").innerHTML = orgTree();
         break;
       case "person-select":
-        if(e.detail===0)composeMail({to:[d.person]});
+        if(e.detail===0)composeMail({to:selectedMessageRecipients(d.person)});
         break;
       case "person-chat":
         openPersonChat([d.person]);
         break;
       case "person-mail":
-        composeMail({ to: [d.person] });
+        composeMail({ to: selectedMessageRecipients(d.person) });
         break;
       case "group-chat":
         openPersonChat([...state.selected]);
@@ -1748,7 +1758,7 @@
         composeMail({ to: [...state.selected] });
         break;
       case "compose-mail":
-        composeMail();
+        composeMail({to:[...state.selected]});
         break;
       case "toggle-today":
         if(requestedToday){windowApi?.toggleToday(false);return;}
@@ -2013,8 +2023,8 @@
           box.insertBefore(el, $("input", box)),
         );
         $("input", box).value = "";
-        $(".suggestions", box).hidden = true;
         $("input", box).focus();
+        hideRecipientSuggestions(kind);
         break;
       }
       case "remove-recipient":
@@ -2561,7 +2571,7 @@
       }
     }
   });
-  document.addEventListener("dblclick", e=>{const person=e.target.closest('.org-tree .person-line');if(person)composeMail({to:[person.dataset.person]});});
+  document.addEventListener("dblclick", e=>{const person=e.target.closest('.org-tree .person-line');if(person)composeMail({to:selectedMessageRecipients(person.dataset.person)});});
   windowApi?.subscribe(event=>{
     if(event.kind==='today-panel'){
       state.showToday=event.open;
@@ -2584,7 +2594,7 @@
       menu(e.clientX, e.clientY, [
         {
           action: "person-mail",
-          label: "메시지 보내기",
+          label: state.selected.has(p.dataset.person)&&state.selected.size>1?`선택한 ${state.selected.size}명에게 메시지 보내기`:"메시지 보내기",
           icon: "mail",
           extra: `data-person="${p.dataset.person}"`,
         },
