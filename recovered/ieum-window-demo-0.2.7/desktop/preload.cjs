@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('ieumDesktop',Object.freeze({
   importConnection: ()=>ipcRenderer.invoke('ieum:import'),
   subscribe: callback=>{const listener=(_,data)=>callback(data);ipcRenderer.on('ieum:update',listener);return ()=>ipcRenderer.removeListener('ieum:update',listener);},
   windowAction: action=>ipcRenderer.invoke('ieum:window',action),
+  windowState: ()=>ipcRenderer.invoke('ieum:window-state'),
   openWorkspace: page=>ipcRenderer.invoke('ieum:workspace',page),
   toggleToday: (open,position)=>ipcRenderer.invoke('ieum:today',!!open,position),
   resizeMain: (open,position)=>ipcRenderer.invoke('ieum:resize',!!open,position),

@@ -8,7 +8,7 @@ const role=app.isPackaged?require('../package.json').ieumRole||'client':process.
 app.setName(role==='demo'?'IeumDemo':role==='server'?'IeumServer':'IeumClient');
 if(!app.isPackaged&&process.env.IEUM_TEST_DATA_DIR)app.setPath('userData',process.env.IEUM_TEST_DATA_DIR);
 const windows=new Set();
-let todaySide='left',todayAnimation=null,todayOpen=false;
+let todaySide='left',todayAnimation=null,todayOpen=false,minimalState=null;
 const TODAY_WIDTH=330;
 const connectionPath=()=>path.join(app.getPath('userData'),'connection.json');
 const configPath=()=>path.join(app.getPath('userData'),'server-config.json');
@@ -46,7 +46,35 @@ function createWindow(url,options={}){
  window.webContents.on('will-navigate',(e,target)=>{if(!target.startsWith('ieum://app/'))e.preventDefault();});
  window.loadURL(url);return window;
 }
-function bringMain(){if(mainWindow&&!mainWindow.isDestroyed()){mainWindow.show();mainWindow.focus();}}
+function setMinimalMain(open){
+ if(!mainWindow||mainWindow.isDestroyed()||role==='server')throw new Error('메신저 본창에서만 미니멀 모드를 사용할 수 있습니다.');
+ const w=mainWindow;
+ if(open){
+  if(minimalState)return {minimal:true};
+  const bounds=w.getBounds(),area=screen.getDisplayMatching(bounds).workArea;
+  const x=Math.max(area.x,Math.min(bounds.x+(todaySide==='left'?TODAY_WIDTH:0),area.x+area.width-360));
+  const y=Math.max(area.y,Math.min(bounds.y,area.y+area.height-56));
+  minimalState={bounds,minimum:w.getMinimumSize(),maximum:w.getMaximumSize(),resizable:w.isResizable(),topmost:w.isAlwaysOnTop(),initial:{x,y}};
+  clearTimeout(todayAnimation);todayAnimation=null;
+  w.setMinimumSize(360,56);w.setMaximumSize(360,56);w.setResizable(false);
+  w.setBounds({x,y,width:360,height:56},false);w.setAlwaysOnTop(true);applyMainShape(todayOpen);
+ }else{
+  if(!minimalState)return {minimal:false};
+  const saved=minimalState,current=w.getBounds(),bounds={...saved.bounds};
+  if(current.x!==saved.initial.x||current.y!==saved.initial.y){
+   const area=screen.getDisplayMatching(current).workArea,orgWidth=bounds.width-TODAY_WIDTH;
+   const orgX=Math.max(area.x,Math.min(current.x,area.x+Math.max(0,area.width-orgWidth)));
+   bounds.x=orgX-(todaySide==='left'?TODAY_WIDTH:0);bounds.y=Math.max(area.y,Math.min(current.y,area.y+Math.max(0,area.height-bounds.height)));
+  }
+  minimalState=null;
+  w.setResizable(saved.resizable);w.setMaximumSize(...saved.maximum);w.setMinimumSize(...saved.minimum);
+  w.setBounds(bounds,false);w.setAlwaysOnTop(saved.topmost);applyMainShape(todayOpen);
+ }
+ emit({kind:'minimal-main',open:!!minimalState});
+ if(!minimalState)emit({kind:'today-panel',open:todayOpen,side:todaySide});
+ return {minimal:!!minimalState};
+}
+function bringMain(){if(mainWindow&&!mainWindow.isDestroyed()){if(minimalState)setMinimalMain(false);if(mainWindow.isMinimized())mainWindow.restore();mainWindow.show();mainWindow.focus();}}
 function serverDataDir(){return path.join(app.getPath('userData'),'server-data');}
 async function startLocal(config,admin){
  if(localServer)return {ok:true};
@@ -79,17 +107,19 @@ expose('ieum:request',async(event,route,payload)=>{
  if(route==='/password'&&!result.error)connectStream();
  if(route==='/logout'){token=null;liveUsername=null;stopStream();emit({kind:'logout'});}return result;
 });
-expose('ieum:window',(event,action)=>{const w=BrowserWindow.fromWebContents(event.sender);if(action==='minimize')w.minimize();else if(action==='close')w.close();else if(action==='maximize')w.isMaximized()?w.unmaximize():w.maximize();else if(action==='show')w.show();});
+expose('ieum:window-state',event=>({minimal:BrowserWindow.fromWebContents(event.sender)===mainWindow&&!!minimalState}));
+expose('ieum:window',(event,action)=>{const w=BrowserWindow.fromWebContents(event.sender);if(action==='minimal'||action==='restore-main'){if(w!==mainWindow)throw new Error('메신저 본창에서만 사용할 수 있습니다.');return setMinimalMain(action==='minimal');}if(action==='minimize')w.minimize();else if(action==='close')w.close();else if(action==='maximize')w.isMaximized()?w.unmaximize():w.maximize();else if(action==='show')w.show();});
 function applyMainShape(open){
  if(!mainWindow||mainWindow.isDestroyed()||role==='server')return;
  const b=mainWindow.getContentBounds();
  // Closed reserve is absent from the native hit/paint region, so it cannot block another app.
- const region=open?[{x:0,y:0,width:b.width,height:b.height}]:[{x:todaySide==='left'?TODAY_WIDTH:0,y:0,width:b.width-TODAY_WIDTH,height:b.height}];
+ const region=minimalState?[{x:0,y:0,width:b.width,height:b.height}]:open?[{x:0,y:0,width:b.width,height:b.height}]:[{x:todaySide==='left'?TODAY_WIDTH:0,y:0,width:b.width-TODAY_WIDTH,height:b.height}];
  mainWindow.setShape(region);
 }
 expose('ieum:resize',()=>({ok:true}));
 expose('ieum:today',(event,open,position)=>{
  if(BrowserWindow.fromWebContents(event.sender)!==mainWindow||role==='server')throw new Error('본창에서만 오늘 일정을 열 수 있습니다.');
+ if(minimalState)return {ok:true};
  const side=position==='right'?'right':position==='left'?'left':todaySide;
  const wasOpen=todayOpen;
  clearTimeout(todayAnimation);

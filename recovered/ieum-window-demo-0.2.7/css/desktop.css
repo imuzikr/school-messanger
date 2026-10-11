@@ -213,3 +213,15 @@ body.unified-main[data-host-side="right"]{--organization-left:0px}
 .mail-recipient-details .mail-recipients>span:first-child{flex-basis:100%;margin-bottom:3px}
 .mail-scheduled{font-size:12px}
 .mail-detail .mail-body{padding:16px;min-height:0}
+
+/* The same native window becomes a draggable, always-visible messenger bar. */
+.minimal-bar{display:none}
+body.minimal-main #app>.desktop-frame,body.minimal-main #modal-root,body.minimal-main #floating,body.minimal-main #context-root,body.minimal-main #notifications{display:none!important}
+body.minimal-main .minimal-bar{display:flex;align-items:center;width:100vw;height:100vh;box-sizing:border-box;padding:6px 8px;gap:6px;border:1px solid var(--line);border-radius:12px;background:var(--surface,#f7faf5);color:var(--ink);overflow:hidden}
+.minimal-grip{width:15px;flex-shrink:0;color:var(--muted);font-size:20px;cursor:move;-webkit-app-region:drag}
+.minimal-restore{display:flex;align-items:center;gap:12px;flex:1;min-width:0;height:100%;border:0;background:transparent;color:inherit;padding:0 3px;cursor:pointer;-webkit-app-region:no-drag}
+.minimal-school{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left;font-size:13px;font-weight:700}
+.minimal-count{display:flex;align-items:center;gap:4px;color:var(--green);font-size:13px}
+.minimal-count b{min-width:12px}
+.minimal-actions{display:flex;flex-shrink:0;gap:2px;-webkit-app-region:no-drag}
+.minimal-actions .icon-btn{width:22px;height:28px}
