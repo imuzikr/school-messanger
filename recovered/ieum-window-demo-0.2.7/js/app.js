@@ -363,7 +363,7 @@
         )
         .join(
           "",
-        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.26</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
+        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.27</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
     );
   }
   const groupLabel=p=>String(p[state.group]||"").trim()||({grade:"학년 미지정",otherGroup:"기타 미지정"}[state.group]||"미지정");
@@ -1336,7 +1336,8 @@
     const rows=[["할 일",summary.task,"checklist"],["날짜·시간",summary.date+" · "+summary.time,"clock"],["장소",summary.place,"school"],["준비·확인",summary.preparation,"note"]];
     $(".schedule-detail-modal").insertAdjacentHTML("beforeend",`<section class="summary-fold" id="schedule-summary-panel" aria-hidden="true" aria-label="일정 요약"><div class="summary-fold-clip"><article class="summary-page" inert><div class="summary-page-heading"><span>${icon("leaf",16)} 한눈에 보는 일정</span><small>로컬 규칙 요약</small></div><dl>${rows.map(([label,value,name])=>`<div><dt>${icon(name,16)} ${esc(label)}</dt><dd>${esc(value)}</dd></div>`).join("")}</dl><small class="muted">날짜와 시간은 현재 캘린더 기준입니다.</small></article></div></section>`);
     const panel=$("#schedule-summary-panel"),page=$(".summary-page",panel);
-    let progress=0,frame=0;
+    let progress=0,frame=0,closedHeight=0;
+    const modal=panel.closest(".modal"),overlay=modal.parentElement;
     const paint=()=>{
       const angle=(1-progress)*Math.PI/2,height=page.offsetHeight;
       // Project the cover's height through the same perspective as the CSS camera.
@@ -1344,8 +1345,24 @@
       panel.style.height=(progress?height*Math.cos(angle)/(1+height*Math.sin(angle)/900):0)+"px";
       page.style.transform=`rotateX(${(progress-1)*90}deg)`;
       page.style.setProperty("--cover-shade",String((1-progress)*.22));
+      if(closedHeight){
+        const base=Math.min(closedHeight,innerHeight-24);
+        const closedTop=Math.max(12,(innerHeight-base)/2);
+        const openedTop=Math.max(12,(innerHeight-base-height)/2);
+        // Move the whole modal with the same clock as the hinged cover.
+        // Explicit placement avoids flex centering jumping as its height changes.
+        const top=closedTop+(openedTop-closedTop)*progress;
+        overlay.style.paddingTop=top+"px";
+        modal.style.maxHeight=`calc(100dvh - ${top+12}px)`;
+      }
     };
     panel.openCover=open=>{
+      if(!closedHeight){
+        closedHeight=modal.offsetHeight;
+        const top=modal.getBoundingClientRect().top;
+        overlay.style.paddingTop=top+"px";
+        overlay.classList.add("schedule-anchored");
+      }
       cancelAnimationFrame(frame);
       const from=progress,to=open?1:0,start=performance.now();
       const duration=760*Math.abs(to-from);
@@ -1359,20 +1376,13 @@
       else frame=requestAnimationFrame(step);
     };
     const observer=new ResizeObserver(paint);observer.observe(page);
-    modalCleanup=()=>{cancelAnimationFrame(frame);observer.disconnect();};
+    window.addEventListener("resize",paint);
+    modalCleanup=()=>{cancelAnimationFrame(frame);observer.disconnect();window.removeEventListener("resize",paint);};
     paint();
   }
   function toggleScheduleSummary(button) {
     const modal=$(".schedule-detail-modal"), panel=$("#schedule-summary-panel");if(!modal||!panel)return;
     const open=button.getAttribute("aria-expanded")!=="true";
-    if(!modal.parentElement.classList.contains("schedule-anchored")){
-      const top=modal.getBoundingClientRect().top;
-      modal.parentElement.classList.add("schedule-anchored");
-      // Reserve room below the hinge on short screens; leave the top fixed otherwise.
-      const anchor=Math.max(12,Math.min(top,innerHeight-modal.offsetHeight-260));
-      modal.parentElement.style.paddingTop=anchor+"px";
-      modal.style.maxHeight=`calc(100dvh - ${anchor+12}px)`;
-    }
     panel.classList.toggle("is-open",open);panel.setAttribute("aria-hidden",String(!open));
     $(".summary-page",panel).inert=!open;
     button.setAttribute("aria-expanded",String(open));
