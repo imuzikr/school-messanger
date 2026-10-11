@@ -2880,11 +2880,11 @@ input[type="checkbox"] {
 .schedule-anchored{align-items:flex-start}
 .schedule-detail-modal{overflow:auto}
 .schedule-detail-modal .modal-body{flex-shrink:0;overflow:visible}
-.summary-fold{display:grid;grid-template-rows:0fr;flex-shrink:0;perspective:1000px;transition:grid-template-rows 520ms cubic-bezier(.22,.7,.18,1);border-radius:0 0 16px 16px}
-.summary-fold.is-open{grid-template-rows:1fr}
-.summary-fold-clip{min-height:0;overflow:hidden;border-radius:0 0 16px 16px}
-.summary-page{padding:21px 25px 20px;background:linear-gradient(180deg,#dfe9df 0,#f5f8ee 18px,#fafbf5 100%);border-top:1px solid #becdbf;transform-origin:center top;transform:rotateX(-82deg);opacity:0;transition:transform 560ms cubic-bezier(.2,.75,.15,1),opacity 240ms;backface-visibility:hidden;box-shadow:inset 0 8px 12px #294b3210}
-.summary-fold.is-open .summary-page{transform:rotateX(0);opacity:1}
+[data-action=schedule-summary]{width:96px;min-width:96px;flex:0 0 96px;white-space:nowrap;justify-content:center}
+.summary-fold{position:relative;height:0;flex-shrink:0;overflow:hidden;border-radius:0 0 16px 16px}
+.summary-fold-clip{position:relative;height:100%;perspective:900px;perspective-origin:50% 0}
+.summary-page{position:relative;padding:21px 25px 20px;background:linear-gradient(180deg,#dfe9df 0,#f5f8ee 18px,#fafbf5 100%);border-top:3px solid #becdbf;transform-origin:center top;transform:rotateX(-90deg);backface-visibility:hidden;box-shadow:inset 0 8px 12px #294b3210;will-change:transform}
+.summary-page::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,#193e36,#193e3600);opacity:var(--cover-shade,0);pointer-events:none}
 .summary-page-heading{display:flex;justify-content:space-between;align-items:center;gap:8px;color:var(--green-deep);margin-bottom:15px}
 .summary-page-heading span{display:flex;align-items:center;gap:6px;font-weight:700;font-size:13px}
 .summary-page-heading small{color:var(--muted);font-size:10px}
@@ -2906,4 +2906,4 @@ input[type="checkbox"] {
 .dark .summary-page{background:linear-gradient(#283c34,#1b2e25);border-color:#435c4a}
 .dark .source-chat-highlight{background:#253d2d}
 @media(max-width:450px){.summary-page{padding:18px 15px}.summary-page dl>div{grid-template-columns:80px 1fr}.schedule-detail-modal .modal-foot{justify-content:flex-start}.schedule-detail-modal .modal-foot .btn{font-size:11px;padding:8px}}
-@media(prefers-reduced-motion:reduce){.summary-fold,.summary-page,[data-action=schedule-summary] svg{transition:none}}
+@media(prefers-reduced-motion:reduce){[data-action=schedule-summary] svg{transition:none}}
