@@ -259,3 +259,24 @@ body.minimal-main .minimal-bar{display:flex;align-items:center;width:100vw;heigh
   .mail-cc-line .mail-head-actions{min-width:0;flex-shrink:1}
   .mail-scheduled{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 }
+
+/* Recipient names use one line by default; CC names are always visible. */
+.mail-detail .mail-detail-head{height:auto;min-height:100px;display:flex;flex-direction:column;gap:4px}
+.mail-from-line,.mail-to-line,.mail-cc-line{display:flex;align-items:flex-start;gap:8px;min-width:0;justify-content:flex-start;font-size:13px;line-height:22px}
+.mail-from-line{min-height:26px;align-items:center}
+.mail-from-line .mail-sender{flex:1;min-width:0;overflow:hidden}
+.mail-from-line .mail-sender strong{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mail-from-line time{flex-shrink:0;font-size:12px}
+.mail-from-line .icon-btn{width:26px;height:26px;flex-shrink:0}
+.mail-meta-label{color:var(--muted);width:65px;flex-shrink:0;white-space:nowrap}
+.mail-recipient-values,.mail-cc-values{position:relative;display:flex;flex-wrap:wrap;gap:0 6px;flex:1;min-width:0;line-height:22px}
+.mail-recipient-values{max-height:22px;overflow:hidden}
+.mail-recipient-values.expanded{max-height:none}
+.mail-person{white-space:normal;max-width:100%;overflow-wrap:anywhere}
+.mail-person:not(:last-child):after{content:","}
+.mail-recipients-more{flex-shrink:0;border:0;background:transparent;color:var(--green);font:inherit;line-height:22px;padding:0 2px;cursor:pointer}
+.mail-recipients-more:focus-visible{outline:2px solid var(--green);outline-offset:2px;border-radius:3px}
+.mail-cc-line .mail-head-actions{flex-shrink:0;margin-left:auto;max-width:42%}
+.chip.mail-schedule-tag{background:#fbefdf;color:#936524}
+@media screen{.mail-workspace .mail-toolbar{height:calc(var(--mail-header-height,100px) - 38px)}}
+@media print{.mail-recipient-values{max-height:none}.mail-recipients-more{display:none}}

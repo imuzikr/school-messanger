@@ -101,6 +101,7 @@
   const requestedChat = params.get("chat");
   const requestedToday=params.get("todayPanel")==="1";
   const requestedCompose=params.get("compose")==="1";
+  let mailHeaderObserver=null;
   let composeStarted=false,mailSending=false,eventWindowStarted=false,eventSaving=false,demoRefreshPending=false;
   let mainHostSynced=false;
   let network = null;
@@ -354,6 +355,7 @@
     return `<div class="page-heading"><div><div class="eyebrow">${esc(eyebrow)}</div><h1>${esc(title)}</h1><p>${esc(desc)}</p></div><div class="heading-actions">${actions}</div></div>`;
   }
   function renderPage() {
+    mailHeaderObserver?.disconnect();
     const fn = {
       people: peoplePage,
       chat: chatPage,
@@ -392,7 +394,7 @@
         )
         .join(
           "",
-        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.55</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
+        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.56</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
     );
   }
   const groupLabel=p=>String(p[state.group]||"").trim()||({grade:"학년 미지정",otherGroup:"기타 미지정"}[state.group]||"미지정");
@@ -732,15 +734,34 @@
     return Array.from(doc.body.childNodes).map(walk).join("");
   }
   function mailDetail(m) {
-    const title=mailSubject(m),cc=[...new Set(m.cc||[])],to=m.to.filter(id=>!cc.includes(id));
-    const recipientsLine=(ids,label)=>{
-      if(!ids.length)return `<span class="mail-recipient-empty muted">${label}: 없음</span>`;
-      return `<details class="mail-recipient-details"><summary title="${label} 전체와 읽음 상태 확인"><span>${label}: ${esc(person(ids[0]).name)}${ids.length>1?` 외 ${ids.length-1}명`:""}</span>${icon("down",12)}</summary><div class="mail-recipients"><span>${label} · ${ids.length}명</span>${ids.map(id=>{const receipt=m.receipts[m.to.indexOf(id)]||"unread";return `<span class="chip ${receipt}" title="${{read:"읽음",unread:"안 읽음",recalled:"회수됨"}[receipt]||"안 읽음"}">${esc(person(id).name)} ${receipt==="read"?icon("check",10):""}</span>`;}).join("")}</div></details>`;
-    };
+    const cc=[...new Set(m.cc||[])],to=m.to.filter(id=>!cc.includes(id));
+    const names=ids=>ids.length?ids.map(id=>{const receipt=m.receipts?.[m.to.indexOf(id)]||"unread";return `<span class="mail-person ${receipt}" title="${esc(person(id).name)} · ${{read:"읽음",unread:"안 읽음",recalled:"회수됨"}[receipt]||"안 읽음"}">${esc(person(id).name)}</span>`;}).join(""):`<span class="muted">없음</span>`;
     const sender=m.announcement?.department||person(m.from).name+" 선생님";
-    return `<header class="mail-detail-head"><div class="mail-title-line">${ib("mail-back", "메시지 목록으로", "left", 'class="icon-btn mobile-back"')}<h2 title="${esc(title)}">${esc(title)}</h2><span class="mail-sender" title="보낸 사람: ${esc(sender)}">${icon("users",14)}<strong>${esc(sender)}</strong></span>${ib("print-mail", "메시지 인쇄", "print")}</div><div class="mail-meta"><div class="mail-to-line">${recipientsLine(to,"받는 사람")}<time class="muted">${fmtDate(m.date,{month:"long",day:"numeric"})} ${esc(m.time)}</time></div><div class="mail-cc-line">${recipientsLine(cc,"참조")}<div class="mail-head-actions">${m.scheduled?`<small class="mail-scheduled muted" title="${esc(m.scheduled)}">${native?"예약 발송":"예약 초안"} · ${esc(m.scheduled)}</small>`:""}<span class="chip ${m.important?"orange":""}">${m.important?"중요 메시지":"업무 안내"}</span></div></div></div></header><div class="mail-body">${m.html ? safeRichHTML(m.html) : esc(m.body)}${m.files.map((f, i) => `<div class="attachment">${icon("file", 25)}<div><strong>${esc(f.name)}</strong><br><small>${esc(f.size)}${f.demo ? " · 예시 첨부 파일" : ""}</small></div>${ib("download-file", "첨부 다운로드", "download", `data-mail="${m.id}" data-file="${i}"`)}</div>`).join("")}</div><footer class="mail-detail-foot">${button(m.folder === "trash" ? "restore-mail" : "delete-mail", m.folder === "trash" ? "복원" : "삭제", "trash", "btn-danger", `data-mail="${m.id}"`)}${m.folder === "sent" ? button("recall-mail", "회수", "", "", `data-mail="${m.id}"`) : ""}<span class="spacer"></span>${button("reply-mail", "답장", "reply", "", `data-mail="${m.id}"`)}${button("reply-all", "전체 답장", "", "", `data-mail="${m.id}"`)}${button("forward-mail", "전달", "arrow", "", `data-mail="${m.id}"`)}</footer>`;
+    const linked=item=>item.source?.kind==="mail"&&item.source.id===m.id||item.noticeMail===m.id||item.deliveryMail===m.id||[m.calendarEvent,m.eventId].filter(Boolean).includes(item.id);
+    const hasSchedule=!!m.scheduleAnnouncement||state.data.events.some(linked)||state.data.deadlines.some(linked);
+    const tag=m.announcement?.department?`<span class="chip mail-department-tag">${esc(m.announcement.department)}</span>`:hasSchedule?`<span class="chip orange mail-schedule-tag">일정 확인</span>`:"";
+    return `<header class="mail-detail-head"><div class="mail-from-line">${ib("mail-back", "메시지 목록으로", "left", 'class="icon-btn mobile-back"')}<span class="mail-meta-label">보내는 사람</span><span class="mail-sender" title="보낸 사람: ${esc(sender)}"><strong>${esc(sender)}</strong></span><time class="muted">${fmtDate(m.date,{month:"long",day:"numeric"})} ${esc(m.time)}</time>${ib("print-mail", "메시지 인쇄", "print")}</div><div class="mail-to-line"><span class="mail-meta-label">받는 사람</span><div class="mail-recipient-values" id="mail-to-values">${names(to)}</div><button type="button" class="mail-recipients-more" data-action="mail-recipients-more" aria-expanded="false" aria-controls="mail-to-values" hidden>더 보기</button></div><div class="mail-cc-line"><span class="mail-meta-label">참조</span><div class="mail-cc-values">${names(cc)}</div><div class="mail-head-actions">${m.scheduled?`<small class="mail-scheduled muted" title="${esc(m.scheduled)}">${native?"예약 발송":"예약 초안"} · ${esc(m.scheduled)}</small>`:""}${tag}</div></div></header><div class="mail-body">${m.html ? safeRichHTML(m.html) : esc(m.body)}${m.files.map((f, i) => `<div class="attachment">${icon("file", 25)}<div><strong>${esc(f.name)}</strong><br><small>${esc(f.size)}${f.demo ? " · 예시 첨부 파일" : ""}</small></div>${ib("download-file", "첨부 다운로드", "download", `data-mail="${m.id}" data-file="${i}"`)}</div>`).join("")}</div><footer class="mail-detail-foot">${button(m.folder === "trash" ? "restore-mail" : "delete-mail", m.folder === "trash" ? "복원" : "삭제", "trash", "btn-danger", `data-mail="${m.id}"`)}${m.folder === "sent" ? button("recall-mail", "회수", "", "", `data-mail="${m.id}"`) : ""}<span class="spacer"></span>${button("reply-mail", "답장", "reply", "", `data-mail="${m.id}"`)}${button("reply-all", "전체 답장", "", "", `data-mail="${m.id}"`)}${button("forward-mail", "전달", "arrow", "", `data-mail="${m.id}"`)}</footer>`;
+  }
+  function initMailHeader(){
+    mailHeaderObserver?.disconnect();mailHeaderObserver=null;
+    const workspace=$(".mail-workspace"),head=$(".mail-detail-head");
+    if(!workspace)return;
+    workspace.style.setProperty("--mail-header-height","100px");
+    if(!head)return;
+    const names=$("#mail-to-values",head),more=$("[data-action=mail-recipients-more]",head);
+    const fit=()=>{
+      more.hidden=true;
+      const overflow=names.scrollHeight>23,expanded=more.getAttribute("aria-expanded")==="true";
+      more.hidden=!overflow;more.textContent=expanded?"접기":"더 보기";
+      names.classList.toggle("expanded",expanded);
+      $$(".mail-person",names).forEach(name=>name.setAttribute("aria-hidden",String(!expanded&&name.offsetTop>0)));
+      const height=Math.ceil(head.getBoundingClientRect().height);
+      if(workspace.style.getPropertyValue("--mail-header-height")!==height+"px")workspace.style.setProperty("--mail-header-height",height+"px");
+    };
+    mailHeaderObserver=new ResizeObserver(fit);mailHeaderObserver.observe(head);mailHeaderObserver.observe(names);fit();
   }
   function initMailResize() {
+    initMailHeader();
     const divider = $(".mail-resizer");
     if (divider) {
       const resize = (x) => {
@@ -1782,6 +1803,7 @@
             "mail",
           );
     }
+    initMailHeader();
   }
   const selectedMessageRecipients=id=>state.selected.has(id)?[...state.selected]:[id];
   const dismissRecipientSuggestions=event=>{
@@ -2118,6 +2140,9 @@
           state.data.mails.find((m) => m.id === d.mail),
           Number(d.file),
         );
+        break;
+      case "mail-recipients-more":
+        {const expanded=target.getAttribute("aria-expanded")!=="true";target.setAttribute("aria-expanded",String(expanded));target.textContent=expanded?"접기":"더 보기";$("#mail-to-values").classList.toggle("expanded",expanded);}
         break;
       case "attach-mail":
         $("#mail-files")?.click();
