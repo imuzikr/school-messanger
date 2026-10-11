@@ -150,3 +150,16 @@ body.unified-main[data-host-side="right"]{--organization-left:0px}
 .today-briefing li strong,.today-briefing li small{display:block}.today-briefing li small{color:var(--muted);margin-top:5px;line-height:1.6}
 
 .agenda-deadlines{max-height:230px;overflow:auto;flex-shrink:0}
+
+/* Readable inbox typography, including metadata and message previews. */
+.mail-list-header{font-size:13px;padding-top:10px;padding-bottom:10px}
+.mail-row{padding-top:18px;padding-bottom:18px}
+.mail-row-top,.mail-data-column,.mail-row-top time{font-size:14px;line-height:1.6}
+.mail-row-title{font-size:17px;line-height:1.55}
+.mail-row p{font-size:15px;line-height:1.6;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.mail-toolbar select,.mail-toolbar .search input{font-size:14px;height:46px}
+.mail-toolbar #mail-folder-select{width:156px}.mail-toolbar #mail-search-by{width:68px}
+.mail-toolbar .search svg{top:15px}
+.mail-detail-head h2{font-size:22px;line-height:1.6}
+.mail-meta{font-size:14px}.mail-recipients>span:first-child,.mail-recipients .chip{font-size:13px}
+.mail-detail-foot .btn{font-size:12px}.mail-detail .attachment{font-size:14px}
