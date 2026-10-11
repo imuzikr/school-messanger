@@ -73,7 +73,7 @@
   const base=sentDate(sentAt);if(!base||typeof text!=='string')return [];
   const result=[],seen=new Set();
   for(const clause of text.slice(0,100000).split(/\n+|[!?。]+|\.(?=\s|$)/)){
-   if(!/모여|모이|모입|모일|집합|참석|회의|연수|수업|상담|행사|협의회|출장|교육|설명회|간담회|면담|모임|만나|만납|뵙|뵐|뵈|봅시다/.test(clause)||/까지|제출|회신|마감|취소|철회|없습니다|하지\s*마|지\s*마|지\s*않|않[아습을]|못\s*(?:뵙|뵐|뵈|만나)|(?:뵙|뵐|뵈|만나)지\s*못/.test(clause))continue;
+   if(!/모여|모이|모입|모일|집합|참석|회의|연수|수업|상담|행사|협의회|출장|교육|설명회|간담회|면담|모임|만나|만납|뵙|뵐|뵈|봅시다|오세요|오십시오|와\s*주세요|와\s*주십시오/.test(clause)||/까지|제출|회신|마감|취소|철회|없습니다|하지\s*마|지\s*마|지\s*않|않[아습을]|못\s*(?:뵙|뵐|뵈|만나)|(?:뵙|뵐|뵈|만나)지\s*못/.test(clause))continue;
    const {date}=resolveDate(clause,base);if(!valid(date))continue;
    const place=clause.match(/(?:\d+\s*층\s*)?(?:[가-힣A-Za-z0-9-]*(?:교실|회의실|교무실|도서관|강당|체육관)|\d+호(?:실)?|\d+\s*층)(?=으로|로|에서|에|\s|$)/)?.[0]||'';
    const times=[...clause.matchAll(/(오전|오후)?\s*(\d{1,2})(?::(\d{2})|\s*시(?:\s*(\d{1,2})\s*분|\s*(반))?)/g)];

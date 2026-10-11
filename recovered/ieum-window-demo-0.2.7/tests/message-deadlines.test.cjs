@@ -110,3 +110,11 @@ test('polite meeting invitations use period seven and standalone floor locations
  assert.deepEqual(rules.extractStartEvents('오늘 7교시에 3층에서 뵙겠습니다 취소',at,context),[]);
  const data={...context,mails:[{id:'user-old-seven',folder:'sent',title:text,body:text,createdAt:new Date(at).getTime()}],rooms:[],events:[],deadlines:[]};rules.applyDemo(data);assert.equal(data.events.length,1);assert.equal(data.events[0].place,'3층');assert.equal(data.mails[0].eventId,data.events[0].id);rules.applyDemo(data);assert.equal(data.events.length,1);data.events=[];rules.applyDemo(data);assert.equal(data.events.length,0);
 });
+
+
+test('gathering and coming invitations require a usable time or period; cancellation and bare invitations are skipped',()=>{
+ const at='2026-10-12T01:00:00Z',context={defaultPeriods:[{period:7,start:'14:00',end:'14:50'}]};
+ for(const verb of ['모이겠습니다','모입니다','오세요','오십시오','와 주세요','와 주십시오']){const text=`오늘 7교시에 3층으로 ${verb}.`,events=rules.extractStartEvents(text,at,context);assert.equal(events.length,1,text);assert.deepEqual([events[0].date,events[0].start,events[0].end,events[0].place],['2026-10-12','14:00','14:50','3층']);assert.equal(rules.extract(text,at,context).length,0);assert.deepEqual(rules.extractStartEvents(verb,at,context),[]);}
+ assert.equal(rules.extractStartEvents('내일 오후 3시에 교무실로 오세요.',at,context)[0].start,'15:00');
+ for(const text of ['오늘 7교시에 모이지 않겠습니다','오늘 7교시에 오지 마세요','오늘 7교시에 오세요 취소','오늘 8교시에 오세요'])assert.deepEqual(rules.extractStartEvents(text,at,context),[]);
+});

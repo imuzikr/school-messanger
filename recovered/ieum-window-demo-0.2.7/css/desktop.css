@@ -85,10 +85,10 @@ body:not(.installed) .desktop-frame{overflow:visible}body:not(.installed) .deskt
 .people-panel>.panel-head .org-group-tabs{display:flex;flex:0 0 auto;gap:1px;margin:0 0 0 auto;padding:2px;width:auto}
 .people-panel>.panel-head .org-group-tabs button{flex:0 0 auto;padding:5px 6px;font-size:10px;min-width:0;white-space:nowrap}
 .person-presence{width:20px;height:20px}
-.presence-image{display:block;width:20px;height:20px;background-image:url('../assets/presence-status.png');background-size:300% 100%;background-repeat:no-repeat}
-.person-presence.online .presence-image{background-position:0% 50%}
-.person-presence.away .presence-image{background-position:50% 50%}
-.person-presence.offline .presence-image{background-position:100% 50%}
+.presence-image{display:block;width:20px;height:20px}
+.person-presence.online{color:#9ebfea}
+.person-presence.away{color:#b8bdc4}
+.person-presence.offline{color:#e8aaaa}
 .automatic-deadline-preview{padding:10px 12px;border-radius:8px;background:#eef5ef;color:#326147;font-size:12px;line-height:1.6}
 /* Animate the content in a fixed transparent window, using the compositor. */
 body.today-panel-window{background:transparent!important;overflow:hidden}
