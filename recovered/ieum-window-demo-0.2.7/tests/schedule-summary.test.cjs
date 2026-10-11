@@ -15,3 +15,11 @@ test('summary does not invent locations or take another appointment’s place/pr
  assert.equal(s.place,'미기재');assert.equal(s.preparation,'별도 안내 없음');assert.equal(s.task,'자료 제출');
  assert.equal(summarize({title:'<script>alert(1)</script>',date:'2026-10-12'}).time,'시간 미기재');
 });
+
+
+test('calendar titles omit relative dates and original times without rewriting messages or manual titles',()=>{
+ const {calendarTitle}=require('../js/schedule-summary.js');
+ for(const [title,label] of [['내일 오후 6시까지 계획서를 제출해 주세요.','계획서 제출'],['내일 1시에서 3시까지 교직원 연수가 있습니다.','교직원 연수'],['오늘 7교시에 3층으로 오세요.','모임'],['오늘 5교시에 3층 모둠교실로 모여주세요.','모임']]){const e={title,source:{kind:'mail',id:'a'},date:'2026-10-12',start:'13:15',end:'14:15'};assert.equal(calendarTitle(e),label);assert.equal(e.title,title);assert.equal(e.start,'13:15');}
+ assert.equal(calendarTitle({title:'내일 발표 준비'}),'내일 발표 준비');
+ assert.equal(calendarTitle({title:'오늘 3시',source:{kind:'mail',id:'a'}}),'일정');
+});
