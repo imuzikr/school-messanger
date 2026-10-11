@@ -389,7 +389,7 @@
         )
         .join(
           "",
-        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.46</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
+        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.47</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
     );
   }
   const groupLabel=p=>String(p[state.group]||"").trim()||({grade:"학년 미지정",otherGroup:"기타 미지정"}[state.group]||"미지정");
@@ -641,8 +641,15 @@
             : m.folder === state.folder,
       )
       .filter(m=>{
-        const text=state.mailSearchBy==='content'?(m.title+' '+m.body):(m.from==='me'||m.folder==='sent'?m.to.map(id=>person(id).name).join(' '):person(m.from).name);
-        return text.toLowerCase().includes(state.mailSearch.trim().toLowerCase());
+        const query=state.mailSearch.trim().toLocaleLowerCase();
+        if(state.mailSearchBy==='important'&&!m.important)return false;
+        if(state.mailSearchBy==='file'){
+          return (m.files||[]).some(file=>String(file.name||'').toLocaleLowerCase().includes(query));
+        }
+        const text=state.mailSearchBy==='name'
+          ?(m.from==='me'||m.folder==='sent'?m.to.map(id=>person(id).name).join(' '):person(m.from).name)
+          :((m.title||'')+' '+(m.body||'')+' '+(m.html?new DOMParser().parseFromString(safeRichHTML(m.html),'text/html').body.textContent:''));
+        return text.toLocaleLowerCase().includes(query);
       });
   }
   function mailFolders(){return [
@@ -664,7 +671,7 @@
         "중요한 안내와 자료를 놓치지 않고 모아두세요.",
         button("compose-mail", "새 메시지 쓰기", "plus", "btn-primary"),
       ) +
-      `<div class="inbox-layout"><section class="panel mail-workspace ${current ? "show-detail" : ""}"><div class="mail-list-panel"><div class="mail-toolbar"><select id="mail-folder-select" class="input" aria-label="메시지함 선택">${mailFolderOptions()}</select><select id="mail-search-by" class="input" aria-label="메시지 검색 기준"><option value="name" ${state.mailSearchBy==='name'?'selected':''}>이름</option><option value="content" ${state.mailSearchBy==='content'?'selected':''}>내용</option></select><div class="search">${icon("search",17)}<input class="input" id="mail-search" placeholder="검색어 입력" aria-label="메시지 검색어" value="${esc(state.mailSearch)}"></div></div><div class="mail-list" id="mail-list">${mailListHTML()}</div></div><div class="mail-resizer" role="separator" tabindex="0" aria-label="목록 너비 조절" aria-orientation="vertical"></div><article class="mail-detail" id="mail-detail">${current ? mailDetail(current) : empty("한 장의 메시지, 하나의 연결", "목록에서 메시지를 선택해 내용을 확인하세요.", "mail")}</article></section></div>`
+      `<div class="inbox-layout"><section class="panel mail-workspace ${current ? "show-detail" : ""}"><div class="mail-list-panel"><div class="mail-toolbar"><select id="mail-folder-select" class="input" aria-label="메시지함 선택">${mailFolderOptions()}</select><select id="mail-search-by" class="input" aria-label="메시지 검색 기준"><option value="name" ${state.mailSearchBy==='name'?'selected':''}>이름</option><option value="content" ${state.mailSearchBy==='content'?'selected':''}>내용</option><option value="important" ${state.mailSearchBy==='important'?'selected':''}>중요</option><option value="file" ${state.mailSearchBy==='file'?'selected':''}>파일</option></select><div class="search">${icon("search",17)}<input class="input" id="mail-search" placeholder="검색어 입력" aria-label="메시지 검색어" value="${esc(state.mailSearch)}"></div></div><div class="mail-list" id="mail-list">${mailListHTML()}</div></div><div class="mail-resizer" role="separator" tabindex="0" aria-label="목록 너비 조절" aria-orientation="vertical"></div><article class="mail-detail" id="mail-detail">${current ? mailDetail(current) : empty("한 장의 메시지, 하나의 연결", "목록에서 메시지를 선택해 내용을 확인하세요.", "mail")}</article></section></div>`
     );
   }
   function mailListHTML() {

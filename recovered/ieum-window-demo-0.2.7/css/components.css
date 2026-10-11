@@ -1310,7 +1310,10 @@ input[type="checkbox"] {
   color: #c7d0c0;
 }
 .mail-row-top .star-button.on {
-  color: #ba8f43;
+  color: #a66b00;
+}
+.mail-row-top .star-button.on svg {
+  fill: #facc15;
 }
 .mail-resizer {
   width: 5px;
