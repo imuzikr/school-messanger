@@ -2913,3 +2913,16 @@ input[type="checkbox"] {
 .compose-mode-buttons .btn{flex:1;justify-content:center}
 .compose-mode-buttons .btn[aria-pressed=true]{background:var(--green);color:#fff;border-color:var(--green)}
 .compose-event-fields{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+
+/* Give remaining composer height to the editor; attachments use the footer. */
+.modal.compose-modal{height:min(860px,92vh)}
+.compose-modal .modal-head,.compose-modal .modal-foot{flex-shrink:0;padding:12px 18px}
+.compose-modal .modal-body{flex:1;min-height:0;display:flex;padding:12px 18px}
+.compose-modal .compose-form{flex:1;min-width:0;min-height:min-content;gap:10px}
+.compose-form> *{flex-shrink:0}
+.compose-form .compose-editor{display:flex;flex-direction:column;flex:1;min-height:180px}
+.compose-editor .editor-tools{flex-shrink:0}
+.compose-editor .rich-editor{flex:1;min-height:0;max-height:none;font-size:15px}
+.compose-editor .rich-editor.over{outline:2px dashed var(--green);outline-offset:-3px;background:var(--green-soft)}
+.compose-files:empty,#compose-error:empty{display:none}
+.compose-files{max-height:64px;overflow:auto;flex-shrink:0}
