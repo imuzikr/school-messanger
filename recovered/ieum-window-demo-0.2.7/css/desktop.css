@@ -165,3 +165,9 @@ body.unified-main[data-host-side="right"]{--organization-left:0px}
 .mail-detail-foot .btn{font-size:12px}.mail-detail .attachment{font-size:14px}
 
 .deadline-section-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;flex-wrap:wrap}.deadline-section-head h3{margin:0;font-size:13px}.completed-option{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--muted);white-space:nowrap}.completed-option input{margin:0;accent-color:var(--green)}
+
+.agenda-deadlines .deadline-content{flex:1;min-width:0;padding:0;border:0;background:transparent;color:inherit;font:inherit;line-height:inherit;text-align:left;cursor:pointer}
+.agenda-deadlines .deadline-content.done{color:var(--muted)}
+.agenda-deadlines .deadline-content:hover{text-decoration:underline}
+.agenda-deadlines .deadline-content:focus-visible{outline:2px solid var(--green);outline-offset:3px;border-radius:2px}
+.timeline-end-label{position:absolute;bottom:0;left:0;right:0;padding:0 8px;font-size:9px;color:#9da891;line-height:12px}
