@@ -2907,3 +2907,9 @@ input[type="checkbox"] {
 .dark .source-chat-highlight{background:#253d2d}
 @media(max-width:450px){.summary-page{padding:18px 15px}.summary-page dl>div{grid-template-columns:80px 1fr}.schedule-detail-modal .modal-foot{justify-content:flex-start}.schedule-detail-modal .modal-foot .btn{font-size:11px;padding:8px}}
 @media(prefers-reduced-motion:reduce){[data-action=schedule-summary] svg{transition:none}}
+
+/* Composer modes keep optional fields in the same draft. */
+.compose-mode-buttons{display:flex;gap:8px;flex-wrap:wrap}
+.compose-mode-buttons .btn{flex:1;justify-content:center}
+.compose-mode-buttons .btn[aria-pressed=true]{background:var(--green);color:#fff;border-color:var(--green)}
+.compose-event-fields{display:grid;grid-template-columns:1fr 1fr;gap:12px}
