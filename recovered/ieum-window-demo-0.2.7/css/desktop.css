@@ -182,11 +182,13 @@ body.unified-main[data-host-side="right"]{--organization-left:0px}
 .mail-table-row,.mail-table-row.unread{padding:10px 12px;border-left:0;position:relative}
 .mail-table-row.unread:before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:#d5a965}
 .mail-table-row .mail-row-top{margin:0;gap:0;min-height:25px}
-.mail-table-row .mail-data-column{height:25px;flex-shrink:0;min-width:0;padding:0 8px;line-height:25px;font-size:14px}
-.mail-table-row .mail-row-title{color:var(--ink);font-size:17px;line-height:25px;font-weight:600;min-width:0}
-.mail-table-row .mail-preview{font-size:15px;line-height:25px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mail-table-row .mail-data-column{height:25px;flex-shrink:0;min-width:0;padding:0 8px;line-height:25px;font-size:15px}
+.mail-table-row .mail-row-title{color:var(--ink);font-size:inherit;line-height:25px;font-weight:700;min-width:0}
+.mail-table-row .mail-preview{font-size:inherit;line-height:25px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mail-table-row .star-button,.mail-table-row .mail-attachment-indicator{flex-shrink:0}
 .mail-table-row .mail-data-column time{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mail-table-row .mail-attachment-indicator{display:flex}
 
 .mail-column-label{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.mail-table-row .mail-row-top time{font-size:inherit}
