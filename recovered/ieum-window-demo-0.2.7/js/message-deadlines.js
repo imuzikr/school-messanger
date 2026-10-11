@@ -73,8 +73,9 @@
   const base=sentDate(sentAt);if(!base||typeof text!=='string')return [];
   const result=[],seen=new Set();
   for(const clause of text.slice(0,100000).split(/\n+|[!?。]+|\.(?=\s|$)/)){
-   if(!/모여|모이|모입|모일|집합|참석|회의|연수|수업|상담|행사|협의회|출장|교육|설명회|간담회|면담|모임|만나|만납/.test(clause)||/까지|제출|회신|마감|취소|철회|없습니다|하지\s*마|지\s*마|않[아습을]/.test(clause))continue;
+   if(!/모여|모이|모입|모일|집합|참석|회의|연수|수업|상담|행사|협의회|출장|교육|설명회|간담회|면담|모임|만나|만납|뵙|뵐|뵈|봅시다/.test(clause)||/까지|제출|회신|마감|취소|철회|없습니다|하지\s*마|지\s*마|지\s*않|않[아습을]|못\s*(?:뵙|뵐|뵈|만나)|(?:뵙|뵐|뵈|만나)지\s*못/.test(clause))continue;
    const {date}=resolveDate(clause,base);if(!valid(date))continue;
+   const place=clause.match(/(?:\d+\s*층\s*)?(?:[가-힣A-Za-z0-9-]*(?:교실|회의실|교무실|도서관|강당|체육관)|\d+호(?:실)?|\d+\s*층)(?=으로|로|에서|에|\s|$)/)?.[0]||'';
    const times=[...clause.matchAll(/(오전|오후)?\s*(\d{1,2})(?::(\d{2})|\s*시(?:\s*(\d{1,2})\s*분|\s*(반))?)/g)];
    if(times.length===0){
     const mentions=[...clause.matchAll(/(?<!\d)(\d{1,2})\s*교시/g)];
@@ -83,7 +84,6 @@
     const slot=periods?.find(p=>Number(p.period)===period),validTime=value=>/^([01]\d|2[0-3]):[0-5]\d$/.test(value||'');
     if(!slot||!validTime(slot.start)||!validTime(slot.end)||slot.start>=slot.end)continue;
     const title=clause.trim().slice(0,150),identity=JSON.stringify([date,slot.start,title]);if(seen.has(identity))continue;seen.add(identity);
-    const place=clause.match(/(?:\d+\s*층\s*)?(?:[가-힣A-Za-z0-9-]*(?:교실|회의실|교무실|도서관|강당|체육관)|\d+호(?:실)?)(?=으로|로|에서|에|\s|$)/)?.[0]||'';
     result.push({date,start:slot.start,end:slot.end,period,title,note:clause.trim().slice(0,1000),type:'personal',place,targets:[],rule:'start-event'});
     continue;
    }
@@ -91,7 +91,7 @@
    const m=times[0];let h=Number(m[2]),min=Number(m[3]||m[4]||(m[5]?30:0));
    if(m[1]){if(h<1||h>12)continue;h=h%12+(m[1]==='오후'?12:0);}else if(!m[3]&&h>=1&&h<=7)h+=12;
    if(h>23||min>59)continue;const dueTime=pad(h)+':'+pad(min),title=clause.trim().slice(0,150),identity=JSON.stringify([date,dueTime,title]);if(seen.has(identity))continue;seen.add(identity);
-   const endMinutes=h*60+min+60,entry={date,start:dueTime,end:pad(Math.floor(Math.min(endMinutes,1440)/60))+':'+pad(endMinutes>=1440?0:endMinutes%60),title,note:clause.trim().slice(0,1000),type:'personal',place:'',targets:[],rule:'start-event'};
+   const endMinutes=h*60+min+60,entry={date,start:dueTime,end:pad(Math.floor(Math.min(endMinutes,1440)/60))+':'+pad(endMinutes>=1440?0:endMinutes%60),title,note:clause.trim().slice(0,1000),type:'personal',place,targets:[],rule:'start-event'};
    result.push(entry);
    if(endMinutes>1440)result.push({...entry,date:add(date,1),start:'00:00',end:'00:'+pad(endMinutes-1440)});
   }

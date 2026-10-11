@@ -99,3 +99,14 @@ test('period gathering uses target-date bell slots and preserves place; unknown 
  const mixed={...context,rooms:[],mails:[{id:'mixed',title:'안내',body:mixedText,createdAt:sent,folder:'inbox'}],events:[{id:'old-clock',start:'18:00',source:{kind:'mail',id:'mixed'}}],autoDeadlineSources:{[oldKey]:'old-clock'},deadlines:[]};rules.applyDemo(mixed);assert.equal(mixed.events.length,2);assert.equal(mixed.events.filter(e=>e.start==='18:00').length,1);assert.equal(mixed.events.filter(e=>e.period===5).length,1);
  const data={...context,rooms:[],mails:[{id:'old-period',title:text,body:text,createdAt:sent,folder:'inbox'}],events:[],deadlines:[]};rules.applyDemo(data);assert.equal(data.events.length,1);assert.equal(data.deadlines.length,0);assert.equal(data.mails[0].eventId,data.events[0].id);rules.applyDemo(data);assert.equal(data.events.length,1);data.events=[];rules.applyDemo(data);assert.equal(data.events.length,0);
 });
+
+
+test('polite meeting invitations use period seven and standalone floor locations; existing mail backfills once',()=>{
+ const at='2026-10-11T19:12:00Z',text='오늘 7교시에 3층에서 뵙겠습니다.';
+ const context={defaultPeriods:[{period:7,start:'14:00',end:'14:50'}],bellSchedules:[{date:'2026-10-12',periods:[{period:7,start:'15:10',end:'15:55'}]}]};
+ for(const verb of ['뵙겠습니다','뵙겠어요','뵈어요','뵐게요','봅시다']){const e=rules.extractStartEvents(text.replace('뵙겠습니다',verb),at,context);assert.equal(e.length,1);assert.deepEqual([e[0].date,e[0].start,e[0].end,e[0].period,e[0].place],['2026-10-12','15:10','15:55',7,'3층']);}
+ const hourly=rules.extractStartEvents('오늘 오후 3시에 3층에서 뵙겠습니다.',at,context);assert.equal(hourly[0].start,'15:00');assert.equal(hourly[0].place,'3층');
+ for(const text of ['오늘 7교시에 3층에서 뵙지 않겠습니다','오늘 7교시에 3층에서 못 뵙겠습니다','오늘 7교시에 뵙지 못합니다'])assert.deepEqual(rules.extractStartEvents(text,at,context),[]);
+ assert.deepEqual(rules.extractStartEvents('오늘 7교시에 3층에서 뵙겠습니다 취소',at,context),[]);
+ const data={...context,mails:[{id:'user-old-seven',folder:'sent',title:text,body:text,createdAt:new Date(at).getTime()}],rooms:[],events:[],deadlines:[]};rules.applyDemo(data);assert.equal(data.events.length,1);assert.equal(data.events[0].place,'3층');assert.equal(data.mails[0].eventId,data.events[0].id);rules.applyDemo(data);assert.equal(data.events.length,1);data.events=[];rules.applyDemo(data);assert.equal(data.events.length,0);
+});

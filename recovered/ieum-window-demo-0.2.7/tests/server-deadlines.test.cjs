@@ -39,19 +39,20 @@ test('LAN send -> sender and recipient deadlines; atomic retry, deletion, restar
   await sync(admin,[single]);await sync(admin,[single]);
   for(const token of [admin,recipient]){const d=(await boot(token)).data,e=d.events.filter(e=>e.source?.id==='mail-start');assert.equal(e.length,1);assert.equal(e[0].start,'18:00');assert.equal(e[0].end,'19:00');assert.ok(!d.deadlines.some(d=>d.source?.id==='mail-start'));}
   const periodDate=(await boot(admin)).data.today;
-  await sync(admin,[{type:'schedule.upsert',value:{date:periodDate,periods:[{period:5,start:'13:10',end:'13:55'}]}}]);
+  await sync(admin,[{type:'schedule.upsert',value:{date:periodDate,periods:[{period:5,start:'13:10',end:'13:55'},{period:7,start:'15:10',end:'15:55'}]}}]);
   const periodText='오늘 5교시에 3층 모둠교실로 모여주세요.',periodMail={type:'mail.send',id:'mail-period',value:{title:periodText,body:periodText,to:[r.id],files:[]}};
   assert.equal((await sync(admin,[periodMail])).status,200);await sync(admin,[periodMail]);
   for(const token of [admin,recipient]){const data=(await boot(token)).data,events=data.events.filter(e=>e.source?.id==='mail-period');assert.equal(events.length,1);assert.deepEqual([events[0].start,events[0].end,events[0].place],['13:10','13:55','3층 모둠교실']);assert.equal(data.mails.find(m=>m.id==='mail-period').eventId,events[0].id);}
+  const sevenText='오늘 7교시에 3층에서 뵙겠습니다.',sevenMail={type:'mail.send',id:'mail-seven',value:{title:sevenText,body:sevenText,to:[r.id],files:[]}};assert.equal((await sync(admin,[sevenMail])).status,200);await sync(admin,[sevenMail]);for(const token of [admin,recipient]){const data=(await boot(token)).data,e=data.events.filter(e=>e.source?.id==='mail-seven');assert.equal(e.length,1);assert.deepEqual([e[0].start,e[0].end,e[0].place],['15:10','15:55','3층']);assert.equal(data.mails.find(m=>m.id==='mail-seven').eventId,e[0].id);}
   const singleEvent=(await boot(recipient)).data.events.find(e=>e.source?.id==='mail-start');await sync(recipient,[{type:'event.delete',id:singleEvent.id}]);
   const senderEvent=(await boot(admin)).data.events.find(e=>e.source?.id==='mail-start');
-  const senderPeriod=(await boot(admin)).data.events.find(e=>e.source?.id==='mail-period');
+  const senderPeriod=(await boot(admin)).data.events.find(e=>e.source?.id==='mail-seven');
   await server.close();server=null;
   // Simulate an older version that saved the mail but could not extract its start time.
   const fixture=new (require('node:sqlite').DatabaseSync)(path.join(dataDir,'ieum.sqlite'));
   fixture.prepare('DELETE FROM events WHERE id=?').run(senderPeriod.id);fixture.prepare('DELETE FROM auto_deadline_sources WHERE item_id=?').run(senderPeriod.id);fixture.prepare('DELETE FROM events WHERE id=?').run(senderEvent.id);fixture.prepare('DELETE FROM auto_deadline_sources WHERE item_id=?').run(senderEvent.id);fixture.close();
   server=await start();admin=(await request('/login',{username:'admin',password})).token;recipient=(await request('/login',{username:'recipient',password:password+'x'})).token;
-  const backfilled=(await boot(admin)).data.events.filter(e=>e.source?.id==='mail-period');assert.equal(backfilled.length,1);assert.deepEqual([backfilled[0].start,backfilled[0].end,backfilled[0].place],['13:10','13:55','3층 모둠교실']);
+  const backfilled=(await boot(admin)).data.events.filter(e=>e.source?.id==='mail-seven');assert.equal(backfilled.length,1);assert.deepEqual([backfilled[0].start,backfilled[0].end,backfilled[0].place],['15:10','15:55','3층']);
   assert.equal((await boot(admin)).data.events.filter(e=>e.source?.id==='mail-start').length,1);assert.equal((await boot(recipient)).data.events.filter(e=>e.source?.id==='mail-start').length,0);
   const privateId=(await boot(recipient)).data.deadlines[0].id;assert.equal((await sync(admin,[{type:'item.delete',id:privateId}])).status,403);
 
