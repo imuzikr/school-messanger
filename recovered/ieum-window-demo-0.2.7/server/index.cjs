@@ -235,7 +235,7 @@ async function startServer(options = {}) {
       if(existing&&parse(existing.payload).noticeMail){const event=parse(existing.payload),slot=resolvePeriod(event.date,event.period);event.start=slot.start;event.end=slot.end;db.prepare('UPDATE events SET payload=? WHERE id=?').run(json(event),opId);break;}
       if(!['personal','group','repeat','makeup'].includes(v.type))fail(400,'일정 종류가 올바르지 않습니다.');
       const slot=v.type==='makeup'?resolvePeriod(validDate(v.date),v.period):null;
-      const start=slot?slot.start:str(v.start,5),end=slot?slot.end:str(v.end,5);if(!/^\d{2}:\d{2}$/.test(start)||!/^\d{2}:\d{2}$/.test(end)||start<'08:00'||end>'18:00'||start>=end||Number(start.slice(3))>59||Number(end.slice(3))>59)fail(400,'일정 시간은 08:00~18:00 범위에서 종료 시간이 더 늦어야 합니다.');
+      const start=slot?slot.start:str(v.start,5),end=slot?slot.end:str(v.end,5);if(!/^([01]\d|2[0-3]):[0-5]\d$/.test(start)||!/^(([01]\d|2[0-3]):[0-5]\d|24:00)$/.test(end)||start>=end)fail(400,'시작·종료 시간이 올바르지 않습니다. 종료 시간은 시작 시간보다 늦어야 합니다.');
       const targets=['group','makeup'].includes(v.type)&&v.targets?.length?knownUsers(v.targets):[];
       if(v.type==='makeup'&&(!targets.length||!String(v.note||'').trim()))fail(400,'보강 안내에는 수신자와 안내 내용이 필요합니다.');
       const payload={title:str(v.title,100),date:validDate(v.date),start,end,type:v.type,place:str(v.place||'',100,false),note:str(v.note||'',1000,false),targets,...(slot?{period:slot.period}: {}),...(existing&&parse(existing.payload).source?{source:parse(existing.payload).source,rule:parse(existing.payload).rule}: {})};

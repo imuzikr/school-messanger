@@ -64,6 +64,13 @@ test('LAN send -> sender and recipient deadlines; atomic retry, deletion, restar
   assert.equal((await bySource(admin)).find(e=>e.date===newDate).start,'06:30');
   const recipientCopy=(await bySource(recipient)).find(e=>e.date===newDate);await sync(recipient,[{type:'event.delete',id:recipientCopy.id}]);
   await sync(admin,[{type:'event.reschedule',id:(await bySource(admin)).find(e=>e.date===newDate).id,value:{date:newDate,start:'19:00',end:'20:30'}}]);assert.equal((await bySource(recipient)).length,1);
+  for(const [id,start,end] of [['event-late','23:00','23:15'],['event-early','06:30','07:30']]){
+    const value={id,title:id,date:newDate,start,end,type:'personal',targets:[],place:'',note:''};
+    assert.equal((await sync(admin,[{type:'event.upsert',value}])).status,200);
+    assert.equal((await boot(admin)).data.events.find(e=>e.id===id).start,start);
+    for(const [badStart,badEnd] of [['23:15','23:00'],['24:00','24:15'],['06:70','07:30']])assert.equal((await sync(admin,[{type:'event.upsert',value:{...value,start:badStart,end:badEnd}}])).status,400);
+    assert.equal((await boot(admin)).data.events.find(e=>e.id===id).start,start);
+  }
   const central={id:'event-central',title:'직접 공유',date:newDate,start:'09:00',end:'10:00',type:'group',targets:[r.id,ccUser.id],place:'',note:''};assert.equal((await sync(admin,[{type:'event.upsert',value:central}])).status,200);
   assert.equal((await boot(recipient)).data.events.find(e=>e.id===central.id).canReschedule,true);
   assert.equal((await sync(recipient,[{type:'event.reschedule',id:central.id,value:{date:newDate,start:'11:00',end:'12:15'}}])).status,200);
