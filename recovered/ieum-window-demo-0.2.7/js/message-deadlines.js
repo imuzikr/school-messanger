@@ -2,6 +2,7 @@
 (function(root,factory){const api=factory();if(typeof module==='object'&&module.exports)module.exports=api;else root.IeumDeadlines=api;})(typeof globalThis==='object'?globalThis:this,()=>{
  'use strict';
  const pad=n=>String(n).padStart(2,'0');
+ const deadlineAction=/제출|회신|마감|신청|등록|보고|송부|알려\s*주|보내\s*주|전달|답변|응답/;
  const key=d=>d.toISOString().slice(0,10);
  const valid=s=>/^\d{4}-\d{2}-\d{2}$/.test(s)&&Number.isFinite(Date.parse(s+'T00:00:00Z'))&&key(new Date(s+'T00:00:00Z'))===s;
  const add=(s,n)=>key(new Date(Date.parse(s+'T00:00:00Z')+n*86400000));
@@ -32,8 +33,9 @@
   // Sentence boundaries retain dotted numeric dates and HH:mm times.
   for(const clause of text.slice(0,100000).split(/\n+|[!?。]+|\.(?=\s|$)/)){
    if(!/까지|마감|오전\s*중/.test(clause)||extractEvents(clause,sentAt).length)continue;
-   if(/회의|연수|수업|상담|행사|협의회|출장|교육|설명회|간담회|면담|모임/.test(clause)&&!/제출|회신|마감|신청/.test(clause)&&/(?:시|:\d{2}).*(?:에서|부터|[~～–—-]).*(?:시|:\d{2})/.test(clause))continue;
+   if(/회의|연수|수업|상담|행사|협의회|출장|교육|설명회|간담회|면담|모임/.test(clause)&&!deadlineAction.test(clause)&&/(?:시|:\d{2}).*(?:에서|부터|[~～–—-]).*(?:시|:\d{2})/.test(clause))continue;
    if(/(?:마감|제출|등록|신청).{0,8}(?:취소|철회)|(?:제출|등록|신청)(?:하지\s*마|할\s*필요\s*없)/.test(clause))continue;
+   if(/(?:알려|보내|전달|회신|제출).{0,5}(?:하지\s*마|지\s*마|필요\s*없|않아도)/.test(clause))continue;
    let m;const {date,hasDate}=resolveDate(clause,base);
    if(!valid(date))continue;
    let dueTime='',rule='date';
@@ -52,7 +54,7 @@
   const base=sentDate(sentAt);if(!base||typeof text!=='string')return [];
   const result=[];
   for(const clause of text.slice(0,100000).split(/\n+|[!?。]+|\.(?=\s|$)/)){
-   if(!/회의|연수|수업|상담|행사|협의회|출장|교육|설명회|간담회|면담|모임/.test(clause)||/제출|회신|마감|취소|철회|없습니다|하지\s*마/.test(clause))continue;
+   if(!/회의|연수|수업|상담|행사|협의회|출장|교육|설명회|간담회|면담|모임/.test(clause)||(deadlineAction.test(clause)||/취소|철회|없습니다|하지\s*마/.test(clause)))continue;
    const {date,hasDate}=resolveDate(clause,base);if(!hasDate||!valid(date))continue;
    const times=[...clause.matchAll(/(오전|오후)?\s*(\d{1,2})(?::(\d{2})|\s*시(?:\s*(\d{1,2})\s*분|\s*(반))?)/g)];
    if(times.length!==2)continue;

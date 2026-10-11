@@ -74,3 +74,11 @@ test('every unqualified 1–7시 is afternoon for deadlines and appointments',()
  }
  assert.equal(rules.extract('내일 7시 반까지 제출',sent)[0].dueTime,'19:30');
 });
+
+test('submission, stated closing time, informing and sending requests are deadlines, not meetings',()=>{
+ const at='2026-10-12T01:00:00Z';
+ for(const [text,date,time] of [['내일까지 자료를 제출해 주세요.','2026-10-13','16:00'],['마감은 16일 오후 2시입니다.','2026-10-16','14:00'],['오늘 3시까지 회의 결과를 알려주세요.','2026-10-12','15:00'],['다음 주 수요일까지 보내주세요.','2026-10-21','16:00']]){
+  const parsed=rules.extract(text,at);assert.equal(parsed.length,1,text);assert.equal(parsed[0].date,date);assert.equal(parsed[0].dueTime,time);assert.equal(rules.extractEvents(text,at).length,0);assert.equal(rules.extractStartEvents(text,at).length,0);
+ }
+ assert.equal(rules.extract('내일까지 자료를 보내지 않아도 됩니다.',at).length,0);
+});
