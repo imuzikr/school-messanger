@@ -363,7 +363,7 @@
         )
         .join(
           "",
-        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.29</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
+        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.30</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
     );
   }
   const groupLabel=p=>String(p[state.group]||"").trim()||({grade:"학년 미지정",otherGroup:"기타 미지정"}[state.group]||"미지정");
@@ -1201,7 +1201,7 @@
     date = state.today,
     start = "09:00",
     end = "10:00",
-    type = "personal",
+    type = "group",
     place = "",
     note = "",
     mail = null,
@@ -1210,10 +1210,11 @@
     dueTime = "",
     done = false,
   } = {}) {
-    eventDraft = { id, mail, done };
+    if(!id&&["personal","group","repeat"].includes(type))type="group";
+    eventDraft = { id, mail, done, type };
     openModal(
       id ? "일정 수정" : "새로운 일정",
-      `<form id="event-form" class="event-form"><label>제목 (선택)<input class="input" id="event-title" placeholder="비워 두면 내용으로 일정을 표시합니다" value="${esc(title)}" maxlength="100"></label><div class="two-fields"><label>날짜<input class="input" id="event-date" type="date" value="${date}" required></label><label>종류<select class="input" id="event-type">${["personal", "group", "makeup", "repeat", "note", "deadline"].map((t) => `<option value="${t}" ${type === t ? "selected" : ""}>${typeLabel(t)}</option>`).join("")}</select></label></div><label id="makeup-period-box" hidden>보강 교시<select class="input" id="makeup-period"></select><small class="muted">해당 날짜의 일과표 시간을 적용합니다. 수신자 캘린더에 자동 등록됩니다.</small></label><div class="two-fields" id="event-time-range"><label>시작 시간<input class="input" id="event-start" type="time" value="${start}" required></label><label>종료 시간<input class="input" id="event-end" type="time" value="${end}" required></label></div><label id="event-deadline-time" hidden>마감 시간 (선택)<input class="input" id="event-due-time" type="time" value="${esc(dueTime)}"><small class="muted">예: 월요일 16:00까지 제출. 시작 시간 없이 마감 시각만 저장합니다. 시간을 비우면 날짜만 표시합니다.</small></label><label id="event-place-label">장소<input class="input" id="event-place" placeholder="예: 도서관 세미나실" value="${esc(place)}" maxlength="100"></label><div id="event-target-box" ${type !== "group" ? "hidden" : ""}><span>메시지 수신자 · 일정 공유</span><div id="event-targets" class="recipient-options">${state.data.people.map(p=>`<label><input type="checkbox" value="${p.id}" ${targets.includes(p.id)?"checked":""}><span>${esc(p.name)} · ${esc(p.department)}</span></label>`).join("")}</div><small class="muted">수신자가 없으면 내 개인 일정입니다. 선택하면 메시지를 발송하고 선택한 선생님들의 캘린더에도 공유합니다.</small></div><label>내용<textarea class="input" id="event-note" rows="3" placeholder="미리 기억해 둘 내용을 적어 주세요." maxlength="1000">${esc(note)}</textarea></label><div id="event-error" class="form-error" role="alert"></div></form>`,
+      `<form id="event-form" class="event-form"><label>제목 (선택)<input class="input" id="event-title" placeholder="비워 두면 내용으로 일정을 표시합니다" value="${esc(title)}" maxlength="100"></label><div class="two-fields"><label>날짜<input class="input" id="event-date" type="date" value="${date}" required></label><label id="event-place-label">장소<input class="input" id="event-place" placeholder="예: 도서관 세미나실" value="${esc(place)}" maxlength="100"></label></div><label id="makeup-period-box" hidden>보강 교시<select class="input" id="makeup-period"></select><small class="muted">해당 날짜의 일과표 시간을 적용합니다. 수신자 캘린더에 자동 등록됩니다.</small></label><div class="two-fields" id="event-time-range"><label>시작 시간<input class="input" id="event-start" type="time" value="${start}" required></label><label>종료 시간<input class="input" id="event-end" type="time" value="${end}" required></label></div><label id="event-deadline-time" hidden>마감 시간 (선택)<input class="input" id="event-due-time" type="time" value="${esc(dueTime)}"><small class="muted">예: 월요일 16:00까지 제출. 시작 시간 없이 마감 시각만 저장합니다. 시간을 비우면 날짜만 표시합니다.</small></label><div id="event-target-box" ${type !== "group" ? "hidden" : ""}><span>메시지 수신자 · 일정 공유</span><div id="event-targets" class="recipient-options">${state.data.people.map(p=>`<label><input type="checkbox" value="${p.id}" ${targets.includes(p.id)?"checked":""}><span>${esc(p.name)} · ${esc(p.department)}</span></label>`).join("")}</div><small class="muted">수신자가 없으면 내 개인 일정입니다. 선택하면 메시지를 발송하고 선택한 선생님들의 캘린더에도 공유합니다.</small></div><label>내용<textarea class="input" id="event-note" rows="3" placeholder="미리 기억해 둘 내용을 적어 주세요." maxlength="1000">${esc(note)}</textarea></label><div id="event-error" class="form-error" role="alert"></div></form>`,
       (id
         ? button(
             "delete-event",
@@ -1227,9 +1228,9 @@
         `<button class="btn btn-primary" type="submit" form="event-form">${icon("check", 16)} 일정 저장</button>`,
     );
     const updateEventFields=()=>{
-      const deadline=$("#event-type").value==="deadline";
-      const makeup=$("#event-type").value==="makeup";
-      $("#event-target-box").hidden=["note","deadline"].includes($("#event-type").value);
+      const deadline=type==="deadline";
+      const makeup=type==="makeup";
+      $("#event-target-box").hidden=["note","deadline"].includes(type);
       $("#makeup-period-box").hidden=!makeup;
       $("#event-start").readOnly=makeup;$("#event-end").readOnly=makeup;
       if(makeup)updateMakeupPeriod();
@@ -1246,8 +1247,8 @@
       const slot=slots.find(p=>p.period===Number(select.value));if(slot){$("#event-start").value=slot.start;$("#event-end").value=slot.end;}
     };
     $("#makeup-period").onchange=updateMakeupPeriod;
-    $("#event-date").onchange=()=>{if($("#event-type").value==="makeup")updateMakeupPeriod();};
-    $("#event-type").onchange=updateEventFields;updateEventFields();
+    $("#event-date").onchange=()=>{if(type==="makeup")updateMakeupPeriod();};
+    updateEventFields();
     $("#event-form").onsubmit = saveEvent;
   }
   async function saveEvent(e) {
@@ -1255,7 +1256,7 @@
     const messageTitle=$("#event-title").value.trim(),content=$("#event-note").value.trim();
     const title = messageTitle||content.split("\n")[0].slice(0,80)||"새 일정",
       date = $("#event-date").value,
-      type = $("#event-type").value,
+      type = eventDraft.type,
       start = $("#event-start").value,
       end = $("#event-end").value;
 

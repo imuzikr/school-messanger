@@ -72,6 +72,9 @@ test('LAN send -> sender and recipient deadlines; atomic retry, deletion, restar
     assert.equal((await boot(admin)).data.events.find(e=>e.id===id).start,start);
   }
   const central={id:'event-central',title:'직접 공유',date:newDate,start:'09:00',end:'10:00',type:'group',targets:[r.id,ccUser.id],place:'',note:''};assert.equal((await sync(admin,[{type:'event.upsert',value:central}])).status,200);
+  const sharedCalendarMail={type:'mail.send',id:'mail-central',value:{title:'직접 공유',body:'협의회 자료를 준비해 주세요.\n일정: '+newDate+' 09:00–10:00',to:central.targets,cc:[],files:[],calendarEvent:central.id,eventId:central.id}};
+  assert.equal((await sync(admin,[sharedCalendarMail])).status,200);assert.equal((await sync(admin,[sharedCalendarMail])).status,200);
+  for(const token of allTokens){const data=(await boot(token)).data;const messages=data.mails.filter(m=>m.id==='mail-central');assert.equal(messages.length,1);assert.equal(messages[0].eventId,central.id);assert.ok(messages[0].body.includes('협의회 자료'));assert.equal(data.events.filter(e=>e.id===central.id).length,1);assert.ok(!data.events.some(e=>e.source?.id==='mail-central'));}
   assert.equal((await boot(recipient)).data.events.find(e=>e.id===central.id).canReschedule,true);
   assert.equal((await sync(recipient,[{type:'event.reschedule',id:central.id,value:{date:newDate,start:'11:00',end:'12:15'}}])).status,200);
   for(const token of allTokens)assert.equal((await boot(token)).data.events.find(e=>e.id===central.id).end,'12:15');
