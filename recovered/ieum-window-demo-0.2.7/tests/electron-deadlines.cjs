@@ -8,7 +8,7 @@ const {_electron}=require('playwright');
   app=await _electron.launch({executablePath:require('electron'),args:['--no-sandbox','--disable-gpu',path.resolve(__dirname,'..')],env:{...process.env,DISPLAY:process.env.DISPLAY||':99',IEUM_ROLE:'demo',IEUM_TEST_DATA_DIR:data},timeout:20000});
   const page=await app.firstWindow();await require('./electron-helpers.cjs').dismissBriefing(page);const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.waitForLoadState();
-  await page.getByText('v0.2.36',{exact:false}).first().waitFor();
+  await page.getByText('v0.2.37',{exact:false}).first().waitFor();
   assert.equal(await page.evaluate(()=>window.ieumDesktop.mode),'demo');
   assert.equal(await page.locator('.school-tools [data-action="class-teachers"]').count(),0);
   await page.locator('[data-action="settings"]').first().click();
@@ -25,6 +25,6 @@ const {_electron}=require('playwright');
   await calendar.waitForFunction(()=>!document.querySelector('#modal-root').firstChild);
   assert.ok(!page.isClosed());
   assert.deepEqual(errors,[]);
-  console.log('PASS: Electron 44.7.0 automatic demo entry, preload bridge, v0.2.36, IPC-created independent calendar window, main window retained (OS sandbox disabled for cloud container)');
+  console.log('PASS: Electron 44.7.0 automatic demo entry, preload bridge, v0.2.37, IPC-created independent calendar window, main window retained (OS sandbox disabled for cloud container)');
  }finally{if(app)await app.close();fs.rmSync(data,{recursive:true,force:true})}
 })().catch(error=>{console.error(error);process.exitCode=1});
