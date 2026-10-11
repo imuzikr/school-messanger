@@ -2937,3 +2937,15 @@ input[type="checkbox"] {
 .editor-tools .editor-swatch{width:27px;height:27px;padding:0;background:var(--swatch);border:1px solid #a9b8ad;font-size:20px;color:var(--ink);border-radius:5px}
 .editor-tools .editor-swatch:hover{background:var(--swatch);outline:2px solid var(--green);outline-offset:1px}
 .editor-tools button{padding:3px 7px}
+
+/* Two recipient rows keep room for the message body. */
+.recipient-values{display:flex;flex-wrap:wrap;gap:5px;position:relative;width:100%;overflow:hidden}
+.recipient-values:empty{display:none}
+.recipient-values .chip{flex-shrink:0}
+.recipient-more{border:0;background:transparent;color:var(--green);cursor:pointer;font-size:12px;padding:3px 6px;align-self:center}
+.announcement-fields{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.announcement-fields label{display:flex;flex-direction:column;gap:6px}
+.announcement-options{display:flex;gap:8px;margin-top:10px}
+.announcement-options .btn{border-radius:999px;padding:7px 14px}
+.announcement-options .btn[aria-pressed=true]{background:var(--green);color:white;border-color:var(--green)}
+.announcement-card p{font-size:14px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;white-space:pre-wrap}
