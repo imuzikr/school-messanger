@@ -1,6 +1,7 @@
 'use strict';
 const {contextBridge,ipcRenderer}=require('electron');
 contextBridge.exposeInMainWorld('ieumDesktop',Object.freeze({
+  mainHost: process.argv.includes('--ieum-main-host'),
   mode: process.argv.includes('--ieum-demo') ? 'demo' : 'installed',
   request: (route,payload)=>ipcRenderer.invoke('ieum:request',route,payload),
   connection: ()=>ipcRenderer.invoke('ieum:connection'),

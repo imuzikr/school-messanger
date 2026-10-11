@@ -101,6 +101,7 @@
   const requestedToday=params.get("todayPanel")==="1";
   const requestedCompose=params.get("compose")==="1";
   let composeStarted=false,mailSending=false,eventWindowStarted=false,eventSaving=false,demoRefreshPending=false;
+  let mainHostSynced=false;
   let network = null;
   let connectionStatus = native ? "서버 연결 필요" : "화면 데모";
   const state = {
@@ -270,7 +271,11 @@
     if (!native) save();
     applySettings();
     document.body.classList.toggle("installed",!!windowApi);
-    if(!state.user){login();return;}
+    if(windowApi?.mainHost){
+      document.body.classList.add("unified-main","compact-mode");
+      if(!mainHostSynced){mainHostSynced=true;windowApi.toggleToday(false,state.settings.calendarPosition);}
+    }
+    if(!state.user){if(windowApi?.mainHost&&state.showToday){state.showToday=false;windowApi.toggleToday(false,state.settings.calendarPosition);}login();return;}
     if(requestedCompose){
       document.body.classList.add("compose-window");document.body.classList.remove("compact-mode");
       $("#app").innerHTML='<div class="compose-window-background"></div>';
@@ -286,7 +291,7 @@
     const header=`<header class="compact-header">${avatar({name:state.user,status:"online"})}<div class="compact-profile"><div class="school-heading"><button class="btn-quiet" data-action="back-main" title="조직도로 돌아가기" style="padding:0;text-align:left"><strong>${esc(state.data.schoolName||"○○고등학교")}</strong></button><span class="school-population" aria-label="전체 ${state.data.people.length}명, 접속 ${state.data.people.filter(p=>p.status==='online').length}명"><span>전체 ${state.data.people.length}</span><span class="population-online">접속 ${state.data.people.filter(p=>p.status==='online').length}</span></span></div><small>${esc(state.user)} · ${esc(state.profile?.department||"교무기획부")}</small></div><button class="icon-btn" data-action="nav-inbox" aria-label="메시지함">${icon("mail",20)}${unreadMails()?`<span class="badge">${unreadMails()}</span>`:""}</button>${ib("nav-chat","대화 목록","chat")}${controls}</header>`;
     const rail=`<nav class="rail" aria-label="주 메뉴">${nav.map(([p,i,l])=>`<button class="nav-item ${state.page===p?"active":""}" data-action="nav-${p}" ${state.page===p?'aria-current="page"':''}>${icon(i,23)}<span>${l}</span>${p==="chat"&&unreadChats()?`<b class="badge">${unreadChats()}</b>`:p==="inbox"&&unreadMails()?`<b class="badge">${unreadMails()}</b>`:""}</button>`).join("")}<div class="rail-bottom">${ib("settings","설정","settings")}${ib("logout","로그아웃","logout")}<button class="nav-item" data-action="toggle-today" aria-pressed="${state.showToday}">${icon("calendar",20)}<span>오늘 일정</span></button></div></nav>`;
     const status=`<footer class="connection-status" id="connection-status"><span>${esc(connectionStatus)}</span><span>${native?"교내 서버":"화면 체험"}</span></footer>`;
-    $("#app").innerHTML=workspace?`<div class="workspace-frame ${requestedChat?'chat-only':''}"><div class="shell"><div class="workspace"><header class="topbar"><strong>${esc(labels[state.page]||"대화")} · 이음</strong><div class="top-actions">${!windowApi?button("back-main","본창으로","left"):""}${windowApi?ib("window-minimize","최소화","left")+ib("window-maximize","최대화","popout")+ib("window-close","닫기","x"):""}</div></header><main class="page" id="main-content"></main>${status}</div></div></div>`:`<div class="desktop-frame no-today"><div class="shell">${header}<div class="compact-body">${rail}<div class="workspace"><main class="page" id="main-content"></main>${status}</div></div></div>${!windowApi?`<div class="today-drawer ${state.settings.calendarPosition==='right'?'right':'left'} ${state.showToday?'open':''}">${compactAgenda()}</div>`:''}</div>`;
+    $("#app").innerHTML=workspace?`<div class="workspace-frame ${requestedChat?'chat-only':''}"><div class="shell"><div class="workspace"><header class="topbar"><strong>${esc(labels[state.page]||"대화")} · 이음</strong><div class="top-actions">${!windowApi?button("back-main","본창으로","left"):""}${windowApi?ib("window-minimize","최소화","left")+ib("window-maximize","최대화","popout")+ib("window-close","닫기","x"):""}</div></header><main class="page" id="main-content"></main>${status}</div></div></div>`:`<div class="desktop-frame no-today"><div class="shell">${header}<div class="compact-body">${rail}<div class="workspace"><main class="page" id="main-content"></main>${status}</div></div></div>${!windowApi||windowApi.mainHost?`<div class="today-drawer ${state.settings.calendarPosition==='right'?'right':'left'} ${state.showToday?'open':''}" aria-hidden="${!state.showToday}" ${state.showToday?'':'inert'}>${compactAgenda()}</div>`:''}</div>`;
     renderPage();renderFloating();
     if(params.get("eventDraft")==="1"&&!eventWindowStarted){eventWindowStarted=true;windowApi.composeDraft().then(draft=>eventForm(draft));}
 
@@ -331,6 +336,8 @@
     $("#main-content").innerHTML = fn();
     if (state.page === "chat") scrollMessages($("#main-content"));
     if (state.page === "inbox") initMailResize();
+    const drawer=$(".today-drawer");
+    if(drawer){const scroll=$(".agenda-body",drawer)?.scrollTop||0;drawer.innerHTML=compactAgenda();$(".agenda-body",drawer).scrollTop=scroll;}
   }
   function peoplePage() {
     return (
@@ -356,7 +363,7 @@
         )
         .join(
           "",
-        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.25</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
+        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.26</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
     );
   }
   const groupLabel=p=>String(p[state.group]||"").trim()||({grade:"학년 미지정",otherGroup:"기타 미지정"}[state.group]||"미지정");
@@ -1734,7 +1741,7 @@
         if(requestedToday){windowApi?.toggleToday(false);return;}
         state.showToday = !state.showToday;
         if(windowApi)windowApi.toggleToday(state.showToday,state.settings.calendarPosition);
-        else $(".today-drawer")?.classList.toggle("open",state.showToday);
+        else {const drawer=$(".today-drawer");if(drawer){drawer.classList.toggle("open",state.showToday);drawer.inert=!state.showToday;drawer.setAttribute("aria-hidden",String(!state.showToday));}}
         $$('[data-action="toggle-today"]').forEach(el=>el.setAttribute('aria-pressed',String(state.showToday)));
         break;
       case "today-prev":
@@ -2530,7 +2537,18 @@
     }
   });
   document.addEventListener("dblclick", e=>{const person=e.target.closest('.org-tree .person-line');if(person)composeMail({to:[person.dataset.person]});});
-  windowApi?.subscribe(event=>{if(event.kind==='today-animation'&&requestedToday){document.body.dataset.panelSide=event.side;requestAnimationFrame(()=>requestAnimationFrame(()=>document.body.classList.toggle('panel-open',event.open)));}if(event.kind==='today-panel'&&!requestedToday){state.showToday=event.open;$$('[data-action="toggle-today"]').forEach(el=>el.setAttribute('aria-pressed',String(event.open)));}});
+  windowApi?.subscribe(event=>{
+    if(event.kind==='today-panel'){
+      state.showToday=event.open;
+      if(windowApi.mainHost){
+        document.body.dataset.hostSide=event.side;
+        document.body.classList.toggle('today-expanded',event.open);
+        const drawer=$(".today-drawer");
+        if(drawer){drawer.classList.toggle('left',event.side==='left');drawer.classList.toggle('right',event.side==='right');drawer.classList.toggle('open',event.open);drawer.inert=!event.open;drawer.setAttribute('aria-hidden',String(!event.open));}
+      }
+      $$('.rail [data-action="toggle-today"]').forEach(el=>el.setAttribute('aria-pressed',String(event.open)));
+    }
+  });
   document.addEventListener("contextmenu", (e) => {
     if(e.target.closest("#mail-editor")){e.preventDefault();captureEditorLink(e);menu(e.clientX,e.clientY,[{action:"editor-link",label:"링크 삽입",icon:"link"}]);return;}
     const p = e.target.closest(".person[data-person]"),

@@ -8,7 +8,8 @@ const role=app.isPackaged?require('../package.json').ieumRole||'client':process.
 app.setName(role==='demo'?'IeumDemo':role==='server'?'IeumServer':'IeumClient');
 if(!app.isPackaged&&process.env.IEUM_TEST_DATA_DIR)app.setPath('userData',process.env.IEUM_TEST_DATA_DIR);
 const windows=new Set();
-let todayWindow=null,todaySide='left',todayAnimation=null,todayOpen=false;
+let todaySide='left',todayAnimation=null,todayOpen=false;
+const TODAY_WIDTH=330;
 const connectionPath=()=>path.join(app.getPath('userData'),'connection.json');
 const configPath=()=>path.join(app.getPath('userData'),'server-config.json');
 function readJSON(file){try{return JSON.parse(fs.readFileSync(file,'utf8'));}catch{return null;}}
@@ -39,8 +40,8 @@ function connectStream(){
  function retry(){if(activeToken!==token||!token)return;emit({kind:'disconnected'});if(!reconnect)reconnect=setTimeout(()=>{reconnect=null;connectStream()},3000);}
 }
 function createWindow(url,options={}){
- const window=new BrowserWindow({width:options.width||430,height:options.height||830,minWidth:options.minWidth||390,minHeight:600,show:false,frame:false,backgroundColor:'#f6f8f4',title:'이음',...options,webPreferences:{preload:path.join(__dirname,'preload.cjs'),additionalArguments:role==='demo'?['--ieum-demo']:[],contextIsolation:true,nodeIntegration:false,sandbox:true,webSecurity:true}});
- windows.add(window);window.once('ready-to-show',()=>{if(url.includes('todayPanel=1')){if(todayOpen)openTodayPanel();}else window.show();});window.on('closed',()=>windows.delete(window));
+ const window=new BrowserWindow({width:options.width||430,height:options.height||830,minWidth:options.minWidth||390,minHeight:600,show:false,frame:false,backgroundColor:'#f6f8f4',title:'이음',...options,webPreferences:{preload:path.join(__dirname,'preload.cjs'),additionalArguments:[...(role==='demo'?['--ieum-demo']:[]),...(options.mainHost?['--ieum-main-host']:[])],contextIsolation:true,nodeIntegration:false,sandbox:true,webSecurity:true}});
+ windows.add(window);window.once('ready-to-show',()=>{window.show();});window.on('closed',()=>windows.delete(window));
  window.webContents.setWindowOpenHandler(({url})=>{try{if(['https:','http:'].includes(new URL(url).protocol))shell.openExternal(url);}catch{}return {action:'deny'};});
  window.webContents.on('will-navigate',(e,target)=>{if(!target.startsWith('ieum://app/'))e.preventDefault();});
  window.loadURL(url);return window;
@@ -63,10 +64,11 @@ else app.whenReady().then(async()=>{
  protocol.handle('ieum',request=>{const url=new URL(request.url);let decoded;try{decoded=decodeURIComponent(url.pathname);}catch{return new Response('Bad path',{status:400})}const file=path.resolve(ROOT,'.'+decoded);if(!file.startsWith(ROOT+path.sep)||decoded.includes('\0'))return new Response('Forbidden',{status:403});const rel=path.relative(ROOT,file).split(path.sep);if(!['index.html','css','js','assets','data','desktop'].includes(rel[0])||rel.some(v=>v.endsWith('.cjs'))||!fs.existsSync(file)||!fs.statSync(file).isFile())return new Response('Not found',{status:404});return electronNet.fetch(pathToFileURL(file).href);});
  connection=role==='demo'?null:readJSON(connectionPath());if(connection){try{connection=validateConnection(connection)}catch{connection=null}}
  Menu.setApplicationMenu(null);
- mainWindow=createWindow(role==='server'?'ieum://app/desktop/server.html':'ieum://app/index.html',{width:role==='server'?760:430,height:role==='server'?760:830,minWidth:role==='server'?650:390});
- for(const name of ['move','resize'])mainWindow.on(name,()=>{if(todayWindow&&!todayWindow.isDestroyed()&&todayWindow.isVisible()){clearTimeout(todayAnimation);if(todayOpen)todayWindow.setBounds(todayBounds());else todayWindow.hide();}});
- mainWindow.on('minimize',()=>{if(todayWindow&&!todayWindow.isDestroyed())todayWindow.hide();todayOpen=false;emit({kind:'today-panel',open:false});});
- mainWindow.on('close',e=>{if(!quitting){e.preventDefault();mainWindow.hide();todayWindow?.hide();}});
+ const area=screen.getPrimaryDisplay().workArea,host=role!=='server';
+ mainWindow=createWindow(role==='server'?'ieum://app/desktop/server.html':'ieum://app/index.html',host?{mainHost:true,transparent:true,backgroundColor:'#00000000',hasShadow:false,width:430+TODAY_WIDTH,height:Math.min(830,area.height),minWidth:390+TODAY_WIDTH,x:area.x+Math.round((area.width-430)/2)-TODAY_WIDTH,y:area.y+Math.max(0,Math.round((area.height-830)/2))}:{width:760,height:760,minWidth:650});
+ if(host){mainWindow.on('resize',()=>applyMainShape(todayOpen));applyMainShape(false);}
+ // One native window owns both views: focus, move, minimize and restore are atomic.
+ mainWindow.on('close',e=>{if(!quitting){e.preventDefault();mainWindow.hide();}});
  const {nativeImage}=require('electron');const trayImage=nativeImage.createFromPath(path.join(ROOT,'assets','ieum-icon.png'));tray=new Tray(trayImage.resize({width:20,height:20}));tray.setToolTip(role==='server'?'이음 교내 서버':'이음 학교 메신저');tray.on('double-click',bringMain);tray.setContextMenu(Menu.buildFromTemplate([{label:role==='server'?'서버 관리 열기':'메신저 열기',click:bringMain},{type:'separator'},{label:'이음 종료',click:()=>{quitting=true;app.quit()}}]));
  if(role==='server'){const cfg=readJSON(configPath());if(cfg){try{await startLocal(cfg);}catch{emit({kind:'server-start-error'});}}}
 });
@@ -78,28 +80,31 @@ expose('ieum:request',async(event,route,payload)=>{
  if(route==='/logout'){token=null;liveUsername=null;stopStream();emit({kind:'logout'});}return result;
 });
 expose('ieum:window',(event,action)=>{const w=BrowserWindow.fromWebContents(event.sender);if(action==='minimize')w.minimize();else if(action==='close')w.close();else if(action==='maximize')w.isMaximized()?w.unmaximize():w.maximize();else if(action==='show')w.show();});
-function todayBounds(){const b=mainWindow.getBounds(),area=screen.getDisplayMatching(b).workArea;const width=330,height=Math.min(b.height,area.height);return {x:Math.max(area.x,Math.min(todaySide==='right'?b.x+b.width:b.x-width,area.x+area.width-width)),y:Math.max(area.y,Math.min(b.y,area.y+area.height-height)),width,height};}
-function openTodayPanel(){
- clearTimeout(todayAnimation);todayWindow.setBounds(todayBounds(),false);
- if(!todayWindow.isVisible()){todayWindow.setIgnoreMouseEvents(true,{forward:true});todayWindow.showInactive();}
- mainWindow.moveTop();animateToday(true);
-}
-function animateToday(open){
- clearTimeout(todayAnimation);if(!todayWindow||todayWindow.isDestroyed())return;
- // The transparent host stays fixed; Chromium composites the panel transform.
- todayWindow.webContents.send('ieum:update',{kind:'today-animation',open,side:todaySide});
- todayWindow.setIgnoreMouseEvents(!open,{forward:true});
- if(!open)todayAnimation=setTimeout(()=>{if(!todayOpen&&todayWindow&&!todayWindow.isDestroyed())todayWindow.hide();},480);
+function applyMainShape(open){
+ if(!mainWindow||mainWindow.isDestroyed()||role==='server')return;
+ const b=mainWindow.getContentBounds();
+ // Closed reserve is absent from the native hit/paint region, so it cannot block another app.
+ const region=open?[{x:0,y:0,width:b.width,height:b.height}]:[{x:todaySide==='left'?TODAY_WIDTH:0,y:0,width:b.width-TODAY_WIDTH,height:b.height}];
+ mainWindow.setShape(region);
 }
 expose('ieum:resize',()=>({ok:true}));
 expose('ieum:today',(event,open,position)=>{
- const caller=BrowserWindow.fromWebContents(event.sender);if(caller!==mainWindow&&caller!==todayWindow)throw new Error('본창에서만 오늘 일정을 열 수 있습니다.');
+ if(BrowserWindow.fromWebContents(event.sender)!==mainWindow||role==='server')throw new Error('본창에서만 오늘 일정을 열 수 있습니다.');
+ const side=position==='right'?'right':position==='left'?'left':todaySide;
+ const wasOpen=todayOpen;
+ clearTimeout(todayAnimation);
+ if(side!==todaySide){
+  const b=mainWindow.getBounds();
+  // Shift the transparent host, keeping the organization rectangle at exactly the same screen coordinates.
+  mainWindow.setBounds({...b,x:b.x+(todaySide==='left'?TODAY_WIDTH:-TODAY_WIDTH)},false);
+  todaySide=side;
+ }
  todayOpen=!!open;
- todaySide=position==='right'?'right':position==='left'?'left':todaySide;
- if(open){if(!todayWindow||todayWindow.isDestroyed()){todayWindow=createWindow('ieum://app/index.html?todayPanel=1&side='+todaySide,{transparent:true,backgroundColor:'#00000000',hasShadow:false,width:330,height:mainWindow.getBounds().height,minWidth:330,minHeight:300,skipTaskbar:true,resizable:false});todayWindow.on('closed',()=>{todayWindow=null;});todayWindow.on('close',()=>{todayOpen=false;clearTimeout(todayAnimation);emit({kind:'today-panel',open:false});});}
- else if(!todayWindow.webContents.isLoadingMainFrame())openTodayPanel();
- }else animateToday(false);
- emit({kind:'today-panel',open:!!open});return {ok:true};
+ if(todayOpen)applyMainShape(true);
+ else if(!wasOpen)applyMainShape(false);
+ else todayAnimation=setTimeout(()=>applyMainShape(false),480);
+ emit({kind:'today-panel',open:todayOpen,side:todaySide});
+ return {ok:true};
 });
 expose('ieum:workspace',(event,page)=>{if(!['inbox','calendar','announcements','links'].includes(page))throw new Error('지원하지 않는 작업 창입니다.');const previous=[...windows].find(w=>!w.isDestroyed()&&w.ieumPage===page);if(previous){previous.show();previous.focus();return {ok:true};}const w=createWindow('ieum://app/index.html?workspace='+page,{width:page==='calendar'?1180:1080,height:800,minWidth:700});w.ieumPage=page;return {ok:true};});
 expose('ieum:compose',(event,draft={})=>{if(!draft||typeof draft!=='object'||JSON.stringify(draft).length>4*1024*1024)throw new Error('작성 내용이 너무 큽니다.');const w=createWindow('ieum://app/index.html?compose=1',{width:720,height:820,minWidth:620});w.ieumComposeDraft=draft;return {ok:true};});

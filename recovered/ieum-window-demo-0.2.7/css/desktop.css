@@ -124,3 +124,14 @@ body.today-panel-window{background:transparent!important;overflow:hidden}
 .inbox-layout .mail-list-panel{min-width:350px}
 @media(max-width:720px){.inbox-layout .mail-list-panel{min-width:0;width:100%}}
 @media(max-width:360px){.mail-toolbar{flex-wrap:wrap}.mail-toolbar .search{flex-basis:100%}}
+
+/* Calendar and organization share one shaped native window, with a transparent reserved side. */
+body.unified-main{--organization-left:330px;background:transparent!important;overflow:hidden}
+body.unified-main[data-host-side="right"]{--organization-left:0px}
+.unified-main.installed.compact-mode .desktop-frame{position:relative;width:calc(100vw - 330px);height:100vh;margin:0 0 0 var(--organization-left);overflow:visible;background:transparent}
+.unified-main .desktop-frame>.shell{background:var(--surface,#fff);box-shadow:0 0 18px #193e3618}
+.unified-main .today-drawer{box-shadow:none}
+.unified-main .agenda-header{-webkit-app-region:drag}
+.unified-main .agenda-header button{-webkit-app-region:no-drag}
+.unified-main .login-page{width:calc(100vw - 330px);margin-left:var(--organization-left);height:100vh}
+.unified-main:not(.today-expanded) .overlay{left:var(--organization-left);right:auto;width:calc(100vw - 330px)}
