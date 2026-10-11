@@ -142,3 +142,9 @@ body.unified-main[data-host-side="right"]{--organization-left:0px}
 .private-badge{display:inline-flex;align-items:center;gap:2px;padding:1px 4px;margin-right:4px;border-radius:4px;background:#f4d785;color:#59400e;font-size:9px;line-height:12px;vertical-align:middle;white-space:nowrap}
 .event.short .private-badge{padding:0 3px;line-height:12px}
 .agenda-footer{display:flex;gap:6px}.agenda-footer>.btn{flex:1}
+
+.calendar-month-panel{padding:16px;min-width:0;height:calc(100dvh - 235px);overflow:auto}
+.today-briefing h3{font-size:14px;margin:22px 0 10px}.briefing-date{font-weight:700;color:var(--green)}
+.briefing-counts{padding:12px;background:#edf4ee;border-radius:8px;font-size:12px}
+.today-briefing ul{list-style:none;padding:0;margin:0}.today-briefing li{padding:10px 0;border-bottom:1px solid var(--line);font-size:12px}
+.today-briefing li strong,.today-briefing li small{display:block}.today-briefing li small{color:var(--muted);margin-top:5px;line-height:1.6}

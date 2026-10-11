@@ -1,6 +1,8 @@
 /* 모든 이름·학교·대화는 예시입니다. 서버와 연결되지 않습니다. */
 (function () {
-  const today = new Date();
+  const koreanParts=new Intl.DateTimeFormat("en-US",{timeZone:"Asia/Seoul",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date());
+  const part=key=>Number(koreanParts.find(p=>p.type===key).value);
+  const today = new Date(part("year"),part("month")-1,part("day"),12);
   const key = (d) =>
     `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   const date = (offset = 0) => {
