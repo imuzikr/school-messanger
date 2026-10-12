@@ -1,5 +1,5 @@
 'use strict';
-const {app,screen,BrowserWindow,ipcMain,protocol,net:electronNet,dialog,Menu,Tray,Notification,shell,safeStorage}=require('electron');
+const {app,screen,BrowserWindow,ipcMain,protocol,net:electronNet,dialog,Menu,Tray,Notification,shell,safeStorage,clipboard,nativeImage}=require('electron');
 const path=require('node:path');const fs=require('node:fs');const https=require('node:https');const crypto=require('node:crypto');const os=require('node:os');const {pathToFileURL}=require('node:url');
 const ROOT=path.resolve(__dirname,'..');
 protocol.registerSchemesAsPrivileged([{scheme:'ieum',privileges:{standard:true,secure:true,supportFetchAPI:true}}]);
@@ -21,6 +21,23 @@ function validateConnection(value){
 }
 function trustedSender(event){if(!event.senderFrame?.url?.startsWith('ieum://app/'))throw new Error('허용되지 않은 화면 요청입니다.');}
 const expose=(name,handler)=>ipcMain.handle(name,async(event,...args)=>{trustedSender(event);try{return await handler(event,...args);}catch(error){return {error:error.message||'요청을 처리하지 못했습니다.'};}});
+expose('ieum:capture-screen',async()=>{
+ if(process.platform!=='win32')return {manual:true};
+ const {spawn}=require('node:child_process');
+ await new Promise((resolve,reject)=>{const child=spawn(path.join(process.env.SystemRoot||'C:\\Windows','System32','SnippingTool.exe'),['/clip'],{stdio:'ignore',windowsHide:true});child.once('error',reject);child.once('spawn',()=>{child.unref();resolve();});});
+ return {ok:true};
+});
+expose('ieum:clipboard-image',async()=>{
+ let image;
+ if(typeof clipboard.readImage==='function')image=clipboard.readImage();
+ else for(const item of await clipboard.read()){
+  const type=item.types.find(type=>/^image\/(png|jpeg|webp|gif)$/.test(type));
+  if(type){const blob=await item.getType(type);if(blob.size>2*1024*1024)throw new Error('이미지는 2 MB 이하로 캡처해 주세요.');image=nativeImage.createFromBuffer(Buffer.from(await blob.arrayBuffer()));break;}
+ }
+ if(!image||image.isEmpty())throw new Error('캡처하거나 복사한 이미지가 없습니다.');
+ const png=image.toPNG();if(png.length>2*1024*1024)throw new Error('이미지는 2 MB 이하로 캡처해 주세요.');
+ return {data:'data:image/png;base64,'+png.toString('base64')};
+});
 const emit=data=>{for(const w of windows)if(!w.isDestroyed())w.webContents.send('ieum:update',data);};
 function request(route,payload){return new Promise((resolve,reject)=>{
  if(role==='demo')return reject(new Error('창 체험 데모는 실제 서버에 연결하지 않습니다.'));

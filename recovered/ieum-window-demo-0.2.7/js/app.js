@@ -187,10 +187,11 @@
       return network?.active ? network.sync(state.data) : Promise.resolve(true);
     }
     try { localStorage.setItem("ieum-v1", JSON.stringify({seedDate:Mock.today,data:state.data,settings:state.settings,user:state.user})); }
-    catch { if(storageWorks) toast("저장 공간을 사용할 수 없어요", "현재 열린 화면에서만 유지됩니다.");storageWorks=false; }
+    catch { if(storageWorks) toast("저장 공간을 사용할 수 없어요", "저장 공간을 확보한 뒤 다시 시도해 주세요.");storageWorks=false;return Promise.resolve(false); }
     return Promise.resolve(true);
   }
   function acceptServerData(result) {
+    if(state.profile?.id!==result.user?.id){inlineMailEpoch++;inlineMailCache.clear();inlineMailLoading.clear();inlineMailErrors.clear();}
     const previous=state.data;
     const drafts=$$("[data-chat-input]").map(el=>({room:el.dataset.chatInput,value:el.value}));
     const focus=document.activeElement;
@@ -725,6 +726,10 @@
       if (["SCRIPT", "STYLE", "IFRAME", "OBJECT", "SVG"].includes(node.tagName))
         return "";
       const content = Array.from(node.childNodes).map(walk).join("");
+      if(node.tagName==="IMG"){
+        const src=node.getAttribute("src")||"";
+        return imageBytes(src)?`<img src="${src}" alt="${esc(node.getAttribute("alt")||"캡처 이미지")}">`:"";
+      }
       if(node.tagName==="A"){try{const url=new URL(node.getAttribute("href")||"");if(!["http:","https:"].includes(url.protocol)||url.username||url.password)return content;return `<a href="${esc(url.href)}" target="_blank" rel="noopener noreferrer"${safeStyles(node)}>${content}</a>`;}catch{return content;}}
 
       if(!allowed.has(node.tagName))return content;
@@ -733,14 +738,27 @@
     };
     return Array.from(doc.body.childNodes).map(walk).join("");
   }
+  const inlineMailCache=new Map(),inlineMailLoading=new Map(),inlineMailErrors=new Set();
+  let inlineMailEpoch=0;
+  async function loadInlineMail(m){
+    if(!native||!m.inlineStored)return m.html;
+    if(inlineMailCache.has(m.id))return inlineMailCache.get(m.id);
+    if(inlineMailLoading.has(m.id))return inlineMailLoading.get(m.id);
+    const epoch=inlineMailEpoch;
+    const pending=native.request("/attachment",{mail:m.id,inline:true}).then(result=>{if(epoch!==inlineMailEpoch)throw new Error("로그인 상태가 변경되었습니다.");if(result.error)throw new Error(result.error);const html=safeRichHTML(result.html);inlineMailCache.set(m.id,html);inlineMailErrors.delete(m.id);return html;}).finally(()=>{if(inlineMailLoading.get(m.id)===pending)inlineMailLoading.delete(m.id);});
+    inlineMailLoading.set(m.id,pending);return pending;
+  }
   function mailDetail(m) {
+    if(native&&m.inlineStored&&!inlineMailCache.has(m.id)&&!inlineMailLoading.has(m.id)&&!inlineMailErrors.has(m.id))loadInlineMail(m).then(()=>{if(state.mail===m.id)refreshMail();}).catch(()=>{inlineMailErrors.add(m.id);if(state.mail===m.id)refreshMail();});
+    const richHTML=inlineMailCache.get(m.id)||m.html;
+    const inlineStatus=native&&m.inlineStored&&!inlineMailCache.has(m.id)?inlineMailErrors.has(m.id)?`<p role="status">본문 이미지를 불러오지 못했습니다. ${button("retry-inline-mail","다시 시도","","",`data-mail="${esc(m.id)}"`)}</p>`:'<p role="status">본문 이미지를 불러오고 있습니다…</p>':"";
     const cc=[...new Set(m.cc||[])],to=m.to.filter(id=>!cc.includes(id));
     const names=ids=>ids.length?ids.map(id=>{const receipt=m.receipts?.[m.to.indexOf(id)]||"unread";return `<span class="mail-person ${receipt}" title="${esc(person(id).name)} · ${{read:"읽음",unread:"안 읽음",recalled:"회수됨"}[receipt]||"안 읽음"}">${esc(person(id).name)}</span>`;}).join(""):`<span class="muted">없음</span>`;
     const sender=m.announcement?.department||person(m.from).name+" 선생님";
     const linked=item=>item.source?.kind==="mail"&&item.source.id===m.id||item.noticeMail===m.id||item.deliveryMail===m.id||[m.calendarEvent,m.eventId].filter(Boolean).includes(item.id);
     const hasSchedule=!!m.scheduleAnnouncement||state.data.events.some(linked)||state.data.deadlines.some(linked);
     const tag=m.announcement?.department?`<span class="chip mail-department-tag">${esc(m.announcement.department)}</span>`:hasSchedule?`<span class="chip orange mail-schedule-tag">일정 확인</span>`:"";
-    return `<header class="mail-detail-head"><div class="mail-from-line">${ib("mail-back", "메시지 목록으로", "left", 'class="icon-btn mobile-back"')}<span class="mail-meta-label">보내는 사람</span><span class="mail-sender" title="보낸 사람: ${esc(sender)}"><strong>${esc(sender)}</strong></span><time class="muted">${fmtDate(m.date,{month:"long",day:"numeric"})} ${esc(m.time)}</time>${ib("print-mail", "메시지 인쇄", "print")}</div><div class="mail-to-line"><span class="mail-meta-label">받는 사람</span><div class="mail-recipient-values" id="mail-to-values">${names(to)}</div><button type="button" class="mail-recipients-more" data-action="mail-recipients-more" aria-expanded="false" aria-controls="mail-to-values" hidden>더 보기</button></div><div class="mail-cc-line"><span class="mail-meta-label">참조</span><div class="mail-cc-values">${names(cc)}</div><div class="mail-head-actions">${m.scheduled?`<small class="mail-scheduled muted" title="${esc(m.scheduled)}">${native?"예약 발송":"예약 초안"} · ${esc(m.scheduled)}</small>`:""}${tag}</div></div></header><div class="mail-body">${m.html ? safeRichHTML(m.html) : esc(m.body)}${m.files.map((f, i) => `<div class="attachment">${icon("file", 25)}<div><strong>${esc(f.name)}</strong><br><small>${esc(f.size)}${f.demo ? " · 예시 첨부 파일" : ""}</small></div>${ib("download-file", "첨부 다운로드", "download", `data-mail="${m.id}" data-file="${i}"`)}</div>`).join("")}</div><footer class="mail-detail-foot">${button(m.folder === "trash" ? "restore-mail" : "delete-mail", m.folder === "trash" ? "복원" : "삭제", "trash", "btn-danger", `data-mail="${m.id}"`)}${m.folder === "sent" ? button("recall-mail", "회수", "", "", `data-mail="${m.id}"`) : ""}<span class="spacer"></span>${button("reply-mail", "답장", "reply", "", `data-mail="${m.id}"`)}${button("reply-all", "전체 답장", "", "", `data-mail="${m.id}"`)}${button("forward-mail", "전달", "arrow", "", `data-mail="${m.id}"`)}</footer>`;
+    return `<header class="mail-detail-head"><div class="mail-from-line">${ib("mail-back", "메시지 목록으로", "left", 'class="icon-btn mobile-back"')}<span class="mail-meta-label">보내는 사람</span><span class="mail-sender" title="보낸 사람: ${esc(sender)}"><strong>${esc(sender)}</strong></span><time class="muted">${fmtDate(m.date,{month:"long",day:"numeric"})} ${esc(m.time)}</time>${ib("print-mail", "메시지 인쇄", "print")}</div><div class="mail-to-line"><span class="mail-meta-label">받는 사람</span><div class="mail-recipient-values" id="mail-to-values">${names(to)}</div><button type="button" class="mail-recipients-more" data-action="mail-recipients-more" aria-expanded="false" aria-controls="mail-to-values" hidden>더 보기</button></div><div class="mail-cc-line"><span class="mail-meta-label">참조</span><div class="mail-cc-values">${names(cc)}</div><div class="mail-head-actions">${m.scheduled?`<small class="mail-scheduled muted" title="${esc(m.scheduled)}">${native?"예약 발송":"예약 초안"} · ${esc(m.scheduled)}</small>`:""}${tag}</div></div></header><div class="mail-body">${inlineStatus}${richHTML ? safeRichHTML(richHTML) : esc(m.body)}${m.files.map((f, i) => `<div class="attachment">${icon("file", 25)}<div><strong>${esc(f.name)}</strong><br><small>${esc(f.size)}${f.demo ? " · 예시 첨부 파일" : ""}</small></div>${ib("download-file", "첨부 다운로드", "download", `data-mail="${m.id}" data-file="${i}"`)}</div>`).join("")}</div><footer class="mail-detail-foot">${button(m.folder === "trash" ? "restore-mail" : "delete-mail", m.folder === "trash" ? "복원" : "삭제", "trash", "btn-danger", `data-mail="${m.id}"`)}${m.folder === "sent" ? button("recall-mail", "회수", "", "", `data-mail="${m.id}"`) : ""}<span class="spacer"></span>${button("reply-mail", "답장", "reply", "", `data-mail="${m.id}"`)}${button("reply-all", "전체 답장", "", "", `data-mail="${m.id}"`)}${button("forward-mail", "전달", "arrow", "", `data-mail="${m.id}"`)}</footer>`;
   }
   function initMailHeader(){
     mailHeaderObserver?.disconnect();mailHeaderObserver=null;
@@ -875,8 +893,8 @@
     };
     openModal(
       "새 메시지 쓰기",
-      `<form id="compose-form" class="compose-form"><div class="compose-mode-buttons" role="group" aria-label="메시지 작성 방식">${button("compose-mode","일반 메시지","mail","",'data-mode="general" aria-pressed="true"')}${button("compose-mode","공지 사항","notice","",'data-mode="announcement" aria-pressed="false"')}${button("compose-mode","예약 메시지","clock","",'data-mode="scheduled" aria-pressed="false"')}${button("compose-mode","일정 추가","calendar","",'data-mode="event" aria-pressed="false"')}</div><section id="compose-announcement" hidden><div class="announcement-fields"><label>수신 대상<select id="announcement-audience" class="input" disabled><option value="">선택하세요</option><option value="teachers">교사</option><option value="staff">교직원</option></select></label><label>발신 부서<select id="announcement-department" class="input" disabled>${state.data.departments.map(department=>`<option value="${esc(department)}" ${department===(state.profile?.department||person("me").department)?"selected":""}>${esc(department)}</option>`).join("")}</select></label></div><div class="announcement-options" role="group" aria-label="공지 사항 옵션">${button("announcement-option","예약 메시지","clock","",'data-option="scheduled" aria-pressed="false"')}${button("announcement-option","일정 추가","calendar","",'data-option="event" aria-pressed="false"')}</div></section><section id="compose-reservation" hidden><label>예약 날짜·시간<input type="datetime-local" id="mail-scheduled-at" class="input" disabled></label></section><section id="compose-event" hidden><div class="compose-event-fields"><label>날짜<input id="compose-event-date" class="input" type="date" value="${state.today}" disabled></label><label>장소<input id="compose-event-place" class="input" placeholder="장소 입력" maxlength="200" disabled></label><label>시작 시간<input id="compose-event-start" class="input" type="time" value="09:00" disabled></label><label>종료 시간<input id="compose-event-end" class="input" type="time" value="10:00" disabled></label></div></section><label ${noticeType?"":"hidden"}>안내 종류<select id="lesson-kind" class="input"><option value="">일반 메시지</option><option value="makeup">보강 안내</option><option value="lessonChange">수업 변경 안내</option></select></label><section id="lesson-assignment" hidden><label>수업 날짜<input id="lesson-date" class="input" type="date" value="${state.today}"></label><p class="muted">필요한 교시를 체크하고 담당 교사를 배정하세요. 보강에서 반을 선택하면 담임과 보강 교사에게 함께 발송합니다. 수업 변경은 기존·교체 교사에게 안내하고 캘린더에 자동 등록합니다.</p><div class="lesson-table-scroll"><table class="lesson-table"><thead><tr><th>교시</th><th>반</th><th class="lesson-original" hidden>기존 교사</th><th id="lesson-teacher-heading">보강 교사</th></tr></thead><tbody>${Array.from({length:7},(_,i)=>`<tr data-lesson-row="${i+1}"><td><label><input type="checkbox" data-lesson-period="${i+1}">${i+1}교시</label><small data-lesson-time="${i+1}"></small></td><td><input class="input" data-lesson-class="${i+1}" list="school-classes" placeholder="반 선택/입력" maxlength="40" aria-label="${i+1}교시 반"><small data-lesson-homeroom="${i+1}"></small></td><td class="lesson-original" hidden><select class="input" data-lesson-original="${i+1}" aria-label="${i+1}교시 기존 교사"><option value="">교사 선택</option>${lessonPeople.map(p=>`<option value="${p.id}">${esc(p.name)} · ${esc(p.department)}</option>`).join("")}</select></td><td><select class="input" data-lesson-teacher="${i+1}" aria-label="${i+1}교시 배정 교사"><option value="">교사 선택</option>${lessonPeople.map(p=>`<option value="${p.id}">${esc(p.name)} · ${esc(p.department)}</option>`).join("")}</select></td></tr>`).join("")}</tbody></table></div><datalist id="school-classes">${[...new Set([...(state.data.classTeachers||[]).map(c=>c.className),...Array.from({length:36},(_,i)=>`${Math.floor(i/12)+1}학년 ${i%12+1}반`)])].map(name=>`<option value="${esc(name)}">`).join("")}</datalist></section><div class="field-row" id="compose-recipient-row"><label for="recipient-input">받는 사람</label><div class="recipient-box" id="recipient-box"><div class="recipient-values" id="recipient-values">${recipientChips()}</div><button type="button" class="recipient-more" data-action="recipient-more" data-kind="to" aria-expanded="false" aria-controls="recipient-values" hidden>더 보기</button><input id="recipient-input" autocomplete="off" placeholder="이름을 입력해 선택하세요" aria-label="받는 사람 검색"><div class="suggestions" id="recipient-suggestions" hidden></div></div></div><div class="field-row" id="compose-cc-row"><label for="cc-input">참조</label><div class="recipient-box" id="cc-box"><div class="recipient-values" id="cc-values"></div><button type="button" class="recipient-more" data-action="recipient-more" data-kind="cc" aria-expanded="false" aria-controls="cc-values" hidden>더 보기</button><input id="cc-input" autocomplete="off" placeholder="참조할 선생님 선택 (선택)" aria-label="참조 검색"><div class="suggestions" id="cc-suggestions" hidden></div></div></div><div class="field-row"><label for="mail-title">제목 (선택)</label><input id="mail-title" class="input" placeholder="비워 두어도 발송할 수 있습니다" value="${esc(title)}" maxlength="150"></div><div class="compose-editor"><div class="editor-tools" aria-label="본문 서식">${button("editor-bold", "B", "", "", 'aria-label="굵게"')}${button("editor-italic", "I", "", "", 'aria-label="기울임"')}${button("editor-underline", "U", "", "", 'aria-label="밑줄"')}${button("editor-list", "목록", "checklist")}${button("editor-clear", "서식 지우기")}<select id="editor-font-size" aria-label="글자 크기"><option value="">글자 크기</option><option value="2">13px</option><option value="3">16px</option><option value="4">18px</option><option value="5">24px</option><option value="6">32px</option></select>${button("editor-palette-toggle","글자 색상","","",'data-palette="text" aria-expanded="false" aria-controls="editor-text-palette"')}${button("editor-palette-toggle","형광펜","","",'data-palette="highlight" aria-expanded="false" aria-controls="editor-highlight-palette"')}${editorPaletteHTML("text")}${editorPaletteHTML("highlight")}</div><div class="rich-editor" id="mail-editor" contenteditable="true" role="textbox" aria-label="메시지 본문" aria-multiline="true" data-placeholder="선생님께 전할 이야기와 자료를 적어 주세요.">${richBody?safeRichHTML(richBody):esc(body).replace(/\n/g, "<br>")}</div></div><input type="file" id="mail-files" multiple hidden><div class="compose-files" id="compose-files">${composeFilesHTML()}</div><div id="compose-error" class="form-error" role="alert"></div></form>`,
-      button("close-modal", "취소") + button("attach-mail", "파일 첨부", "clip") +
+      `<form id="compose-form" class="compose-form"><div class="compose-mode-buttons" role="group" aria-label="메시지 작성 방식">${button("compose-mode","일반 메시지","mail","",'data-mode="general" aria-pressed="true"')}${button("compose-mode","공지 사항","notice","",'data-mode="announcement" aria-pressed="false"')}${button("compose-mode","예약 메시지","clock","",'data-mode="scheduled" aria-pressed="false"')}${button("compose-mode","일정 추가","calendar","",'data-mode="event" aria-pressed="false"')}</div><section id="compose-announcement" hidden><div class="announcement-fields"><label>수신 대상<select id="announcement-audience" class="input" disabled><option value="">선택하세요</option><option value="teachers">교사</option><option value="staff">교직원</option></select></label><label>발신 부서<select id="announcement-department" class="input" disabled>${state.data.departments.map(department=>`<option value="${esc(department)}" ${department===(state.profile?.department||person("me").department)?"selected":""}>${esc(department)}</option>`).join("")}</select></label></div><div class="announcement-options" role="group" aria-label="공지 사항 옵션">${button("announcement-option","예약 메시지","clock","",'data-option="scheduled" aria-pressed="false"')}${button("announcement-option","일정 추가","calendar","",'data-option="event" aria-pressed="false"')}</div></section><section id="compose-reservation" hidden><label>예약 날짜·시간<input type="datetime-local" id="mail-scheduled-at" class="input" disabled></label></section><section id="compose-event" hidden><div class="compose-event-fields"><label>날짜<input id="compose-event-date" class="input" type="date" value="${state.today}" disabled></label><label>장소<input id="compose-event-place" class="input" placeholder="장소 입력" maxlength="200" disabled></label><label>시작 시간<input id="compose-event-start" class="input" type="time" value="09:00" disabled></label><label>종료 시간<input id="compose-event-end" class="input" type="time" value="10:00" disabled></label></div></section><label ${noticeType?"":"hidden"}>안내 종류<select id="lesson-kind" class="input"><option value="">일반 메시지</option><option value="makeup">보강 안내</option><option value="lessonChange">수업 변경 안내</option></select></label><section id="lesson-assignment" hidden><label>수업 날짜<input id="lesson-date" class="input" type="date" value="${state.today}"></label><p class="muted">필요한 교시를 체크하고 담당 교사를 배정하세요. 보강에서 반을 선택하면 담임과 보강 교사에게 함께 발송합니다. 수업 변경은 기존·교체 교사에게 안내하고 캘린더에 자동 등록합니다.</p><div class="lesson-table-scroll"><table class="lesson-table"><thead><tr><th>교시</th><th>반</th><th class="lesson-original" hidden>기존 교사</th><th id="lesson-teacher-heading">보강 교사</th></tr></thead><tbody>${Array.from({length:7},(_,i)=>`<tr data-lesson-row="${i+1}"><td><label><input type="checkbox" data-lesson-period="${i+1}">${i+1}교시</label><small data-lesson-time="${i+1}"></small></td><td><input class="input" data-lesson-class="${i+1}" list="school-classes" placeholder="반 선택/입력" maxlength="40" aria-label="${i+1}교시 반"><small data-lesson-homeroom="${i+1}"></small></td><td class="lesson-original" hidden><select class="input" data-lesson-original="${i+1}" aria-label="${i+1}교시 기존 교사"><option value="">교사 선택</option>${lessonPeople.map(p=>`<option value="${p.id}">${esc(p.name)} · ${esc(p.department)}</option>`).join("")}</select></td><td><select class="input" data-lesson-teacher="${i+1}" aria-label="${i+1}교시 배정 교사"><option value="">교사 선택</option>${lessonPeople.map(p=>`<option value="${p.id}">${esc(p.name)} · ${esc(p.department)}</option>`).join("")}</select></td></tr>`).join("")}</tbody></table></div><datalist id="school-classes">${[...new Set([...(state.data.classTeachers||[]).map(c=>c.className),...Array.from({length:36},(_,i)=>`${Math.floor(i/12)+1}학년 ${i%12+1}반`)])].map(name=>`<option value="${esc(name)}">`).join("")}</datalist></section><div class="field-row" id="compose-recipient-row"><label for="recipient-input">받는 사람</label><div class="recipient-box" id="recipient-box"><div class="recipient-values" id="recipient-values">${recipientChips()}</div><button type="button" class="recipient-more" data-action="recipient-more" data-kind="to" aria-expanded="false" aria-controls="recipient-values" hidden>더 보기</button><input id="recipient-input" autocomplete="off" placeholder="이름을 입력해 선택하세요" aria-label="받는 사람 검색"><div class="suggestions" id="recipient-suggestions" hidden></div></div></div><div class="field-row" id="compose-cc-row"><label for="cc-input">참조</label><div class="recipient-box" id="cc-box"><div class="recipient-values" id="cc-values"></div><button type="button" class="recipient-more" data-action="recipient-more" data-kind="cc" aria-expanded="false" aria-controls="cc-values" hidden>더 보기</button><input id="cc-input" autocomplete="off" placeholder="참조할 선생님 선택 (선택)" aria-label="참조 검색"><div class="suggestions" id="cc-suggestions" hidden></div></div></div><div class="field-row"><label for="mail-title">제목 (선택)</label><input id="mail-title" class="input" placeholder="비워 두어도 발송할 수 있습니다" value="${esc(title)}" maxlength="150"></div><div class="compose-editor"><div class="editor-tools" aria-label="본문 서식">${button("editor-bold", "B", "", "", 'aria-label="굵게"')}${button("editor-italic", "I", "", "", 'aria-label="기울임"')}${button("editor-underline", "U", "", "", 'aria-label="밑줄"')}${button("editor-list", "목록", "checklist")}${button("editor-clear", "서식 지우기")}<select id="editor-font-size" aria-label="글자 크기"><option value="">글자 크기</option><option value="2">13px</option><option value="3">16px</option><option value="4">18px</option><option value="5">24px</option><option value="6">32px</option></select>${button("editor-palette-toggle","글자 색상","","",'data-palette="text" aria-expanded="false" aria-controls="editor-text-palette"')}${button("editor-palette-toggle","형광펜","","",'data-palette="highlight" aria-expanded="false" aria-controls="editor-highlight-palette"')}${editorPaletteHTML("text")}${editorPaletteHTML("highlight")}</div><div class="rich-editor" id="mail-editor" contenteditable="true" role="textbox" aria-label="메시지 본문" aria-multiline="true" data-placeholder="선생님께 전할 이야기와 자료를 적어 주세요.">${richBody?safeRichHTML(richBody):esc(body).replace(/\n/g, "<br>")}</div></div><section id="capture-options" class="capture-options" hidden><span>영역을 캡처한 뒤 본문 삽입 또는 파일 첨부를 선택하세요. Ctrl+V로 본문에 바로 붙여넣을 수도 있습니다.</span>${button("capture-start","화면 캡처 시작")}${button("capture-insert","본문 삽입")}${button("capture-attach","파일 첨부")}${button("capture-close","닫기")}<small id="capture-status" role="status"></small></section><input type="file" id="mail-files" multiple hidden><div class="compose-files" id="compose-files">${composeFilesHTML()}</div><div id="compose-error" class="form-error" role="alert"></div></form>`,
+      button("close-modal", "취소") + button("capture-mail", "캡처", "") + button("attach-mail", "파일 첨부", "clip") +
         `<button class="btn btn-primary" type="submit" form="compose-form">${icon("send", 16)} 보내기</button>`,
       "compose-modal",
     );
@@ -922,6 +940,13 @@
       drop.classList.remove("over");
       if(!e.dataTransfer.files.length)return;
       e.preventDefault();addFiles(e.dataTransfer.files);
+    });
+    drop.addEventListener("paste",event=>{
+      const images=Array.from(event.clipboardData?.items||[]).filter(item=>/^image\/(png|jpeg|webp|gif)$/.test(item.type));
+      if(!images.length)return;
+      event.preventDefault();captureEditorFormat();
+      const draft=composeDraft;
+      (async()=>{for(const item of images){const file=item.getAsFile();if(file)await insertImageFile(file,draft);}})().catch(()=>{if(composeDraft===draft)$("#compose-error").textContent="이미지를 읽을 수 없습니다.";});
     });
     $("#mail-files").onchange = (e) => addFiles(e.target.files);
     ["recipient-input", "cc-input"].forEach((id) => {
@@ -992,11 +1017,40 @@
       )
       .join("");
   }
+  function imageBytes(data){
+    if(!/^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/]+={0,2}$/.test(data))return 0;
+    const encoded=data.slice(data.indexOf(",")+1);if(encoded.length%4)return 0;
+    const bytes=encoded.length*3/4-(encoded.endsWith("==")?2:encoded.endsWith("=")?1:0);
+    return bytes>0&&bytes<=2*1024*1024?bytes:0;
+  }
+  function composeImageBytes(){return $$("#mail-editor img").reduce((total,img)=>total+imageBytes(img.getAttribute("src")||""),0);}
+  async function insertImageFile(file,draft=composeDraft){
+    if(file.size>2*1024*1024){$("#compose-error").textContent="이미지는 2 MB 이하로 넣어 주세요.";return;}
+    const data=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=reject;reader.readAsDataURL(file);});
+    if(composeDraft!==draft)return;
+    const bytes=imageBytes(data);
+    if(!bytes||composeImageBytes()+draft.files.reduce((n,f)=>n+(f.bytes||0),0)+bytes>3*1024*1024){$("#compose-error").textContent="이미지와 첨부 파일은 총 3 MB 이하로 넣어 주세요.";return;}
+    applyEditorFormat("insertHTML",`<img src="${data}" alt="캡처 이미지"><br>`);
+    $("#compose-error").textContent="";
+  }
+  async function useCapturedImage(attach){
+    const draft=composeDraft;captureEditorFormat();
+    try{
+      let data;
+      if(window.ieumDesktop?.clipboardImage){const result=await window.ieumDesktop.clipboardImage();if(result.error)throw new Error(result.error);data=result.data;}
+      else{const items=await navigator.clipboard.read();for(const item of items){const type=item.types.find(type=>/^image\/(png|jpeg|webp|gif)$/.test(type));if(type){const blob=await item.getType(type);if(composeDraft!==draft)return;const file=new File([blob],"캡처.png",{type});if(attach)await addFiles([file]);else await insertImageFile(file,draft);return;}}throw new Error("캡처하거나 복사한 이미지가 없습니다.");}
+      if(composeDraft!==draft)return;
+      const raw=atob(data.split(",")[1]),file=new File([Uint8Array.from(raw,c=>c.charCodeAt(0))],"캡처-"+Date.now()+".png",{type:"image/png"});
+      if(attach)await addFiles([file]);else await insertImageFile(file,draft);
+    }catch(error){if(composeDraft===draft)$("#compose-error").textContent=error.message||"본문에서 Ctrl+V로 이미지를 붙여넣어 주세요.";}
+  }
   async function addFiles(files) {
+    const draft=composeDraft;
     for (const file of files) {
+      if(composeDraft!==draft)return;
       if (
         file.size > 2 * 1024 * 1024 ||
-        composeDraft.files.reduce((n, f) => n + (f.bytes || 0), 0) + file.size >
+        composeImageBytes() + composeDraft.files.reduce((n, f) => n + (f.bytes || 0), 0) + file.size >
           3 * 1024 * 1024
       ) {
         $("#compose-error").textContent =
@@ -1009,8 +1063,8 @@
         reader.onerror = reject;
         reader.readAsDataURL(file);
       }).catch(() => null);
-      if (data && composeDraft)
-        composeDraft.files.push({
+      if (data && composeDraft===draft)
+        draft.files.push({
           name: file.name,
           size:
             file.size < 1024
@@ -1020,13 +1074,13 @@
           data,
         });
     }
-    if (composeDraft) $("#compose-files").innerHTML = composeFilesHTML();
+    if (composeDraft===draft) $("#compose-files").innerHTML = composeFilesHTML();
   }
   async function sendMail(e) {
     e.preventDefault();
     if(mailSending)return;
     const title = $("#mail-title").value.trim(),
-      body = $("#mail-editor").innerText.trim(),
+      body = $("#mail-editor").innerText.trim() || ($("#mail-editor img")?"[이미지]":""),
       scheduled = (composeDraft.mode === "scheduled" || composeDraft.mode==="announcement"&&composeDraft.announcementScheduled)
         ? $("#mail-scheduled-at").value
         : "";
@@ -1066,6 +1120,7 @@
       const date=$("#compose-event-date").value,start=$("#compose-event-start").value,end=$("#compose-event-end").value;
       if(!date||!start||!end||minutes(start)>=minutes(end)){error.textContent="일정 날짜와 시간을 확인해 주세요. 종료 시간은 시작 시간보다 늦어야 해요.";return;}
     }
+    if(composeImageBytes()+composeDraft.files.reduce((n,f)=>n+(f.bytes||0),0)>3*1024*1024){error.textContent="이미지와 첨부 파일은 총 3 MB 이하로 넣어 주세요.";return;}
     const sentAt=Date.now();
     const m = {
       id: uid("user-mail"),
@@ -1099,7 +1154,7 @@
     state.data.mails.unshift(m);
     mailSending=true;const submit=$('button[form="compose-form"]');if(submit)submit.disabled=true;
     const sent=await save();
-    if(!sent){state.data.mails=state.data.mails.filter(item=>item.id!==m.id);state.data.events=state.data.events.filter(item=>item.noticeMail!==m.id&&item.id!==m.calendarEvent);mailSending=false;if(submit)submit.disabled=false;error.textContent="발송하지 못했습니다. 연결을 확인하고 다시 보내 주세요.";return;}
+    if(!sent){state.data.mails=state.data.mails.filter(item=>item.id!==m.id);state.data.events=state.data.events.filter(item=>item.noticeMail!==m.id&&item.id!==m.calendarEvent);mailSending=false;if(submit)submit.disabled=false;error.textContent="발송하지 못했습니다. 저장 공간과 연결을 확인하고 다시 보내 주세요.";return;}
     closeModal();mailSending=false;
     if(requestedCompose){await windowApi.composeSent();return;}
 
@@ -1506,7 +1561,9 @@
     if(source.kind==="mail"){
       const m=state.data.mails.find(m=>m.id===source.id);
       if(!m){renderSource('<p class="muted">원본 메시지가 삭제·회수되었거나 현재 계정에서 볼 수 없습니다.</p>');return;}
-      renderSource(`<div class="source-meta"><span class="chip">원본 메시지</span><strong>${esc(mailSenderName(m))}</strong><time>${fmtDate(m.date)} ${esc(m.time)}</time></div><h3>${esc(mailSubject(m))}</h3><div class="source-recipients">받는 사람: ${(m.to||[]).map(id=>esc(person(id).name)).join(", ")}${m.cc?.length?" · 참조: "+m.cc.map(id=>esc(person(id).name)).join(", "):""}</div><div class="source-message-body">${m.html?safeRichHTML(m.html):esc(m.body)}</div>${(m.files||[]).map((file,i)=>`<div class="attachment">${icon("file",22)}<div><strong>${esc(file.name)}</strong><small>${esc(file.size)}</small></div>${ib("download-file","첨부 다운로드","download",`data-mail="${esc(m.id)}" data-file="${i}"`)}</div>`).join("")}`);
+      let richHTML=m.html;
+      if(m.inlineStored&&native){renderSource('<p role="status">본문 이미지를 불러오고 있습니다…</p>');try{richHTML=await loadInlineMail(m);if(token!==sourceReaderToken)return;}catch{renderSource('<p role="status">본문 이미지를 불러오지 못했습니다. 다시 열어 주세요.</p>');return;}}
+      renderSource(`<div class="source-meta"><span class="chip">원본 메시지</span><strong>${esc(mailSenderName(m))}</strong><time>${fmtDate(m.date)} ${esc(m.time)}</time></div><h3>${esc(mailSubject(m))}</h3><div class="source-recipients">받는 사람: ${(m.to||[]).map(id=>esc(person(id).name)).join(", ")}${m.cc?.length?" · 참조: "+m.cc.map(id=>esc(person(id).name)).join(", "):""}</div><div class="source-message-body">${richHTML?safeRichHTML(richHTML):esc(m.body)}</div>${(m.files||[]).map((file,i)=>`<div class="attachment">${icon("file",22)}<div><strong>${esc(file.name)}</strong><small>${esc(file.size)}</small></div>${ib("download-file","첨부 다운로드","download",`data-mail="${esc(m.id)}" data-file="${i}"`)}</div>`).join("")}`);
       return;
     }
     let room=state.data.rooms.find(r=>r.messages.some(m=>m.id===source.id));
@@ -1813,7 +1870,7 @@
   };
   document.addEventListener("pointerdown",dismissRecipientSuggestions);
   document.addEventListener("focusin",dismissRecipientSuggestions);
-  document.addEventListener("click", (e) => {
+  document.addEventListener("click", async (e) => {
     const target = e.target.closest("[data-action]");
     if (!target) {
       if (!e.target.closest(".menu")) $("#context-root").innerHTML = "";
@@ -1851,6 +1908,7 @@
         render();
         break;
       case "logout":
+        inlineMailEpoch++;inlineMailCache.clear();inlineMailLoading.clear();inlineMailErrors.clear();
         if(native) network.logout();
         state.user = null;
         state.settings.autoLogin = false;
@@ -2043,6 +2101,8 @@
         }
         break;
       }
+      case "retry-inline-mail":
+        inlineMailErrors.delete(d.mail);refreshMail();break;
       case "mail-back":
         state.mail = null;
         $(".mail-workspace")?.classList.remove("show-detail");
@@ -2114,7 +2174,8 @@
       case "reply-all":
       case "forward-mail": {
         const m = state.data.mails.find((m) => m.id === d.mail);
-        if (m)
+        if (m) {
+          let richHTML=m.html;try{richHTML=await loadInlineMail(m);}catch{toast("본문 이미지를 불러오지 못했습니다", "다시 시도해 주세요.");break;}
           composeMail({
             to:
               action === "forward-mail"
@@ -2126,10 +2187,11 @@
                     : [m.from],
             title: (action === "forward-mail" ? "전달: " : "답장: ") + m.title,
             body: "\n\n──────── 원본 메시지 ────────\n" + m.body,
-            richBody:"<br><br>──────── 원본 메시지 ────────<br>"+safeRichHTML(m.html||esc(m.body).replace(/\n/g,"<br>")),
+            richBody:"<br><br>──────── 원본 메시지 ────────<br>"+safeRichHTML(richHTML||esc(m.body).replace(/\n/g,"<br>")),
             files: action === "forward-mail" ? m.files : [],
             forwarded: action === "forward-mail",
           });
+        }
         break;
       }
       case "print-mail":
@@ -2144,6 +2206,20 @@
       case "mail-recipients-more":
         {const expanded=target.getAttribute("aria-expanded")!=="true";target.setAttribute("aria-expanded",String(expanded));target.textContent=expanded?"접기":"더 보기";$("#mail-to-values").classList.toggle("expanded",expanded);}
         break;
+      case "capture-mail":
+        captureEditorFormat();$("#capture-options").hidden=!$("#capture-options").hidden;
+        break;
+      case "capture-close":
+        $("#capture-options").hidden=true;
+        break;
+      case "capture-start": {
+        const result=await window.ieumDesktop?.captureScreen();
+        if(!$("#capture-status"))break;
+        $("#capture-status").textContent=result?.error?"Windows+Shift+S로 캡처해 주세요.":result?.ok?"캡처를 마친 뒤 이 창으로 돌아와 삽입 방법을 선택하세요.":"운영체제의 화면 캡처 도구로 영역을 복사해 주세요. Windows는 Windows+Shift+S를 사용하세요.";
+        break;
+      }
+      case "capture-insert":await useCapturedImage(false);break;
+      case "capture-attach":await useCapturedImage(true);break;
       case "attach-mail":
         $("#mail-files")?.click();
         break;

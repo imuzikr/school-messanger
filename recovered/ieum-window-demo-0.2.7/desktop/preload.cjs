@@ -9,6 +9,8 @@ contextBridge.exposeInMainWorld('ieumDesktop',Object.freeze({
   subscribe: callback=>{const listener=(_,data)=>callback(data);ipcRenderer.on('ieum:update',listener);return ()=>ipcRenderer.removeListener('ieum:update',listener);},
   windowAction: action=>ipcRenderer.invoke('ieum:window',action),
   windowState: ()=>ipcRenderer.invoke('ieum:window-state'),
+  captureScreen: ()=>ipcRenderer.invoke('ieum:capture-screen'),
+  clipboardImage: ()=>ipcRenderer.invoke('ieum:clipboard-image'),
   openWorkspace: page=>ipcRenderer.invoke('ieum:workspace',page),
   toggleToday: (open,position)=>ipcRenderer.invoke('ieum:today',!!open,position),
   resizeMain: (open,position)=>ipcRenderer.invoke('ieum:resize',!!open,position),

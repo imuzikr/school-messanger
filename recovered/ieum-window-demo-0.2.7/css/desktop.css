@@ -261,7 +261,7 @@ body.minimal-main .minimal-bar{display:flex;align-items:center;width:100vw;heigh
 }
 
 /* Recipient names use one line by default; CC names are always visible. */
-.mail-detail .mail-detail-head{height:auto;min-height:100px;display:flex;flex-direction:column;gap:4px}
+.mail-detail .mail-detail-head{height:auto;min-height:100px;display:flex;flex-direction:column;gap:0}
 .mail-from-line,.mail-to-line,.mail-cc-line{display:flex;align-items:flex-start;gap:8px;min-width:0;justify-content:flex-start;font-size:13px;line-height:22px}
 .mail-from-line{min-height:26px;align-items:center}
 .mail-from-line .mail-sender{flex:1;min-width:0;overflow:hidden}
@@ -269,6 +269,8 @@ body.minimal-main .minimal-bar{display:flex;align-items:center;width:100vw;heigh
 .mail-from-line time{flex-shrink:0;font-size:12px}
 .mail-from-line .icon-btn{width:26px;height:26px;flex-shrink:0}
 .mail-meta-label{color:var(--muted);width:65px;flex-shrink:0;white-space:nowrap}
+.mail-to-line,.mail-cc-line{border-top:1px solid #e6ebe7;margin-top:2px;padding-top:2px}
+.mail-meta-label{font-weight:600}
 .mail-recipient-values,.mail-cc-values{position:relative;display:flex;flex-wrap:wrap;gap:0 6px;flex:1;min-width:0;line-height:22px}
 .mail-recipient-values{max-height:22px;overflow:hidden}
 .mail-recipient-values.expanded{max-height:none}
@@ -278,5 +280,15 @@ body.minimal-main .minimal-bar{display:flex;align-items:center;width:100vw;heigh
 .mail-recipients-more:focus-visible{outline:2px solid var(--green);outline-offset:2px;border-radius:3px}
 .mail-cc-line .mail-head-actions{flex-shrink:0;margin-left:auto;max-width:42%}
 .chip.mail-schedule-tag{background:#fbefdf;color:#936524}
+.mail-table-row .star-button{width:24px;height:24px;align-items:center;justify-content:center;border-radius:5px;color:#acb7ae;cursor:pointer}
+.mail-table-row .star-button svg{width:20px;height:20px;stroke-width:1.6}
+.mail-table-row .star-button.on{color:#a66b00}
+.mail-table-row .star-button:hover{background:#fff3cf;color:#a66b00}
+.mail-table-row .star-button:focus-visible{outline:2px solid var(--green);outline-offset:1px}
 @media screen{.mail-workspace .mail-toolbar{height:calc(var(--mail-header-height,100px) - 38px)}}
 @media print{.mail-recipient-values{max-height:none}.mail-recipients-more{display:none}}
+
+/* Captured images fit the editor and received body without horizontal scrolling. */
+.rich-editor img,.mail-body img,.source-message-body img{max-width:100%;height:auto;display:block;margin:6px 0;border-radius:4px}
+.capture-options{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);font-size:12px;flex-shrink:0}
+.capture-options[hidden]{display:none}.capture-options>span,.capture-options>small{flex-basis:100%}.capture-options .btn{padding:5px 9px;font-size:12px}
