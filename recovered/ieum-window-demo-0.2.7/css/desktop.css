@@ -148,6 +148,11 @@ body.unified-main[data-host-side="right"]{--organization-left:0px}
 .briefing-counts{padding:12px;background:#edf4ee;border-radius:8px;font-size:12px}
 .today-briefing ul{list-style:none;padding:0;margin:0}.today-briefing li{padding:10px 0;border-bottom:1px solid var(--line);font-size:12px}
 .today-briefing li strong,.today-briefing li small{display:block}.today-briefing li small{color:var(--muted);margin-top:5px;line-height:1.6}
+/* A transparent native host must not blur the screen behind the briefing. */
+.overlay.briefing-overlay{background:#f7faf5;backdrop-filter:none}
+.briefing-overlay .briefing-modal{box-shadow:none;border:1px solid var(--line)}
+.unified-main .overlay.briefing-overlay{left:var(--organization-left);right:auto;width:calc(100vw - 330px)}
+.unified-main:has(.briefing-overlay) .desktop-frame>.shell{box-shadow:none}
 
 .agenda-deadlines{max-height:230px;overflow:auto;flex-shrink:0}
 

@@ -849,7 +849,7 @@
     if (!$("#modal-root").firstChild)
       modalPreviousFocus = document.activeElement;
     $("#modal-root").innerHTML =
-      `<div class="overlay"><section class="modal ${cls}" role="dialog" aria-modal="true" aria-labelledby="modal-title"><header class="modal-head"><h2 id="modal-title">${esc(title)}</h2>${ib("close-modal", "닫기", "x")}</header><div class="modal-body">${body}</div>${footer ? `<footer class="modal-foot">${footer}</footer>` : ""}</section></div>`;
+      `<div class="overlay${cls==="briefing-modal"?" briefing-overlay":""}"><section class="modal ${cls}" role="dialog" aria-modal="true" aria-labelledby="modal-title"><header class="modal-head"><h2 id="modal-title">${esc(title)}</h2>${ib("close-modal", "닫기", "x")}</header><div class="modal-body">${body}</div>${footer ? `<footer class="modal-foot">${footer}</footer>` : ""}</section></div>`;
     requestAnimationFrame(() => {
       const el = $(
         ".modal input:not([type=checkbox]),.modal textarea,.modal button",
