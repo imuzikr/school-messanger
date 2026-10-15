@@ -5,9 +5,9 @@ import hashlib,json,shutil,sys,zipfile
 from pathlib import Path
 root=Path(__file__).resolve().parents[1]
 runtime=Path(sys.argv[1]);sums=Path(sys.argv[2])
-expected=next(line.split()[0] for line in sums.read_text().splitlines() if line.split()[-1].lstrip('*')==runtime.name)
+expected=next(line.split()[0] for line in sums.read_text(encoding='utf-8').splitlines() if line.split()[-1].lstrip('*')==runtime.name)
 assert hashlib.sha256(runtime.read_bytes()).hexdigest()==expected,'Electron checksum mismatch'
-version=json.loads((root/'package.json').read_text())['version']
+version=json.loads((root/'package.json').read_text(encoding='utf-8'))['version']
 out=root/'release';out.mkdir(exist_ok=True)
 stage=out/f'Ieum-Deadline-Demo-{version}-win-x64'
 assert not stage.exists(),'Preserving existing build; select a clean output directory'
