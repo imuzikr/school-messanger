@@ -295,8 +295,6 @@ body.minimal-main .minimal-bar{display:flex;align-items:center;width:100vw;heigh
 
 /* Captured images fit the editor and received body without horizontal scrolling. */
 .rich-editor img,.mail-body img,.source-message-body img{max-width:100%;height:auto;display:block;margin:6px 0;border-radius:4px}
-.capture-options{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);font-size:12px;flex-shrink:0}
-.capture-options[hidden]{display:none}.capture-options>span,.capture-options>small{flex-basis:100%}.capture-options .btn{padding:5px 9px;font-size:12px}
 
 /* Only the briefing card paints while the native host is clipped to its bounds. */
 .unified-main:has(.briefing-overlay) #app{visibility:hidden}
@@ -327,3 +325,11 @@ body.minimal-main .minimal-bar{display:flex;align-items:center;width:100vw;heigh
 .installed .briefing-modal .modal-head button{-webkit-app-region:no-drag;cursor:pointer;}
 
 #duty-assignment-error{color:#a33f35;}
+
+.editor-image-resize-layer{position:fixed;z-index:210;overflow:hidden;pointer-events:none;-webkit-app-region:no-drag;}
+.editor-image-resize-layer[hidden]{display:none;}
+.editor-image-selection{position:absolute;border:1px solid var(--green);box-sizing:border-box;pointer-events:none;}
+.editor-image-handle{position:absolute;width:12px;height:12px;padding:0;border:1px solid var(--green);background:#fff;border-radius:2px;pointer-events:auto;touch-action:none;-webkit-app-region:no-drag;}
+.editor-image-handle.nw{left:-6px;top:-6px;cursor:nwse-resize;}.editor-image-handle.ne{right:-6px;top:-6px;cursor:nesw-resize;}
+.editor-image-handle.sw{left:-6px;bottom:-6px;cursor:nesw-resize;}.editor-image-handle.se{right:-6px;bottom:-6px;cursor:nwse-resize;}
+.editor-image-handle:focus-visible{outline:2px solid var(--green);outline-offset:2px;}

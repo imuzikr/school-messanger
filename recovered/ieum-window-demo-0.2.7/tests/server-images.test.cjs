@@ -10,7 +10,7 @@ test('inline images survive LAN delivery above the old HTML limit and share the 
   const u=await request('/admin/users',{username:'teacher',name:'교사',password,role:'교사',department:'교무부'},admin),token=(await request('/login',{username:'teacher',password})).token;await request('/password',{current:password,password:password+'x'},token);
   const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aWQAAAABJRU5ErkJggg==','base64');
   const data=n=>'data:image/png;base64,'+Buffer.concat([png,Buffer.alloc(n-png.length)]).toString('base64');
-  const html='<img src="'+data(200000)+'" alt="캡처 이미지">';
+  const html='<img src="'+data(200000)+'" alt="캡처 이미지" width="320">';
   const send=(id,html,files=[])=>request('/sync',{operations:[{type:'mail.send',id,value:{to:[u.id],cc:[],title:'',body:'[이미지]',html,files}}]},admin);
   assert.equal((await send('image-mail',html)).status,200);const mail=(await request('/bootstrap',undefined,token)).data.mails.find(m=>m.id==='image-mail');assert.equal(mail.inlineStored,true);assert.ok(mail.html.length<100);assert.equal((await request("/attachment",{mail:"image-mail",inline:true},token)).html,html);assert.equal(mail.body,'[이미지]');
   assert.equal((await request("/attachment",{mail:"image-mail",inline:true},undefined)).status,401);
