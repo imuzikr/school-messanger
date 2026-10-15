@@ -4,7 +4,8 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),os=require('nod
 try{
  app=await _electron.launch({executablePath:require('electron'),args:['--no-sandbox','--disable-gpu',path.resolve(__dirname,'..')],env:{...process.env,DISPLAY:process.env.DISPLAY||':99',IEUM_ROLE:'demo',IEUM_TEST_DATA_DIR:data},timeout:30000});
  const p=await app.firstWindow();const errors=[];p.on('pageerror',e=>errors.push(e.message));await require('./electron-helpers.cjs').dismissBriefing(p);
- await p.locator('[data-action="nav-other-work"]').click();await p.locator('[data-action="duty-settings"]').click();
+ await p.locator('[data-action="nav-other-work"]').click();assert.equal(await p.locator('.school-work-menu button').count(),3);assert.equal(await p.locator('.modal [data-action="duty-settings"]').count(),0);await p.locator('.modal-foot [data-action="close-modal"]').click();
+ await p.locator('.rail [data-action="settings"]').click();await p.locator('[data-action="duty-settings"]').click();
  await p.locator('[data-duty-manager="lunch"]').first().check();await p.locator('[form="duty-settings-form"]').click();
  const people=await p.evaluate(()=>JSON.parse(localStorage.getItem('ieum-v1')).data.people);
  const assigned=people.slice(1).find(p=>/교사$/.test(p.role||'')||/부장$/.test(p.role||''));

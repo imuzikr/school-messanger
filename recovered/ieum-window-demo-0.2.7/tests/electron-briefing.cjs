@@ -31,6 +31,10 @@ try{
   assert.equal(sample(Math.max(0,state.rect.x-3),state.rect.y+Math.floor(state.rect.height/2)),0,'no painted panel beside briefing');
  };
  await assertSurface();
+ const dragRegions=await p.evaluate(()=>({header:getComputedStyle(document.querySelector('.briefing-modal .modal-head')).webkitAppRegion,close:getComputedStyle(document.querySelector('.briefing-modal .modal-head button')).webkitAppRegion,entry:getComputedStyle(document.querySelector('.briefing-entry')).webkitAppRegion}));
+ assert.deepEqual(dragRegions,{header:'drag',close:'no-drag',entry:'no-drag'});
+ await app.evaluate(({BrowserWindow})=>{const w=BrowserWindow.getAllWindows()[0],b=w.getBounds();w.setPosition(b.x+30,b.y+20);});
+ await assertSurface();
  for(const side of ['right','left']){await p.evaluate(side=>window.ieumDesktop.toggleToday(true,side),side);await p.waitForFunction(side=>document.body.dataset.hostSide===side,side);await assertSurface();}
  fs.mkdirSync(path.resolve(__dirname,'../release'),{recursive:true});await p.screenshot({path:path.resolve(__dirname,'../release/briefing-card-0.2.60.png'),omitBackground:true});
  const openMail=async(kind,id,reuse)=>{

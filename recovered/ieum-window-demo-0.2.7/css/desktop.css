@@ -321,3 +321,7 @@ body.minimal-main .minimal-bar{display:flex;align-items:center;width:100vw;heigh
 
 .duty-file-picker{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12px;}
 .duty-file-picker span{overflow-wrap:anywhere;}
+
+/* The briefing title bar moves the frameless host; controls remain clickable. */
+.installed .briefing-modal .modal-head{-webkit-app-region:drag;user-select:none;cursor:move;}
+.installed .briefing-modal .modal-head button{-webkit-app-region:no-drag;cursor:pointer;}
