@@ -202,6 +202,7 @@
     const activeProfile=result.user;
     const hadUser=!!state.user;
     state.user=activeProfile.name;state.profile=activeProfile;state.data=result.data;
+    IeumDuties.normalizeTitles(state.data.events);
     Mock.today=state.data.today;
     if(hadUser) {
       for(const event of state.data.events.filter(e=>["makeup","lessonChange"].includes(e.type)&&e.readonly&&!previous.events.some(old=>old.id===e.id))){toast("보강 안내",event.title,"calendar");native.notify("보강 안내 · 캘린더에 등록되었습니다",event.title);}
@@ -3038,6 +3039,7 @@
       render();drafts.forEach(([id,value])=>{const el=$(`[data-chat-input="${id}"]`);if(el)el.value=value;});
     }catch{}
   });
+  IeumDuties.normalizeTitles(state.data.events);
   if(!native&&!Array.isArray(state.data.classTeachers))state.data.classTeachers=JSON.parse(JSON.stringify(Mock.classTeachers));
   if(native){
     network=new IeumBackend(native,{
