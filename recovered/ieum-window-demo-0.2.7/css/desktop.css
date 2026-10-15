@@ -149,8 +149,8 @@ body.unified-main[data-host-side="right"]{--organization-left:0px}
 .today-briefing ul{list-style:none;padding:0;margin:0}.today-briefing li{padding:10px 0;border-bottom:1px solid var(--line);font-size:12px}
 .today-briefing li strong,.today-briefing li small{display:block}.today-briefing li small{color:var(--muted);margin-top:5px;line-height:1.6}
 /* A transparent native host must not blur the screen behind the briefing. */
-.overlay.briefing-overlay{background:#f7faf5;backdrop-filter:none}
-.briefing-overlay .briefing-modal{box-shadow:none;border:1px solid var(--line)}
+.overlay.briefing-overlay{background:transparent;backdrop-filter:none}
+.briefing-overlay .briefing-modal{box-shadow:none;border:1px solid var(--line);animation:none}
 .unified-main .overlay.briefing-overlay{left:var(--organization-left);right:auto;width:calc(100vw - 330px)}
 .unified-main:has(.briefing-overlay) .desktop-frame>.shell{box-shadow:none}
 
@@ -297,3 +297,10 @@ body.minimal-main .minimal-bar{display:flex;align-items:center;width:100vw;heigh
 .rich-editor img,.mail-body img,.source-message-body img{max-width:100%;height:auto;display:block;margin:6px 0;border-radius:4px}
 .capture-options{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);font-size:12px;flex-shrink:0}
 .capture-options[hidden]{display:none}.capture-options>span,.capture-options>small{flex-basis:100%}.capture-options .btn{padding:5px 9px;font-size:12px}
+
+/* Only the briefing card paints while the native host is clipped to its bounds. */
+.unified-main:has(.briefing-overlay) #app{visibility:hidden}
+.today-briefing li{padding:0}
+.briefing-entry{display:block;width:100%;padding:10px 0;border:0;background:transparent;text-align:left;color:inherit;font:inherit;line-height:inherit;cursor:pointer}
+.briefing-entry:hover{background:#edf4ef}.briefing-entry:focus-visible{outline:2px solid var(--green);outline-offset:-2px;border-radius:5px}
+.briefing-target{outline:2px solid var(--green);outline-offset:-2px;border-radius:5px}

@@ -1,0 +1,76 @@
+name: Verify and package briefing fix
+on:
+  push:
+    branches: [codex/briefing-card-navigation-0.2.60]
+permissions:
+  contents: read
+defaults:
+  run:
+    working-directory: recovered/ieum-window-demo-0.2.7
+jobs:
+  verify:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install test dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y xvfb libgtk-3-0 libnss3 libasound2 libgbm1 libxss1 fonts-noto-cjk
+          npm ci
+          npm install --no-save --package-lock=false electron@44.7.0 playwright@1.56.1 pngjs@7.0.0
+      - name: Unit tests and Electron flows
+        run: |
+          node --check js/app.js
+          node --check desktop/main.cjs
+          npm test
+          xvfb-run -a node tests/electron-briefing.cjs
+          xvfb-run -a node tests/electron-formatting.cjs
+          xvfb-run -a node tests/electron-minimal.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: briefing-screenshots
+          path: recovered/ieum-window-demo-0.2.7/release/*.png
+  windows:
+    needs: verify
+    runs-on: windows-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download verified Electron runtime
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://github.com/electron/electron/releases/download/v44.7.0/electron-v44.7.0-win32-x64.zip -OutFile "$env:RUNNER_TEMP/electron-v44.7.0-win32-x64.zip"
+          Invoke-WebRequest https://github.com/electron/electron/releases/download/v44.7.0/SHASUMS256.txt -OutFile "$env:RUNNER_TEMP/SHASUMS256.txt"
+          python scripts/build-windows-demo.py "$env:RUNNER_TEMP/electron-v44.7.0-win32-x64.zip" "$env:RUNNER_TEMP/SHASUMS256.txt"
+      - name: Test packaged Windows demo
+        shell: pwsh
+        run: |
+          npm ci
+          npm install --no-save --package-lock=false playwright@1.56.1 pngjs@7.0.0
+          $env:IEUM_TEST_EXECUTABLE=(Resolve-Path "release/Ieum-Deadline-Demo-0.2.60-win-x64/Ieum-Deadline-Demo.exe").Path
+          node tests/electron-briefing.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -c "from zipfile import ZipFile; z=ZipFile('release/Ieum-Deadline-Demo-0.2.60-win-x64.zip'); assert z.testzip() is None; print('Windows ZIP CRC PASS')"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Ieum-Demo-0.2.60
+          path: recovered/ieum-window-demo-0.2.7/release/Ieum-Deadline-Demo-0.2.60-win-x64.zip
+      - name: Publish tested portable demo
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          gh release create v0.2.60 release/Ieum-Deadline-Demo-0.2.60-win-x64.zip release/SHA256SUMS.txt --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "이음 Windows 데모 0.2.60" --notes "오늘의 브리핑 바깥 배경 제거, 카드 영역만 표시, 브리핑 항목에서 관련 메시지로 이동. 전체 압축 해제 후 Ieum-Deadline-Demo.exe를 실행하세요."

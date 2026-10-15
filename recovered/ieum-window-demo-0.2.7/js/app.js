@@ -103,7 +103,7 @@
   const requestedCompose=params.get("compose")==="1";
   let mailHeaderObserver=null;
   let composeStarted=false,mailSending=false,eventWindowStarted=false,eventSaving=false,demoRefreshPending=false;
-  let mainHostSynced=false;
+  let mainHostSynced=false,briefingTargetStarted=false;
   let network = null;
   let connectionStatus = native ? "서버 연결 필요" : "화면 데모";
   const state = {
@@ -224,13 +224,63 @@
     briefingQueued=true;
     setTimeout(()=>{briefingQueued=false;if(!state.user||$("#modal-root").firstChild)return;sessionStorage.setItem(key,"shown");showBriefing();},0);
   }
+  function briefingRow(kind,item,content){
+    return '<li><button type="button" class="briefing-entry" data-action="briefing-open" data-kind="'+kind+'" data-item="'+esc(item.id)+'">'+content+'</button></li>';
+  }
   function showBriefing(){
     const date=koreanToday(),events=state.data.events.filter(e=>e.date===date).sort((a,b)=>a.start.localeCompare(b.start));
     const deadlines=state.data.deadlines.filter(d=>d.date===date&&!d.done).sort((a,b)=>(a.dueTime||"24:00").localeCompare(b.dueTime||"24:00"));
     const tasks=state.data.tasks.filter(t=>!t.done);
-    const list=(items,emptyText)=>items.length?`<ul>${items.join("")}</ul>`:`<p class="muted">${emptyText}</p>`;
-    const rows=events.map(event=>{const summary=window.IeumScheduleSummary.summarize(event,sourceText(event));return `<li>${privateBadge(event)}<strong>${esc(event.start)}–${esc(event.end)} · ${esc(summary.task)}</strong><small>${esc(summary.place)}${summary.preparation!=="별도 안내 없음"?" · "+esc(summary.preparation):""}</small></li>`;});
-    openModal("오늘의 브리핑",`<article class="today-briefing"><p class="briefing-date">${esc(fmtDate(date))}</p><p>오늘의 약속과 해야 할 일을 확인하세요.</p><div class="briefing-counts">일정 ${events.length} · 마감 ${deadlines.length} · 할 일 ${tasks.length}</div><h3>오늘의 일정</h3>${list(rows,"오늘 등록된 일정이 없습니다.")}<h3>오늘의 마감</h3>${list(deadlines.map(d=>`<li><strong>${esc(d.dueTime||"오늘까지")} · ${esc(calendarTitle(d))}</strong></li>`),"오늘 남은 마감이 없습니다.")}<h3>나의 할 일</h3>${list(tasks.map(t=>`<li>${esc(t.title)}</li>`),"남은 할 일이 없습니다.")}</article>`,button("close-modal","하루 시작하기","check","btn-primary"),"briefing-modal");
+    const list=(items,emptyText)=>items.length?'<ul>'+items.join("")+'</ul>':'<p class="muted">'+emptyText+'</p>';
+    const rows=events.map(event=>{const summary=window.IeumScheduleSummary.summarize(event,sourceText(event));return briefingRow("event",event,privateBadge(event)+'<strong>'+esc(event.start)+'–'+esc(event.end)+' · '+esc(summary.task)+'</strong><small>'+esc(summary.place)+(summary.preparation!=="별도 안내 없음"?' · '+esc(summary.preparation):'')+'</small>');});
+    const body='<article class="today-briefing"><p class="briefing-date">'+esc(fmtDate(date))+'</p><p>오늘의 약속과 해야 할 일을 확인하세요.</p><div class="briefing-counts">일정 '+events.length+' · 마감 '+deadlines.length+' · 할 일 '+tasks.length+'</div><h3>오늘의 일정</h3>'+list(rows,"오늘 등록된 일정이 없습니다.")+'<h3>오늘의 마감</h3>'+list(deadlines.map(d=>briefingRow("deadline",d,'<strong>'+esc(d.dueTime||"오늘까지")+' · '+esc(calendarTitle(d))+'</strong>')),"오늘 남은 마감이 없습니다.")+'<h3>나의 할 일</h3>'+list(tasks.map(t=>briefingRow("task",t,esc(t.title))),"남은 할 일이 없습니다.")+'</article>';
+    openModal("오늘의 브리핑",body,button("close-modal","하루 시작하기","check","btn-primary"),"briefing-modal");
+  }
+  async function revealBriefingTarget(target){
+    if(!state.user||!target)return;
+    if(target.kind==="mail"){
+      const mail=state.data.mails.find(m=>m.id===target.id);
+      if(!mail){toast("관련 메시지를 찾을 수 없어요","삭제되거나 회수된 메시지일 수 있습니다.");return;}
+      state.page="inbox";state.folder=mail.folder;state.mail=mail.id;state.mailSearch="";state.mailSearchBy="name";mail.unread=false;
+      await save();render();$(".mail-workspace")?.classList.add("show-detail");return;
+    }
+    if(target.kind==="message"){
+      let room=state.data.rooms.find(r=>r.messages.some(m=>m.id===target.id));
+      if(!room&&native){
+        const result=await native.request("/message-source",{id:target.id});
+        if(result.error){toast("관련 대화를 찾을 수 없어요",result.error);return;}
+        room=state.data.rooms.find(r=>r.id===result.room);
+        if(room&&!room.messages.some(m=>m.id===target.id))room.messages.push(result.message);
+      }
+      if(!room){toast("관련 대화를 찾을 수 없어요","삭제되었거나 참여 중인 대화방이 아닙니다.");return;}
+      state.page="chat";state.room=room.id;state.chatQuery="";state.chatSearch=false;state.mobileList=false;room.unread=0;
+      await save();render();$(".chat-layout")?.classList.add("conversation-open");
+      const row=$$('article[data-message]').find(el=>el.dataset.message===target.id);row?.classList.add("briefing-target");row?.setAttribute("tabindex","-1");row?.scrollIntoView({block:"center"});row?.focus({preventScroll:true});return;
+    }
+    const collection={event:"events",deadline:"deadlines",task:"tasks"}[target.kind];
+    const item=collection&&state.data[collection].find(item=>item.id===target.id);
+    if(!item){toast("항목을 찾을 수 없어요","이미 삭제된 항목입니다.");return;}
+    state.page="calendar";state.today=item.date||koreanToday();state.week=weekStart(state.today);monthAnchor=state.today;render();
+    if(target.kind==="event")viewEvent(item.id);
+    else if(target.kind==="deadline")viewDeadline(item.id);
+    else {const input=$$('input[data-task]').find(el=>el.dataset.task===item.id),row=input?.closest(".task-row");row?.classList.add("briefing-target");row?.setAttribute("tabindex","-1");row?.scrollIntoView({block:"center"});row?.focus({preventScroll:true});}
+  }
+  async function openBriefingEntry(kind,id){
+    const collection={event:"events",deadline:"deadlines",task:"tasks"}[kind],item=collection&&state.data[collection].find(item=>item.id===id);
+    if(!item)return;
+    const source=relatedSource(item);
+    let target=source?{kind:source.kind,id:source.id}:{kind,id};
+    if(source?.kind==="message"){
+      let room=state.data.rooms.find(r=>r.messages.some(m=>m.id===source.id));
+      if(!room&&native){const result=await native.request("/message-source",{id:source.id});if(!result.error)room=state.data.rooms.find(r=>r.id===result.room);}
+      if(!room){closeModal();toast("관련 대화를 찾을 수 없어요","삭제되었거나 참여 중인 대화방이 아닙니다.");return;}
+      target.room=room.id;
+    }
+    closeModal();
+    if(windowApi){
+      const result=target.kind==="message"?await windowApi.openChat(target.room,target):await windowApi.openWorkspace(target.kind==="mail"?"inbox":"calendar",target);
+      if(result?.error)toast("관련 내용을 열지 못했어요",result.error);
+    }else await revealBriefingTarget(target);
   }
   function changePasswordModal(required=false) {
     openModal(required?"임시 비밀번호 변경":"비밀번호 변경", `<form id="password-form" class="event-form"><p class="muted">${required?"처음 로그인할 때는 임시 비밀번호를 변경해 주세요.":"새 비밀번호는 10자 이상이어야 합니다."}</p><label>현재 비밀번호<input class="input" id="current-password" type="password" autocomplete="current-password" required></label><label>새 비밀번호<input class="input" id="new-password" type="password" autocomplete="new-password" minlength="10" maxlength="128" required></label><label>새 비밀번호 확인<input class="input" id="confirm-password" type="password" autocomplete="new-password" required></label><div id="password-error" class="form-error" role="alert"></div></form>`, '<button class="btn btn-primary" type="submit" form="password-form">비밀번호 변경</button>');
@@ -323,6 +373,7 @@
     }
     renderPage();renderFloating();
     maybeShowBriefing();
+    if(params.get("source")&&!briefingTargetStarted){briefingTargetStarted=true;queueMicrotask(()=>revealBriefingTarget({kind:params.get("source"),id:params.get("item"),room:requestedChat}).catch(error=>toast("관련 내용을 열지 못했어요",error.message)));}
     if(params.get("eventDraft")==="1"&&!eventWindowStarted){eventWindowStarted=true;windowApi.composeDraft().then(draft=>eventForm(draft));}
 
   }
@@ -841,6 +892,7 @@
     modalCleanup = null,
     composeDraft = null,
     eventDraft = null;
+  let updateBriefingShape=null;
   function openModal(title, body, footer = "", cls = "") {
     if (modalCleanup) {
       modalCleanup();
@@ -850,6 +902,12 @@
       modalPreviousFocus = document.activeElement;
     $("#modal-root").innerHTML =
       `<div class="overlay${cls==="briefing-modal"?" briefing-overlay":""}"><section class="modal ${cls}" role="dialog" aria-modal="true" aria-labelledby="modal-title"><header class="modal-head"><h2 id="modal-title">${esc(title)}</h2>${ib("close-modal", "닫기", "x")}</header><div class="modal-body">${body}</div>${footer ? `<footer class="modal-foot">${footer}</footer>` : ""}</section></div>`;
+    if(cls==="briefing-modal"&&windowApi?.mainHost&&windowApi.briefingShape){
+      const modal=$(".briefing-modal");let frame=0,active=true;
+      const fit=()=>{cancelAnimationFrame(frame);frame=requestAnimationFrame(()=>{if(!active||!modal.isConnected)return;const r=modal.getBoundingClientRect();windowApi.briefingShape({x:r.x,y:r.y,width:r.width,height:r.height});});};
+      const observer=new ResizeObserver(fit);observer.observe(modal);window.addEventListener("resize",fit);updateBriefingShape=fit;fit();
+      modalCleanup=()=>{active=false;cancelAnimationFrame(frame);observer.disconnect();window.removeEventListener("resize",fit);updateBriefingShape=null;windowApi.briefingShape(null);};
+    }
     requestAnimationFrame(() => {
       const el = $(
         ".modal input:not([type=checkbox]),.modal textarea,.modal button",
@@ -1481,7 +1539,7 @@
   }
   function relatedSource(item) {
     if (item.source && ["mail", "message"].includes(item.source.kind)) return item.source;
-    const mail = state.data.mails.find(m=>m.id===item.noticeMail||m.id===item.mail||m.eventId===item.id||m.calendarEvent===item.id);
+    const mail = state.data.mails.find(m=>m.id===item.noticeMail||m.id===item.deliveryMail||m.id===item.mail||m.eventId===item.id||m.calendarEvent===item.id);
     return mail ? {kind:"mail",id:mail.id} : null;
   }
   function sourceText(item) {
@@ -1917,6 +1975,8 @@
         closeModal();
         render();
         break;
+      case "briefing-open":
+        target.disabled=true;await openBriefingEntry(d.kind,d.item);break;
       case "close-modal":
         closeModal();
         break;
@@ -2776,12 +2836,14 @@
   });
   document.addEventListener("dblclick", e=>{const person=e.target.closest('.org-tree .person-line');if(person)composeMail({to:selectedMessageRecipients(person.dataset.person)});});
   windowApi?.subscribe(event=>{
+    if(event.kind==='briefing-target')revealBriefingTarget(event.target).catch(error=>toast('관련 내용을 열지 못했어요',error.message));
     if(event.kind==='minimal-main'&&windowApi.mainHost){state.minimal=event.open;document.body.classList.toggle('minimal-main',event.open);}
     if(event.kind==='today-panel'){
       state.showToday=event.open;
       if(windowApi.mainHost){
         document.body.dataset.hostSide=event.side;
         document.body.classList.toggle('today-expanded',event.open);
+        updateBriefingShape?.();
         const drawer=$(".today-drawer");
         if(drawer){drawer.classList.toggle('left',event.side==='left');drawer.classList.toggle('right',event.side==='right');drawer.classList.toggle('open',event.open);drawer.inert=!event.open;drawer.setAttribute('aria-hidden',String(!event.open));}
       }

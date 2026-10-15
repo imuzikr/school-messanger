@@ -8,7 +8,7 @@ const role=app.isPackaged?require('../package.json').ieumRole||'client':process.
 app.setName(role==='demo'?'IeumDemo':role==='server'?'IeumServer':'IeumClient');
 if(!app.isPackaged&&process.env.IEUM_TEST_DATA_DIR)app.setPath('userData',process.env.IEUM_TEST_DATA_DIR);
 const windows=new Set();
-let todaySide='left',todayAnimation=null,todayOpen=false,minimalState=null;
+let todaySide='left',todayAnimation=null,todayOpen=false,minimalState=null,briefingBounds=null;
 const TODAY_WIDTH=330;
 const connectionPath=()=>path.join(app.getPath('userData'),'connection.json');
 const configPath=()=>path.join(app.getPath('userData'),'server-config.json');
@@ -130,9 +130,25 @@ function applyMainShape(open){
  if(!mainWindow||mainWindow.isDestroyed()||role==='server')return;
  const b=mainWindow.getContentBounds();
  // Closed reserve is absent from the native hit/paint region, so it cannot block another app.
- const region=minimalState?[{x:0,y:0,width:b.width,height:b.height}]:open?[{x:0,y:0,width:b.width,height:b.height}]:[{x:todaySide==='left'?TODAY_WIDTH:0,y:0,width:b.width-TODAY_WIDTH,height:b.height}];
- mainWindow.setShape(region);
+ const region=minimalState?[{x:0,y:0,width:b.width,height:b.height}]:briefingBounds?[briefingBounds]:open?[{x:0,y:0,width:b.width,height:b.height}]:[{x:todaySide==='left'?TODAY_WIDTH:0,y:0,width:b.width-TODAY_WIDTH,height:b.height}];
+ mainWindow.setShape(region);return region;
 }
+expose('ieum:briefing-shape',(event,bounds)=>{
+ if(BrowserWindow.fromWebContents(event.sender)!==mainWindow||role==='server')throw new Error('본창의 브리핑에서만 사용할 수 있습니다.');
+ if(bounds==null)briefingBounds=null;
+ else {
+  if(!['x','y','width','height'].every(key=>typeof bounds[key]==='number'&&Number.isFinite(bounds[key]))||bounds.width<=0||bounds.height<=0)throw new Error('브리핑 창 크기가 올바르지 않습니다.');
+  const b=mainWindow.getContentBounds(),x=Math.max(0,Math.min(b.width-1,Math.floor(bounds.x))),y=Math.max(0,Math.min(b.height-1,Math.floor(bounds.y)));
+  briefingBounds={x,y,width:Math.max(1,Math.min(b.width-x,Math.ceil(bounds.width))),height:Math.max(1,Math.min(b.height-y,Math.ceil(bounds.height)))};
+ }
+ return {region:applyMainShape(todayOpen)};
+});
+function sourceTarget(target){
+ if(target==null)return null;
+ if(!target||!['mail','message','event','deadline','task'].includes(target.kind)||typeof target.id!=='string'||!target.id||target.id.length>100)throw new Error('연결된 항목이 올바르지 않습니다.');
+ return {kind:target.kind,id:target.id};
+}
+function targetQuery(target){return target?'&source='+encodeURIComponent(target.kind)+'&item='+encodeURIComponent(target.id):'';}
 expose('ieum:resize',()=>({ok:true}));
 expose('ieum:today',(event,open,position)=>{
  if(BrowserWindow.fromWebContents(event.sender)!==mainWindow||role==='server')throw new Error('본창에서만 오늘 일정을 열 수 있습니다.');
@@ -153,11 +169,24 @@ expose('ieum:today',(event,open,position)=>{
  emit({kind:'today-panel',open:todayOpen,side:todaySide});
  return {ok:true};
 });
-expose('ieum:workspace',(event,page)=>{if(!['inbox','calendar','announcements','links'].includes(page))throw new Error('지원하지 않는 작업 창입니다.');const previous=[...windows].find(w=>!w.isDestroyed()&&w.ieumPage===page);if(previous){previous.show();previous.focus();return {ok:true};}const w=createWindow('ieum://app/index.html?workspace='+page,{width:page==='calendar'?1180:1080,height:800,minWidth:page==='inbox'?1000:700});w.ieumPage=page;return {ok:true};});
+expose('ieum:workspace',(event,page,value)=>{
+ if(!['inbox','calendar','announcements','links'].includes(page))throw new Error('지원하지 않는 작업 창입니다.');
+ const target=sourceTarget(value);
+ if(target&&(target.kind==='message'||(target.kind==='mail'?page!=='inbox':page!=='calendar')))throw new Error('이 항목을 열 수 없는 작업 창입니다.');
+ const previous=[...windows].find(w=>!w.isDestroyed()&&w.ieumPage===page);
+ if(previous){previous.show();previous.focus();if(target)previous.webContents.send('ieum:update',{kind:'briefing-target',target});return {ok:true};}
+ const w=createWindow('ieum://app/index.html?workspace='+page+targetQuery(target),{width:page==='calendar'?1180:1080,height:800,minWidth:page==='inbox'?1000:700});w.ieumPage=page;return {ok:true};
+});
 expose('ieum:compose',(event,draft={})=>{if(!draft||typeof draft!=='object'||JSON.stringify(draft).length>4*1024*1024)throw new Error('작성 내용이 너무 큽니다.');const w=createWindow('ieum://app/index.html?compose=1',{width:720,height:820,minWidth:620});w.ieumComposeDraft=draft;return {ok:true};});
 expose('ieum:compose-draft',event=>BrowserWindow.fromWebContents(event.sender).ieumComposeDraft||BrowserWindow.fromWebContents(event.sender).ieumEventDraft||{});
 expose('ieum:compose-sent',(event,linked)=>{const w=BrowserWindow.fromWebContents(event.sender);if(!w.ieumComposeDraft)throw new Error('작성 창에서만 완료할 수 있습니다.');emit({kind:'changed'});w.close();bringMain();if(linked&&typeof linked.title==='string'&&typeof linked.mail==='string'){const calendar=createWindow('ieum://app/index.html?workspace=calendar&eventDraft=1',{width:1180,height:800,minWidth:700});calendar.ieumEventDraft={title:linked.title.slice(0,150),mail:linked.mail,date:linked.date};}return {ok:true};});
-expose('ieum:chat',(event,room)=>{if(typeof room!=='string'||!/^[-A-Za-z0-9]{1,100}$/.test(room))throw new Error('대화방 식별자가 올바르지 않습니다.');const old=[...windows].find(w=>!w.isDestroyed()&&w.ieumRoom===room);if(old){old.show();old.focus();return {ok:true};}const w=createWindow('ieum://app/index.html?chat='+encodeURIComponent(room),{width:420,height:680,minWidth:350});w.ieumRoom=room;return {ok:true};});
+expose('ieum:chat',(event,room,value)=>{
+ if(typeof room!=='string'||!/^[-A-Za-z0-9]{1,100}$/.test(room))throw new Error('대화방 식별자가 올바르지 않습니다.');
+ const target=sourceTarget(value);if(target&&target.kind!=='message')throw new Error('대화 메시지만 열 수 있습니다.');
+ const old=[...windows].find(w=>!w.isDestroyed()&&w.ieumRoom===room);
+ if(old){old.show();old.focus();if(target)old.webContents.send('ieum:update',{kind:'briefing-target',target});return {ok:true};}
+ const w=createWindow('ieum://app/index.html?chat='+encodeURIComponent(room)+targetQuery(target),{width:420,height:680,minWidth:350});w.ieumRoom=room;return {ok:true};
+});
 expose('ieum:admin',()=>{if(role!=='server')throw new Error('서버 관리 앱에서 사용할 수 있습니다.');const w=createWindow('ieum://app/desktop/admin.html',{width:1000,height:780,minWidth:750});return {ok:true};});
 expose('ieum:server-status',()=>{if(role!=='server')throw new Error('서버 관리 앱에서 사용할 수 있습니다.');const cfg=readJSON(configPath());return {running:!!localServer,configured:!!cfg,url:cfg?.url||'',schoolName:cfg?.schoolName||'',dataDir:serverDataDir(),fingerprint:localServer?.connection.fingerprint||'',stats:localServer?.stats()||null,addresses:Object.values(os.networkInterfaces()).flat().filter(i=>i&&i.family==='IPv4'&&!i.internal).map(i=>i.address),autoStart:app.getLoginItemSettings().openAtLogin};});
 expose('ieum:start-server',async(event,config)=>{if(role!=='server')throw new Error('서버 관리 앱에서 사용할 수 있습니다.');const admin=readJSON(configPath())?undefined:{username:config.username,password:config.password,name:config.name};return startLocal(config,admin);});
