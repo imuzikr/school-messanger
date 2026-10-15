@@ -93,6 +93,23 @@ test('LAN send -> sender and recipient deadlines; atomic retry, deletion, restar
   await server.close();server=await start();admin=(await request('/login',{username:'admin',password})).token;recipient=(await request('/login',{username:'recipient',password:password+'x'})).token;
   assert.equal((await bySource(admin)).find(e=>e.date===newDate).start,'19:00');assert.equal((await bySource(recipient)).length,1);
 
+  const mixed={type:'mail.send',id:'mail-maintenance-mixed',value:{title:'일정 안내',body:'금요일 16시부터 18시까지 전체 소독이 있습니다.\n금요일 10시부터 11시까지 회의가 있습니다.',to:[r.id],files:[]}};
+  assert.equal((await sync(admin,[mixed])).status,200);const oldCopies=(await boot(admin)).data.events.filter(e=>e.source?.id===mixed.id),missed=oldCopies.find(e=>e.start==='16:00');assert.equal(oldCopies.length,2);
+  await server.close();server=null;const oldDb=new (require('node:sqlite').DatabaseSync)(path.join(dataDir,'ieum.sqlite')),owner=oldDb.prepare('SELECT owner FROM events WHERE id=?').get(missed.id).owner;
+  oldDb.prepare('DELETE FROM events WHERE id=?').run(missed.id);oldDb.prepare('DELETE FROM auto_deadline_sources WHERE item_id=?').run(missed.id);
+  oldDb.prepare('INSERT INTO items VALUES(?,?,?,?)').run('old-sanitation-due',owner,'deadlines',JSON.stringify({title:missed.title,note:missed.note,date:missed.date,dueTime:'18:00',rule:'explicit',source:{kind:'mail',id:mixed.id}}));
+  oldDb.prepare('INSERT INTO auto_deadline_sources VALUES(?,?)').run(JSON.stringify(['mail',mixed.id,owner,0]),'old-sanitation-due');oldDb.close();
+  server=await start();admin=(await request('/login',{username:'admin',password})).token;recipient=(await request('/login',{username:'recipient',password:password+'x'})).token;
+  const restored=(await boot(admin)).data;assert.deepEqual(restored.events.filter(e=>e.source?.id===mixed.id).map(e=>e.start).sort(),['10:00','16:00']);assert.ok(!restored.deadlines.some(e=>e.id==='old-sanitation-due'));
+
+  const sanitationText='금요일 16시에 전체 소독이 있습니다.',sanitation={type:'mail.send',id:'mail-sanitation',value:{title:sanitationText,body:sanitationText,to:[r.id],files:[]}},sanitationChat={type:'message.send',id:'chat-sanitation',room:'r-test',value:{text:sanitationText}};
+  assert.equal((await sync(admin,[sanitation,sanitationChat])).status,200);await sync(admin,[sanitation,sanitationChat]);
+  const sanity=async token=>{const data=(await boot(token)).data;for(const source of ['mail-sanitation','chat-sanitation']){const events=data.events.filter(e=>e.source?.id===source);assert.equal(events.length,1);assert.deepEqual([events[0].start,events[0].end],['16:00','17:00']);assert.equal(new Date(events[0].date+'T00:00:00Z').getUTCDay(),5);assert.ok(!data.deadlines.some(d=>d.source?.id===source));}return data;};
+  await sanity(admin);await sanity(recipient);
+  const sanitationRecipient=(await sanity(recipient)).events.find(e=>e.source?.id==='mail-sanitation');await sync(recipient,[{type:'event.delete',id:sanitationRecipient.id}]);
+  await server.close();server=await start();admin=(await request('/login',{username:'admin',password})).token;recipient=(await request('/login',{username:'recipient',password:password+'x'})).token;
+  await sanity(admin);assert.equal((await boot(recipient)).data.events.filter(e=>e.source?.id==='mail-sanitation').length,0,'deleted sanitation appointments stay deleted on backfill');
+
   // Related source remains available beyond bootstrap's latest-500 window, only to room members.
   const oldSource=await request('/message-source',{id:'m-test'},recipient);
   assert.equal(oldSource.status,200);assert.equal(oldSource.message.text,'내일까지 제출');assert.equal(oldSource.room,'r-test');

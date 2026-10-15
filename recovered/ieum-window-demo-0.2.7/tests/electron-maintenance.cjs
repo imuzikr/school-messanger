@@ -1,0 +1,22 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path'),{_electron}=require('playwright');
+(async()=>{const data=fs.mkdtempSync(path.join(os.tmpdir(),'ieum-maintenance-'));let app;
+try{
+ app=await _electron.launch({executablePath:process.env.IEUM_TEST_EXECUTABLE||require('electron'),args:['--no-sandbox','--disable-gpu',...(process.env.IEUM_TEST_EXECUTABLE?[]:[path.resolve(__dirname,'..')])],env:{...process.env,DISPLAY:process.env.DISPLAY||':99',IEUM_ROLE:'demo',IEUM_TEST_DATA_DIR:data},timeout:30000});
+ const main=await app.firstWindow();await require('./electron-helpers.cjs').dismissBriefing(main);const errors=[];main.on('pageerror',e=>errors.push(e.message));
+ const opened=app.waitForEvent('window');await main.locator('.person-line').first().dblclick();const compose=await opened;await compose.locator('#mail-editor').fill('금요일 16시에 전체 소독이 있습니다.');await compose.locator('[form=compose-form]').click().catch(e=>{if(!compose.isClosed())throw e;});
+ await main.waitForFunction(()=>JSON.parse(localStorage.getItem('ieum-v1')).data.mails.some(m=>m.body==='금요일 16시에 전체 소독이 있습니다.'));
+ const result=await main.evaluate(()=>{const d=JSON.parse(localStorage.getItem('ieum-v1')).data,m=d.mails.find(m=>m.body==='금요일 16시에 전체 소독이 있습니다.');return {mail:m.id,events:d.events.filter(e=>e.source?.id===m.id),deadlines:d.deadlines.filter(e=>e.source?.id===m.id)};});
+ assert.equal(result.events.length,1);assert.equal(result.deadlines.length,0);const event=result.events[0];assert.deepEqual([event.start,event.end],['16:00','17:00']);assert.equal(new Date(event.date+'T00:00:00Z').getUTCDay(),5);
+ const workspace=app.waitForEvent('window');await main.locator('.rail [data-action=nav-calendar]').click();const calendar=await workspace;calendar.on('pageerror',e=>errors.push(e.message));await calendar.locator('[data-calendar-timeline]').first().waitFor();
+ for(let n=0;n<2&&!await calendar.locator('[data-calendar-timeline="'+event.date+'"]').count();n++)await calendar.locator('[data-action=week-next]').click();
+ const block=calendar.locator('[data-event="'+event.id+'"]');await block.waitFor({state:'visible'});assert.match(await block.innerText(),/소독/);await block.click();await calendar.locator('.schedule-detail-modal').waitFor();assert.match(await calendar.locator('.modal-body').innerText(),/16:00\s*–\s*17:00/);
+ await calendar.locator('[data-action=schedule-source]').click();await calendar.locator('.schedule-source-modal').waitFor();assert.ok((await calendar.locator('.modal-body').innerText()).includes('금요일 16시에 전체 소독이 있습니다.'));
+ await calendar.close();
+ await main.evaluate(()=>{const s=JSON.parse(localStorage.getItem('ieum-v1'));s.data.mails.push({id:'user-old-sanitation',title:'소독 안내',body:'금요일 16시에 전체 소독이 있습니다.',createdAt:'2026-10-15T01:00:00Z',from:s.data.people[0].id,to:['me'],cc:[],folder:'inbox',files:[],receipts:['unread'],date:'2026-10-15',time:'10:00'});localStorage.setItem('ieum-v1',JSON.stringify(s));});
+ await main.reload();await main.locator('.person-line').first().waitFor();
+ const recovered=await main.evaluate(()=>JSON.parse(localStorage.getItem('ieum-v1')).data.events.filter(e=>e.source?.id==='user-old-sanitation'));assert.equal(recovered.length,1);assert.deepEqual([recovered[0].date,recovered[0].start,recovered[0].end],['2026-10-16','16:00','17:00']);
+ await main.reload();await main.locator('.person-line').first().waitFor();assert.equal(await main.evaluate(()=>JSON.parse(localStorage.getItem('ieum-v1')).data.events.filter(e=>e.source?.id==='user-old-sanitation').length),1);
+ await main.evaluate(()=>{const s=JSON.parse(localStorage.getItem('ieum-v1'));s.data.events=s.data.events.filter(e=>e.source?.id!=='user-old-sanitation');localStorage.setItem('ieum-v1',JSON.stringify(s));});await main.reload();await main.locator('.person-line').first().waitFor();assert.equal(await main.evaluate(()=>JSON.parse(localStorage.getItem('ieum-v1')).data.events.filter(e=>e.source?.id==='user-old-sanitation').length),0);assert.deepEqual(errors,[]);
+ console.log('PASS: exact disinfection message -> Friday 16:00 calendar block and original mail; old-message recovery, deduplication and deletion tombstones');
+}finally{if(app)await app.close();fs.rmSync(data,{recursive:true,force:true});}})().catch(e=>{console.error(e);process.exitCode=1;});

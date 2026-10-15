@@ -118,3 +118,24 @@ test('gathering and coming invitations require a usable time or period; cancella
  assert.equal(rules.extractStartEvents('내일 오후 3시에 교무실로 오세요.',at,context)[0].start,'15:00');
  for(const text of ['오늘 7교시에 모이지 않겠습니다','오늘 7교시에 오지 마세요','오늘 7교시에 오세요 취소','오늘 8교시에 오세요'])assert.deepEqual(rules.extractStartEvents(text,at,context),[]);
 });
+
+test('Friday disinfection and maintenance announcements become timed appointments',()=>{
+ const at='2026-10-15T01:00:00Z';
+ for(const activity of ['전체 소독','방역','청소','시설 점검']){
+  const text=`금요일 16시에 ${activity}이 있습니다.`,events=rules.extractStartEvents(text,at);assert.equal(events.length,1,text);assert.deepEqual([events[0].date,events[0].start,events[0].end],['2026-10-16','16:00','17:00']);assert.deepEqual(rules.extract(text,at),[]);
+ }
+ assert.equal(rules.extractStartEvents('금요일 16시에 전체 소독이 있습니다.','2026-10-16T01:00:00Z')[0].date,'2026-10-16');
+ assert.equal(rules.extractStartEvents('금요일 16시에 전체 소독이 있습니다.','2026-10-17T01:00:00Z')[0].date,'2026-10-23');
+ assert.equal(rules.extractStartEvents('다음 주 금요일 오후 4시에 방역이 있습니다.',at)[0].date,'2026-10-23');
+ const range='금요일 16시부터 18시까지 전체 소독이 있습니다.';assert.deepEqual(rules.extractEvents(range,at).map(e=>[e.date,e.start,e.end]),[['2026-10-16','16:00','18:00']]);assert.deepEqual(rules.extract(range,at),[]);
+ for(const text of ['금요일 16시에 소독이 없습니다.','금요일 16시에 소독이 없어요.','금요일 16시에 소독은 취소되었습니다.','금요일 16시에 소독을 하지 않습니다.','금요일 16시에 소독이 다음 주로 연기됩니다.','전체 소독이 있습니다.','금요일 16시에 자료가 있습니다.','금요일 16시까지 소독 신청서를 제출해 주세요.'])assert.deepEqual(rules.extractStartEvents(text,at),[],text);
+});
+test('maintenance backfill preserves old clock, period and range ledger indices and deleted entries',()=>{
+ const at='2026-10-15T01:00:00Z',context={defaultPeriods:[{period:5,start:'12:00',end:'12:50'}]};
+ const text='금요일 16시에 전체 소독이 있습니다.\n금요일 14시에 회의가 있습니다.\n금요일 5교시에 모이겠습니다.';
+ const legacy=rules.extractStartEvents(text,at,context).filter(e=>!e.note.includes('소독')),source={kind:'mail',id:'user-maintenance-old'};
+ const data={...context,mails:[{id:source.id,body:text,createdAt:at,folder:'inbox'}],rooms:[],events:[],deadlines:[],autoDeadlineSources:{}};
+ legacy.forEach((e,i)=>{const id='old-'+i;data.events.push({...e,id,source});data.autoDeadlineSources[rules.sourceKey('mail-start-event',source.id,'me',i)]=id;});
+ data.events=data.events.filter(e=>e.id!=='old-0');rules.applyDemo(data);assert.equal(data.events.length,2);assert.ok(!data.events.some(e=>e.id==='old-0'));assert.equal(data.events.find(e=>e.id==='old-1').period,5);assert.equal(data.events.filter(e=>e.note.includes('소독')).length,1);rules.applyDemo(data);assert.equal(data.events.length,2);
+ const ranges=rules.extractEvents('금요일 16시부터 18시까지 소독.\n금요일 10시부터 11시까지 회의.',at);assert.ok(ranges[0].note.includes('회의'));assert.ok(ranges[1].note.includes('소독'));
+});
