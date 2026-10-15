@@ -49,9 +49,23 @@
     if(kind==='safety'&&(!safety.length||!general.length))throw Error(config.safetyDepartment+' 교사와 그 외 교사를 각각 한 명 이상 선택해 주세요.');
     return {...event,title:types[kind].label,targets:[...new Set([...config.managers[kind],...assigned])],note:'배정 교사: '+selected.map(p=>p.name).join(', '),duty:{kind,assigned,safety:kind==='safety'?safety:assigned,general:kind==='safety'?general:[]},readonly:true,canReschedule:false};
   }
+  function imports(existing,incoming){
+    const all=[...existing],result=[];
+    for(const event of incoming){
+      const match=all.find(e=>e.duty?.kind===event.duty.kind&&e.date===event.date);
+      let id=match?.id||event.id;
+      if(!match&&all.some(e=>e.id===id)){
+        if(!all.find(e=>e.id===id).duty)throw Error('기존 일정과 충돌합니다.');
+        let suffix=1;while(all.some(e=>e.id===`${event.id}-import-${suffix}`))suffix++;
+        id=`${event.id}-import-${suffix}`;
+      }
+      const next={...event,id};result.push(next);const index=all.findIndex(e=>e.id===id);if(index<0)all.push(next);else all[index]=next;
+    }
+    return result;
+  }
   function normalizeTitles(events){
     for(const event of events||[])if(event.duty&&Object.hasOwn(types,event.duty.kind))event.title=types[event.duty.kind].label;
     return events;
   }
-  const api={types,defaults,settings,date,plan,reassign,sameAssignment,normalizeTitles};if(typeof module==='object'&&module.exports)module.exports=api;else root.IeumDuties=api;
+  const api={types,defaults,settings,date,plan,reassign,sameAssignment,imports,normalizeTitles};if(typeof module==='object'&&module.exports)module.exports=api;else root.IeumDuties=api;
 })(typeof window==='object'?window:globalThis);

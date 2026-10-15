@@ -103,9 +103,9 @@ body.today-panel-window{background:transparent!important;overflow:hidden}
 .timeline-point strong{display:block;font-size:10px;line-height:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.timeline-point.done{opacity:.6}
 
 [data-calendar-timeline] .event.movable,[data-calendar-timeline] .timeline-point{cursor:grab;touch-action:none;user-select:none}
-.event-resize{position:absolute;left:0;right:0;height:8px;z-index:3;cursor:ns-resize;touch-action:none}
+.event-resize{position:absolute;left:0;right:0;height:10px;z-index:3;cursor:ns-resize;touch-action:none}
 .event-resize.top{top:0}.event-resize.bottom{bottom:0}
-.event-resize:after{content:"";position:absolute;left:calc(50% - 12px);width:24px;height:2px;background:currentColor;opacity:.25}
+.event-resize:after{content:"";position:absolute;left:calc(50% - 12px);width:24px;height:3px;border-radius:2px;background:currentColor;opacity:.45}
 .event-resize.top:after{top:2px}.event-resize.bottom:after{bottom:2px}
 .event.movable:hover .event-resize:after{opacity:.7}
 

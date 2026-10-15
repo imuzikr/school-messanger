@@ -26,6 +26,15 @@ test('duty imports validate atomically, isolate calendars, enforce manager permi
   assert.equal((await boot(admin)).data.events.length,0,'uploading/admin does not imply an assignment');
   const event=(await boot(alice.token)).data.events[0];assert.equal(event.start,'07:00');assert.equal(event.end,'08:00');assert.equal(event.readonly,true);assert.equal(event.canReschedule,false);
   for(const type of ['event.upsert','event.delete','event.reschedule'])assert.equal((await sync(manager.token,[{type,id:event.id,value:{...event,start:'08:00',end:'09:00'}}])).status,409);
+  const timing={date:event.date,start:event.start,end:event.end};
+  const reschedule=(token,value)=>sync(token,[{type:'event.reschedule',id:event.id,value}]);
+  assert.equal((await boot(manager.token)).data.events[0].canReschedule,true);
+  assert.equal((await reschedule(alice.token,{...timing,start:'08:00',end:'09:00',expected:timing})).status,403);
+  assert.equal((await reschedule(manager.token,{date:'2026-10-16',start:'08:00',end:'09:00',expected:timing})).status,409,'occupied duty date is preserved');
+  assert.equal((await reschedule(manager.token,{date:'2026-10-17',start:'08:00',end:'09:30',expected:timing})).status,200);
+  for(const token of [manager.token,safety.token,alice.token]){const moved=(await boot(token)).data.events.find(e=>e.id===event.id);assert.deepEqual([moved.date,moved.start,moved.end],['2026-10-17','08:00','09:30']);assert.deepEqual(moved.duty.assigned,event.duty.assigned);}
+  assert.equal((await reschedule(manager.token,{...timing,expected:timing})).status,409,'stale timing cannot overwrite newer timing');
+  assert.equal((await reschedule(admin,{...timing,expected:{date:'2026-10-17',start:'08:00',end:'09:30'}})).status,200,'admin can move a duty without being assigned');
   assert.equal((await sync(manager.token,upload(rows))).status,200);assert.equal((await boot(manager.token)).data.events.length,2);
   assert.equal((await sync(admin,upload([['2026-10-15','safety','bob']]))).status,200);
   assert.equal((await boot(alice.token)).data.events.length,0);assert.equal((await boot(bob.token)).data.events.length,2);
@@ -56,5 +65,12 @@ test('duty imports validate atomically, isolate calendars, enforce manager permi
   const relogin=await request('/login',{username:'alice',password:password+'x'});
   assert.equal((await boot(relogin.token)).data.events.filter(e=>e.duty).length,4,'assignments persist through server restart');
   assert.deepEqual((await boot(relogin.token)).data.dutySettings,changed);
+  const restored=(await boot(relogin.token)).data.events.find(e=>e.duty.kind==='safety'&&e.date==='2026-10-15');
+  assert.equal((await sync(relogin.token,[{type:'event.reschedule',id:restored.id,value:{date:'2026-10-19',start:'07:15',end:'08:15',expected:{date:restored.date,start:restored.start,end:restored.end}}}])).status,200);
+  assert.equal((await sync(relogin.token,upload([['2026-10-15','safety','bob']]))).status,200);
+  let safetyEvents=(await boot(relogin.token)).data.events.filter(e=>e.duty.kind==='safety');assert.equal(safetyEvents.length,3);assert.equal(safetyEvents.find(e=>e.id===restored.id).date,'2026-10-19','uploading the old date does not overwrite a moved duty');
+  assert.equal((await sync(relogin.token,upload([['2026-10-19','safety','bob']]))).status,200);
+  safetyEvents=(await boot(relogin.token)).data.events.filter(e=>e.duty.kind==='safety');assert.equal(safetyEvents.length,3);assert.equal(safetyEvents.filter(e=>e.date==='2026-10-19').length,1,'reupload matches the current date');
+
  }finally{if(server)await server.close();fs.rmSync(dataDir,{recursive:true,force:true});}
 });

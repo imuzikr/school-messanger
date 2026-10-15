@@ -15,3 +15,10 @@ test('calendar timing edits use authorized shared reschedule operations, includi
  const untimed=JSON.parse(JSON.stringify(before));untimed.deadlines[0].dueTime='';assert.equal(backend.diff(before,untimed)[0].type,'item.upsert');
  const lessonBefore={...before,events:[{...before.events[0],readonly:false,type:'makeup',period:1,noticeMail:'lesson'}]},lessonAfter=JSON.parse(JSON.stringify(lessonBefore));lessonAfter.events[0].end='14:30';assert.equal(backend.diff(lessonBefore,lessonAfter)[0].type,'event.upsert');
 });
+
+test('duty drag includes the original timing for conflict detection',()=>{
+ const context={window:{},setTimeout,clearTimeout};vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../js/backend.js'),'utf8'),context);
+ const backend=new context.window.IeumBackend({subscribe(){}},{}),before={rooms:[],mails:[],events:[{id:'duty',date:'2026-10-15',start:'07:00',end:'08:00',readonly:true,duty:{kind:'safety'}}],deadlines:[],notes:[],tasks:[],shortcuts:[]};
+ const after=JSON.parse(JSON.stringify(before));after.events[0].end='08:30';
+ assert.deepEqual(JSON.parse(JSON.stringify(backend.diff(before,after))),[{type:'event.reschedule',id:'duty',value:{date:'2026-10-15',start:'07:00',end:'08:30',expected:{date:'2026-10-15',start:'07:00',end:'08:00'}}}]);
+});

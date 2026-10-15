@@ -24,3 +24,14 @@ test('duty reassignment replaces calendar targets, preserves duty times and vali
   assert.throws(()=>duties.reassign(event,[],config,people));assert.throws(()=>duties.reassign(event,['x'],config,people));assert.throws(()=>duties.reassign(event,['b'],config,people.map(p=>p.id==='b'?{...p,disabled:true}:p)));
  }
 });
+
+test('reimport after moving a duty matches current dates and preserves moved appointments',()=>{
+ const original=duties.plan('lunch',[['2026-10-15','가교사']],config,people).events[0];
+ const moved={...original,date:'2026-10-16',start:'13:00',end:'14:00'};
+ const incoming=duties.plan('lunch',[['2026-10-15','나교사'],['2026-10-16','나교사']],config,people).events;
+ const imported=duties.imports([moved],incoming);
+ assert.equal(imported.length,2);assert.notEqual(imported[0].id,moved.id);assert.equal(imported[1].id,moved.id);
+ assert.deepEqual(imported.map(e=>e.date),['2026-10-15','2026-10-16']);
+ assert.deepEqual(duties.imports(imported,incoming).map(e=>e.id),imported.map(e=>e.id));
+ assert.equal(moved.start,'13:00');
+});
