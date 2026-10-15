@@ -16,7 +16,7 @@ with zipfile.ZipFile(runtime) as z:z.extractall(stage)
 (stage/'electron.exe').rename(stage/'Ieum-Deadline-Demo.exe')
 app=stage/'resources'/'app';app.mkdir()
 for folder in ['js','css','data','assets','desktop','server']:shutil.copytree(root/folder,app/folder)
-for name in ['index.html','package.json','DEADLINES.md','VALIDATION.md']:shutil.copy2(root/name,app/name)
+for name in ['index.html','package.json','DEADLINES.md','DUTIES.md','VALIDATION.md']:shutil.copy2(root/name,app/name)
 # demo role never imports server dependencies or opens a server connection.
 (stage/'resources'/'default_app.asar').unlink(missing_ok=True)
 (stage/'START-DEMO.cmd').write_bytes(b'@echo off\r\ncd /d "%~dp0"\r\nstart "" "Ieum-Deadline-Demo.exe"\r\n')

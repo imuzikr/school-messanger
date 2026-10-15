@@ -1,0 +1,27 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path'),{execFileSync}=require('node:child_process'),{_electron}=require('playwright');
+(async()=>{const data=fs.mkdtempSync(path.join(os.tmpdir(),'ieum-duties-ui-'));let app;
+try{
+ app=await _electron.launch({executablePath:require('electron'),args:['--no-sandbox','--disable-gpu',path.resolve(__dirname,'..')],env:{...process.env,DISPLAY:process.env.DISPLAY||':99',IEUM_ROLE:'demo',IEUM_TEST_DATA_DIR:data},timeout:30000});
+ const p=await app.firstWindow();const errors=[];p.on('pageerror',e=>errors.push(e.message));await require('./electron-helpers.cjs').dismissBriefing(p);
+ await p.locator('[data-action="nav-other-work"]').click();await p.locator('[data-action="duty-settings"]').click();
+ await p.locator('[data-duty-manager="lunch"]').first().check();await p.locator('[form="duty-settings-form"]').click();
+ const people=await p.evaluate(()=>JSON.parse(localStorage.getItem('ieum-v1')).data.people);
+ const assigned=people.slice(1).find(p=>/교사$/.test(p.role||'')||/부장$/.test(p.role||''));
+ assert.ok(assigned,'teacher fixture');
+ const today=await p.evaluate(()=>JSON.parse(localStorage.getItem('ieum-v1')).seedDate);
+ const good=path.join(data,'good.xlsx'),bad=path.join(data,'bad.xlsx');
+ execFileSync('python3',['-c',`import openpyxl,sys,datetime\nw=openpyxl.Workbook();s=w.active;s.append(['날짜','이름']);s.append([datetime.datetime.fromisoformat(sys.argv[4]),sys.argv[3]]);s.append([(datetime.datetime.fromisoformat(sys.argv[4])+datetime.timedelta(days=1)).strftime('%Y-%m-%d'),sys.argv[3]]);w.save(sys.argv[1]);s.append([(datetime.datetime.fromisoformat(sys.argv[4])+datetime.timedelta(days=2)).strftime('%Y-%m-%d'),'등록되지않은교사']);w.save(sys.argv[2])`,good,bad,assigned.name,today]);
+ await p.locator('[data-action="nav-other-work"]').click();await p.locator('[data-action="duty-import-lunch"]').click();
+ await p.locator('#duty-file').setInputFiles(bad);await p.locator('#duty-file-status').filter({hasText:'오류 1개'}).waitFor();assert.equal(await p.locator('#duty-register').isDisabled(),true);
+ await p.locator('#duty-file').setInputFiles(good);await p.locator('#duty-file-status').filter({hasText:'2일'}).waitFor();assert.equal(await p.locator('#duty-preview tbody tr').count(),2);await p.locator('#duty-register').click();
+ const read=()=>p.evaluate(()=>JSON.parse(localStorage.getItem('ieum-v1')).data.events.filter(e=>e.duty));
+ let events=await read();assert.equal(events.length,2);assert.equal(events[0].start,'12:00');assert.equal(events[0].end,'13:00');assert.ok(events.every(e=>e.targets.includes(assigned.id)));
+ await p.locator('.rail [data-action="toggle-today"]').click();
+ const block=p.locator('.today-drawer [data-event="duty-lunch-'+today+'"]');await block.waitFor({state:'visible'});assert.match(await block.textContent(),/12:00–13:00/);await block.click();await p.locator('#modal-title').filter({hasText:'중식 지도'}).waitFor();assert.equal(await p.locator('[data-action="edit-event"]').count(),0);await p.locator('.modal-foot [data-action="close-modal"]').click();
+ const border=await p.locator('.desktop-frame').evaluate(el=>({color:getComputedStyle(el,'::after').borderColor,width:getComputedStyle(el,'::after').borderWidth,pointer:getComputedStyle(el,'::after').pointerEvents}));assert.equal(border.width,'1px');assert.equal(border.pointer,'none');
+ await p.locator('[data-action="nav-other-work"]').click();await p.locator('[data-action="duty-import-lunch"]').click();await p.locator('#duty-file').setInputFiles(good);await p.locator('#duty-register').waitFor({state:'visible'});await p.waitForFunction(()=>!document.querySelector('#duty-register').disabled);await p.locator('#duty-register').click();assert.equal((await read()).length,2);
+ await p.reload();await p.locator('[data-action="nav-other-work"]').waitFor();assert.equal((await read()).length,2);assert.deepEqual(errors,[]);
+ fs.mkdirSync(path.resolve(__dirname,'../release'),{recursive:true});await p.locator('[data-action="nav-other-work"]').click();await p.locator('[data-action="duty-import-lunch"]').click();await p.locator('#duty-file').setInputFiles(good);await p.waitForFunction(()=>!document.querySelector('#duty-register').disabled);await p.screenshot({path:path.resolve(__dirname,'../release/duties-preview.png')});
+ console.log('PASS: real XLSX dates, invalid batch, settings, preview, fixed times, deduplication, persistence and frame border');
+}finally{if(app)await app.close();fs.rmSync(data,{recursive:true,force:true});}})().catch(error=>{console.error(error);process.exitCode=1;});

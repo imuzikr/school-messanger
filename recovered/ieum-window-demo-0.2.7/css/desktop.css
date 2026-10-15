@@ -304,3 +304,20 @@ body.minimal-main .minimal-bar{display:flex;align-items:center;width:100vw;heigh
 .briefing-entry{display:block;width:100%;padding:10px 0;border:0;background:transparent;text-align:left;color:inherit;font:inherit;line-height:inherit;cursor:pointer}
 .briefing-entry:hover{background:#edf4ef}.briefing-entry:focus-visible{outline:2px solid var(--green);outline-offset:-2px;border-radius:5px}
 .briefing-target{outline:2px solid var(--green);outline-offset:-2px;border-radius:5px}
+
+/* Outline stays inside the visible native frame, including the briefing card. */
+.desktop-frame::after,.workspace-frame::after{content:"";position:absolute;inset:0;border:1px solid #8b9f95;pointer-events:none;z-index:30;}
+.workspace-frame{position:relative;}
+.briefing-modal{border-color:#8b9f95;}
+.duty-manager-group{border:1px solid var(--line);border-radius:8px;margin:16px 0;padding:12px;}
+.duty-manager-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:9px;max-height:170px;overflow:auto;}
+.duty-manager-list label{display:flex;align-items:center;gap:5px;font-size:12px;}
+.duty-manager-list small{color:var(--muted);}
+.duty-import{display:grid;gap:12px;}
+.duty-table{width:100%;border-collapse:collapse;font-size:12px;}
+.duty-table th,.duty-table td{padding:10px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top;}
+.duty-table td:first-child{white-space:nowrap;}
+.duty-errors,#duty-settings-error{color:#a33f35;}
+
+.duty-file-picker{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12px;}
+.duty-file-picker span{overflow-wrap:anywhere;}

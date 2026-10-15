@@ -11,6 +11,7 @@ const x509 = require('@peculiar/x509');
 const bell=require('./schedule.cjs');
 const deadlines=require('../js/message-deadlines.js');
 const announcements=require('../js/announcements.js');
+const duties=require('../js/duties.js');
 x509.cryptoProvider.set(crypto.webcrypto);
 const { promisify } = require('node:util');
 const scrypt = promisify(crypto.scrypt);
@@ -150,6 +151,8 @@ async function startServer(options = {}) {
       });
     }
   }
+  const dutyPeople=()=>db.prepare('SELECT * FROM users WHERE disabled=0').all().map(userPublic);
+  const dutySettings=()=>parse(db.prepare("SELECT value FROM metadata WHERE key='dutySettings'").get()?.value||'null')||duties.defaults(dutyPeople());
   function bootstrap(user){
     const me=value=>value===user.id?'me':value;
     const people=db.prepare('SELECT * FROM users WHERE disabled=0 ORDER BY department,name').all().map(userPublic);
@@ -159,8 +162,8 @@ async function startServer(options = {}) {
     });
     const mailRows=db.prepare("SELECT * FROM mails WHERE sender=? OR id IN(SELECT mail_id FROM recipients WHERE user_id=? AND status NOT IN('recalled','scheduled'))").all(user.id,user.id);
     const mails=mailRows.map(m=>{const recipients=db.prepare('SELECT * FROM recipients WHERE mail_id=?').all(m.id),mine=m.sender===user.id,r=recipients.find(r=>r.user_id===user.id);const payload=parse(m.payload);const inlineStored=/data:image\/(?:png|jpeg|webp|gif);base64,/.test(payload.html||'');const html=inlineStored?payload.html.replace(/data:image\/(?:png|jpeg|webp|gif);base64,[A-Za-z0-9+/]+={0,2}/g,''):payload.html;return {...payload,html,inlineStored,files:payload.files.map((file,index)=>({name:file.name,size:file.size,bytes:file.bytes,stored:true,sourceMail:m.id,index})),id:m.id,from:me(m.sender),to:recipients.map(r=>r.user_id),receipts:recipients.map(r=>r.status==='scheduled'?'unread':r.status),folder:mine?m.sender_folder:r.folder,important:!!(mine?m.sender_important:r.important),unread:!mine&&r.status==='unread',eventId:(mine?m.event_id:r.event_id)||null,previousFolder:mine?'sent':'inbox',canRecall:mine};}).sort((a,b)=>b.createdAt-a.createdAt);
-    const events=db.prepare('SELECT * FROM events').all().filter(e=>{const p=parse(e.payload);return e.owner===user.id||(['group','makeup','lessonChange'].includes(p.type)&&p.targets.includes(user.id)&&(!(p.noticeMail||p.deliveryMail)||db.prepare("SELECT 1 FROM recipients WHERE mail_id=? AND user_id=? AND status NOT IN('recalled','scheduled')").get(p.noticeMail||p.deliveryMail,user.id)));}).map(e=>({...parse(e.payload),id:e.id,owner:e.owner,readonly:e.owner!==user.id,canReschedule:!parse(e.payload).noticeMail&&!['makeup','lessonChange'].includes(parse(e.payload).type)}));
-    const items=db.prepare('SELECT * FROM items WHERE owner=?').all(user.id), data={today:dateKey(),schoolName:db.prepare("SELECT value FROM metadata WHERE key='schoolName'").get()?.value||'우리 학교',people,departments:[...new Set(people.map(p=>p.department))],rooms,mails,events,classTeachers:parse(db.prepare("SELECT value FROM metadata WHERE key='classTeachers'").get()?.value||'[]'),defaultPeriods:defaultPeriods(),bellSchedules:db.prepare('SELECT * FROM bell_schedules ORDER BY date').all().map(row=>({date:row.date,title:row.title,periods:parse(row.periods)})),academic:[],deadlines:[],notes:[],tasks:[],shortcuts:[]};
+    const events=db.prepare('SELECT * FROM events').all().filter(e=>{const p=parse(e.payload);return p.duty?p.targets.includes(user.id):e.owner===user.id||(['group','makeup','lessonChange'].includes(p.type)&&p.targets.includes(user.id)&&(!(p.noticeMail||p.deliveryMail)||db.prepare("SELECT 1 FROM recipients WHERE mail_id=? AND user_id=? AND status NOT IN('recalled','scheduled')").get(p.noticeMail||p.deliveryMail,user.id)));}).map(e=>({...parse(e.payload),id:e.id,owner:e.owner,readonly:!!parse(e.payload).duty||e.owner!==user.id,canReschedule:!parse(e.payload).duty&&!parse(e.payload).noticeMail&&!['makeup','lessonChange'].includes(parse(e.payload).type)}));
+    const items=db.prepare('SELECT * FROM items WHERE owner=?').all(user.id), data={today:dateKey(),schoolName:db.prepare("SELECT value FROM metadata WHERE key='schoolName'").get()?.value||'우리 학교',people,departments:[...new Set(people.map(p=>p.department))],rooms,mails,events,dutySettings:dutySettings(),classTeachers:parse(db.prepare("SELECT value FROM metadata WHERE key='classTeachers'").get()?.value||'[]'),defaultPeriods:defaultPeriods(),bellSchedules:db.prepare('SELECT * FROM bell_schedules ORDER BY date').all().map(row=>({date:row.date,title:row.title,periods:parse(row.periods)})),academic:[],deadlines:[],notes:[],tasks:[],shortcuts:[]};
     for(const item of items)data[item.kind].push({...parse(item.payload),id:item.id});
     return {user:userPublic(user),data};
   }
@@ -236,6 +239,7 @@ async function startServer(options = {}) {
     case 'event.reschedule':{
       const row=db.prepare('SELECT * FROM events WHERE id=?').get(opId);if(!row)fail(404,'일정을 찾을 수 없습니다.');const existing=parse(row.payload);
       if(row.owner!==user.id&&!(existing.type==='group'&&existing.targets?.includes(user.id)))fail(403,'함께 등록된 일정만 이동할 수 있습니다.');
+      if(existing.duty)fail(409,'업무 일정은 기타 업무에서 엑셀로 변경해 주세요.');
       if(existing.noticeMail||['makeup','lessonChange'].includes(existing.type))fail(409,'교시에 연결된 수업은 일과표에서 변경해 주세요.');
       const date=validDate(v.date),start=str(v.start,5),end=str(v.end,5);
       if(!/^([01]\d|2[0-3]):[0-5]\d$/.test(start)||!/^(([01]\d|2[0-3]):[0-5]\d|24:00)$/.test(end)||start>=end)fail(400,'시작·종료 시간이 올바르지 않습니다.');
@@ -247,7 +251,9 @@ async function startServer(options = {}) {
       for(const targetId of linkedIds(opId)){const target=db.prepare("SELECT payload FROM items WHERE id=? AND kind='deadlines'").get(targetId);if(target)db.prepare('UPDATE items SET payload=? WHERE id=?').run(json({...parse(target.payload),date,dueTime,rule:'explicit'}),targetId);}
       break;}
     case 'event.upsert':{
+      if(typeof opId==='string'&&opId.startsWith('duty-'))fail(409,'업무 일정은 기타 업무에서 엑셀로 변경해 주세요.');
       const existing=db.prepare('SELECT owner,payload FROM events WHERE id=?').get(opId);if(existing&&existing.owner!==user.id)fail(403,'다른 선생님의 일정은 수정할 수 없습니다.');
+      if(existing&&parse(existing.payload).duty)fail(409,'업무 일정은 기타 업무에서 엑셀로 변경해 주세요.');
       if(existing&&parse(existing.payload).noticeMail){const event=parse(existing.payload),slot=resolvePeriod(event.date,event.period);event.start=slot.start;event.end=slot.end;db.prepare('UPDATE events SET payload=? WHERE id=?').run(json(event),opId);break;}
       if(!['personal','group','repeat','makeup'].includes(v.type))fail(400,'일정 종류가 올바르지 않습니다.');
       const slot=v.type==='makeup'?resolvePeriod(validDate(v.date),v.period):null;
@@ -256,7 +262,21 @@ async function startServer(options = {}) {
       if(v.type==='makeup'&&(!targets.length||!String(v.note||'').trim()))fail(400,'보강 안내에는 수신자와 안내 내용이 필요합니다.');
       const payload={title:str(v.title,100),date:validDate(v.date),start,end,type:v.type,place:str(v.place||'',100,false),note:str(v.note||'',1000,false),targets,...(slot?{period:slot.period}: {}),...(existing&&parse(existing.payload).deliveryMail?{deliveryMail:parse(existing.payload).deliveryMail}:{}),...(existing&&parse(existing.payload).source?{source:parse(existing.payload).source,rule:parse(existing.payload).rule}: {})};
       db.prepare('INSERT INTO events VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload').run(opId,user.id,json(payload));break;}
-    case 'event.delete':{const existing=db.prepare('SELECT owner FROM events WHERE id=?').get(opId);if(!existing)return;if(existing.owner!==user.id)fail(403,'다른 선생님의 일정은 삭제할 수 없습니다.');db.prepare('DELETE FROM events WHERE id=?').run(opId);break;}
+    case 'event.delete':{const existing=db.prepare('SELECT owner,payload FROM events WHERE id=?').get(opId);if(!existing)return;if(parse(existing.payload).duty)fail(409,'업무 일정은 기타 업무에서 엑셀로 변경해 주세요.');if(existing.owner!==user.id)fail(403,'다른 선생님의 일정은 삭제할 수 없습니다.');db.prepare('DELETE FROM events WHERE id=?').run(opId);break;}
+    case 'duty.settings':{
+      if(!user.admin)fail(403,'업무 담당자 설정은 관리자만 변경할 수 있습니다.');
+      let config;try{config=duties.settings(v,dutyPeople());}catch(error){fail(400,error.message);}
+      db.prepare("INSERT INTO metadata(key,value) VALUES('dutySettings',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(json(config));
+      const active=new Set(dutyPeople().map(p=>p.id));
+      for(const row of db.prepare('SELECT * FROM events').all()){const event=parse(row.payload);if(!event.duty)continue;event.targets=[...new Set([...config.managers[event.duty.kind],...event.duty.assigned])].filter(id=>active.has(id));db.prepare('UPDATE events SET payload=? WHERE id=?').run(json(event),row.id);}
+      break;}
+    case 'duty.import':{
+      const config=dutySettings();if(!Object.hasOwn(duties.types,v.kind))fail(400,'업무 종류를 확인해 주세요.');
+      if(!user.admin&&!config.managers[v.kind].includes(user.id))fail(403,'관리자 또는 이 업무의 담당자만 업로드할 수 있습니다.');
+      let result;try{result=duties.plan(v.kind,v.rows,config,dutyPeople());}catch(error){fail(400,error.message);}
+      if(result.errors.length)fail(400,result.errors.slice(0,10).join('\n'));
+      for(const event of result.events){const existing=db.prepare('SELECT payload FROM events WHERE id=?').get(event.id);if(existing&&!parse(existing.payload).duty)fail(409,'기존 일정과 충돌합니다.');db.prepare('INSERT INTO events VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload').run(event.id,user.id,json(event));}
+      break;}
     case 'classes.upsert':{
       if(!user.admin)fail(403,'반·담임 설정은 관리자만 변경할 수 있습니다.');if(!Array.isArray(v.classes)||v.classes.length>200)fail(400,'반·담임 목록이 올바르지 않습니다.');const seen=new Set();const classes=v.classes.map(c=>{if(!c||typeof c!=='object')fail(400,'반 정보가 올바르지 않습니다.');const className=str(c.className,40),key=className.replace(/\s+/g,'');if(seen.has(key))fail(400,'같은 반은 한 번만 등록하세요.');seen.add(key);const teacher=knownUsers([c.teacher])[0];return {className,teacher};});db.prepare("INSERT OR REPLACE INTO metadata VALUES('classTeachers',?)").run(json(classes));break;
     }

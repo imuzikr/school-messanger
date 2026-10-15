@@ -152,7 +152,7 @@
           (key) => {
             state.data[key].push(
               ...(saved.data[key] || []).filter((item) =>
-                item.id.startsWith("user-") || item.id.startsWith("auto-"),
+                item.id.startsWith("user-") || item.id.startsWith("auto-") || item.id.startsWith("duty-"),
               ),
             );
           },
@@ -170,6 +170,7 @@
         if (saved.data.deadlineDefaultPeriodsChanged!==undefined) state.data.deadlineDefaultPeriodsChanged=saved.data.deadlineDefaultPeriodsChanged;
         if (saved.data.autoDeadlineSources) state.data.autoDeadlineSources=saved.data.autoDeadlineSources;
         if (saved.data.bellSchedules) state.data.bellSchedules=saved.data.bellSchedules;
+        if (saved.data.dutySettings) state.data.dutySettings=saved.data.dutySettings;
         if (saved.data.classTeachers) state.data.classTeachers=saved.data.classTeachers;
         if (saved.data.defaultPeriods) state.data.defaultPeriods=saved.data.defaultPeriods;
         if (saved.data.shortcuts) state.data.shortcuts = saved.data.shortcuts;
@@ -362,7 +363,7 @@
     const workspace=!!requestedWorkspace||!!requestedChat||!["people","chat"].includes(state.page);
     document.body.classList.toggle("compact-mode",!workspace);
     const labels={people:"교직원",chat:"대화",inbox:"메시지함",calendar:"내 캘린더",announcements:"학교 소식",links:"바로가기"};
-    const nav=[["people","users","조직도"],["inbox","mail","메시지함"],["chat","chat","대화"],["calendar","calendar","내 캘린더"],["school-work","checklist","교무업무"],["announcements","notice","학교소식"],["links","link","바로가기"]];
+    const nav=[["people","users","조직도"],["inbox","mail","메시지함"],["chat","chat","대화"],["calendar","calendar","내 캘린더"],["school-work","checklist","교무업무"],["other-work","checklist","기타 업무"],["announcements","notice","학교소식"],["links","link","바로가기"]];
     const controls=`<div class="compact-window-controls">${windowApi?ib("window-minimize","최소화","left")+(windowApi.mainHost?ib("window-minimal","미니멀","minimal"):"")+ib("window-close","닫기","x"):workspace?ib("back-main","메신저 본창으로","x"):""}</div>`;
     const header=`<header class="compact-header">${avatar({name:state.user,status:"online"})}<div class="compact-profile"><div class="school-heading"><button class="btn-quiet" data-action="back-main" title="조직도로 돌아가기" style="padding:0;text-align:left"><strong>${esc(state.data.schoolName||"○○고등학교")}</strong></button><span class="school-population" aria-label="전체 ${state.data.people.length}명, 접속 ${state.data.people.filter(p=>p.status==='online').length}명"><span>전체 ${state.data.people.length}</span><span class="population-online">접속 ${state.data.people.filter(p=>p.status==='online').length}</span></span></div><small>${esc(state.user)} · ${esc(state.profile?.department||"교무기획부")}</small></div><button class="icon-btn" data-action="nav-inbox" aria-label="메시지함">${icon("mail",20)}${unreadMails()?`<span class="badge">${unreadMails()}</span>`:""}</button>${ib("nav-chat","대화 목록","chat")}${controls}</header>`;
     const rail=`<nav class="rail" aria-label="주 메뉴">${nav.map(([p,i,l])=>`<button class="nav-item ${state.page===p?"active":""}" data-action="nav-${p}" ${state.page===p?'aria-current="page"':''}>${icon(i,23)}<span>${l}</span>${p==="chat"&&unreadChats()?`<b class="badge">${unreadChats()}</b>`:p==="inbox"&&unreadMails()?`<b class="badge">${unreadMails()}</b>`:""}</button>`).join("")}<div class="rail-bottom">${ib("settings","설정","settings")}${ib("logout","로그아웃","logout")}<button class="nav-item" data-action="toggle-today" aria-pressed="${state.showToday}">${icon("calendar",20)}<span>오늘 일정</span></button></div></nav>`;
@@ -383,7 +384,7 @@
     const notes=state.data.notes.filter(n=>n.date===state.today).sort((a,b)=>a.time.localeCompare(b.time));
     return `<aside class="compact-today agenda-list-panel" aria-label="오늘 일정 목록"><header class="agenda-header"><div><h2>${ib("today-prev","이전 날짜","left")}${fmtDate(state.today,{month:"long",day:"numeric",weekday:"short"})}${ib("today-next","다음 날짜","right")}</h2><small>오늘의 일정 · 목록</small></div>${button("add-event","일정 추가","plus")}</header><div class="agenda-list" role="list">${deadlines.map(d=>`<div class="agenda-list-row ${d.done?"done":""}" role="listitem"><input type="checkbox" data-deadline="${d.id}" aria-label="${esc(calendarTitle(d))} 완료" ${d.done?"checked":""}><button data-action="deadline-source" data-deadline="${d.id}"><span class="agenda-list-time">${d.dueTime?esc(d.dueTime)+"까지":"오늘 마감"}</span><strong>${esc(calendarTitle(d))}</strong><small>제출 마감${d.done?" · 완료":""}</small></button></div>`).join("")}${events.map(e=>`<div class="agenda-list-row" role="listitem"><button data-action="view-event" data-event="${e.id}"><span class="agenda-list-time">${esc(e.start)}–${esc(e.end)}</span><strong>${privateBadge(e)}${esc(calendarTitle(e))}</strong><small>${esc(e.place || typeLabel(e.type))}</small></button></div>`).join("")}${notes.map(n=>`<div class="agenda-list-row" role="listitem"><button data-action="view-note" data-note="${n.id}"><span class="agenda-list-time">${esc(n.time)}</span><strong>${esc(n.text)}</strong><small>메모</small></button></div>`).join("")}${!events.length&&!deadlines.length&&!notes.length?'<p class="agenda-list-empty">이날 등록된 일정이 없어요.</p>':""}</div></aside>`;
   }
-  function canMoveEvent(event){return !event.noticeMail&&!['makeup','lessonChange'].includes(event.type)&&(!event.readonly||event.canReschedule);}
+  function canMoveEvent(event){return !event.duty&&!event.noticeMail&&!['makeup','lessonChange'].includes(event.type)&&(!event.readonly||event.canReschedule);}
   function eventHandles(event){return canMoveEvent(event)?'<span class="event-resize top" data-resize="start" title="시작 시간 조절"></span><span class="event-resize bottom" data-resize="end" title="종료 시간 조절"></span>':'';}
   function timelineRange(days,minimumEnd=1080){
     const events=state.data.events.filter(e=>days.includes(e.date)),points=state.data.deadlines.filter(d=>d.source&&d.dueTime&&days.includes(d.date));
@@ -446,7 +447,7 @@
         )
         .join(
           "",
-        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.56</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
+        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.61</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
     );
   }
   const groupLabel=p=>String(p[state.group]||"").trim()||({grade:"학년 미지정",otherGroup:"기타 미지정"}[state.group]||"미지정");
@@ -1716,10 +1717,41 @@
         .join("")}</div>`
     );
   }
+  const dutyConfig=()=>state.data.dutySettings||IeumDuties.defaults(state.data.people);
+  async function dutyOperation(type,value,apply){
+    if(native){await network.queue;const result=await native.request('/sync',{operations:[{type,value}]});if(result.error)throw Error(result.error);await network.refresh();}
+    else{const previous=JSON.parse(JSON.stringify(state.data));apply();if(!(await save())){state.data=previous;throw Error('저장하지 못했습니다.');}}
+  }
+  function otherWorkMenu(){
+    openModal('기타 업무',`<div class="school-work-menu">${Object.entries(IeumDuties.types).map(([kind,t])=>button('duty-import-'+kind,t.label,'calendar')).join('')}${button('duty-settings','업무 담당자 설정','users')}</div>`,button('close-modal','닫기'));
+  }
+  function dutySettingsForm(){
+    const config=dutyConfig(),editable=!native||state.profile?.admin,people=state.data.people;
+    openModal('기타 업무 담당자',`<form id="duty-settings-form"><p class="muted">담당자는 업로드된 모든 날짜의 일정을 받습니다. 배정 교사는 자신의 날짜만 받습니다.</p><label>생활 안전 담당 부서<select class="input" id="duty-department" ${editable?'':'disabled'}>${[...new Set(people.map(p=>p.department))].map(d=>`<option ${d===config.safetyDepartment?'selected':''}>${esc(d)}</option>`).join('')}</select></label>${Object.entries(IeumDuties.types).map(([kind,t])=>`<fieldset class="duty-manager-group"><legend>${t.label} · ${t.start}–${t.end}</legend><div class="duty-manager-list">${people.filter(p=>!p.disabled).map(p=>`<label><input type="checkbox" data-duty-manager="${kind}" value="${esc(p.id)}" ${config.managers[kind].includes(p.id)?'checked':''} ${editable?'':'disabled'}> ${esc(p.name)} <small>${esc(p.department)}</small></label>`).join('')}</div></fieldset>`).join('')}<p id="duty-settings-error" role="alert"></p>${editable?'':'<p class="muted">관리자만 설정을 변경할 수 있습니다.</p>'}</form>`,button('close-modal','닫기')+(editable?'<button class="btn btn-primary" type="submit" form="duty-settings-form">저장</button>':''),'wide');
+    $('#duty-settings-form').onsubmit=async e=>{e.preventDefault();const submit=$('[form="duty-settings-form"]');submit.disabled=true;try{const next={safetyDepartment:$('#duty-department').value,managers:Object.fromEntries(Object.keys(IeumDuties.types).map(k=>[k,$$(`[data-duty-manager="${k}"]:checked`).map(el=>el.value)]))};IeumDuties.settings(next,people);await dutyOperation('duty.settings',next,()=>{state.data.dutySettings=next;state.data.events.filter(e=>e.duty).forEach(e=>e.targets=[...new Set([...next.managers[e.duty.kind],...e.duty.assigned])]);});closeModal();render();toast('업무 담당자를 저장했어요');}catch(error){$('#duty-settings-error').textContent=error.message;submit.disabled=false;}};
+  }
+  async function readDutyWorkbook(file){
+    if(!/\.xlsx$/i.test(file.name))throw Error('.xlsx 엑셀 파일을 선택해 주세요.');if(file.size>5*1024*1024)throw Error('5 MB 이하의 엑셀 파일을 선택해 주세요.');
+    const bytes=await file.arrayBuffer(),view=new DataView(bytes);let expanded=0,entries=0;
+    // Check the ZIP central directory before decompressing untrusted workbooks.
+    let end=-1;for(let i=bytes.byteLength-22;i>=Math.max(0,bytes.byteLength-65557);i--){if(view.getUint32(i,true)===0x06054b50){end=i;break;}}
+    if(end<0)throw Error('엑셀 파일을 읽을 수 없습니다.');let pos=view.getUint32(end+16,true);const count=view.getUint16(end+10,true);
+    while(entries<count){if(pos+46>bytes.byteLength||view.getUint32(pos,true)!==0x02014b50)throw Error('엑셀 파일 구조가 올바르지 않습니다.');expanded+=view.getUint32(pos+24,true);if(expanded>20*1024*1024||++entries>2000)throw Error('엑셀 파일의 데이터가 너무 큽니다.');pos+=46+view.getUint16(pos+28,true)+view.getUint16(pos+30,true)+view.getUint16(pos+32,true);}
+    if(!entries)throw Error('엑셀 파일이 비어 있습니다.');return window.IeumReadExcel(bytes);
+  }
+  function dutyImportForm(kind){
+    const t=IeumDuties.types[kind];if(!t)return;const config=dutyConfig(),managers=config.managers[kind],allowed=!native||state.profile?.admin||managers.includes(state.profile?.id);let rows=null,preview=null,epoch=0;
+    const names=ids=>ids.map(id=>state.data.people.find(p=>p.id===id)?.name||id).join(', ');
+    openModal(t.label,`<div class="duty-import"><p><strong>${t.start}–${t.end}</strong> · 담당자: ${esc(names(managers)||'미등록')}</p><p class="muted">${kind==='safety'?`A열 날짜 · B열 ${esc(config.safetyDepartment)} 교사 · C열 그 외 교사`:'A열 날짜 · B열 교사 이름'}<br>첫 시트만 사용합니다. 날짜는 연도를 포함하고, 여러 이름은 쉼표로 구분해 주세요.</p><p class="muted">같은 업무·날짜는 새 배정으로 갱신합니다. 파일에 없는 날짜는 유지됩니다.</p>${!managers.length?'<p>업무 담당자를 먼저 설정해 주세요.</p>':''}${!allowed?'<p>관리자 또는 이 업무의 담당자만 업로드할 수 있습니다.</p>':''}<div class="duty-file-picker"><button type="button" class="btn" id="duty-choose" ${allowed&&managers.length?'':'disabled'}>엑셀 파일 선택</button><span id="duty-filename"></span><input id="duty-file" type="file" accept=".xlsx" hidden></div><p id="duty-file-status" role="status"></p><div id="duty-preview"></div></div>`,button('duty-settings','담당자 설정','users')+button('close-modal','닫기')+'<button class="btn btn-primary" id="duty-register" disabled>일정 등록</button>','wide');
+    const input=$('#duty-file'),area=$('#duty-preview'),status=$('#duty-file-status'),submit=$('#duty-register');
+    $('#duty-choose').onclick=()=>input.click();
+    input.onchange=async()=>{$('#duty-filename').textContent=input.files[0]?.name||'';const token=++epoch;submit.disabled=true;rows=null;preview=null;area.innerHTML='';if(!input.files[0])return;status.textContent='엑셀을 확인하고 있습니다…';try{const parsed=await readDutyWorkbook(input.files[0]);if(token!==epoch||!input.isConnected)return;rows=parsed.map(r=>r.map(v=>v instanceof Date?v.toISOString().slice(0,10):v));preview=IeumDuties.plan(kind,rows,config,state.data.people);status.textContent=preview.errors.length?`오류 ${preview.errors.length}개 · 수정 후 다시 업로드해 주세요.`:`${preview.events.length}일 · 담당자와 배정 교사의 일정에 등록됩니다.`;area.innerHTML=(preview.errors.length?`<ul class="duty-errors" role="alert">${preview.errors.map(e=>`<li>${esc(e)}</li>`).join('')}</ul>`:'')+`<table class="duty-table"><thead><tr><th>날짜</th><th>배정 교사</th><th>일정 수신자</th></tr></thead><tbody>${preview.events.map(e=>`<tr><td>${esc(e.date)}</td><td>${esc(names(e.duty.assigned))}</td><td>${esc(names(e.targets))}</td></tr>`).join('')}</tbody></table>`;submit.disabled=!!preview.errors.length||!preview.events.length;}catch(error){if(token===epoch&&input.isConnected)status.textContent=error.message;}};
+    submit.onclick=async()=>{if(!preview||preview.errors.length)return;submit.disabled=true;input.disabled=true;try{await dutyOperation('duty.import',{kind,rows},()=>{const ids=new Set(preview.events.map(e=>e.id));state.data.events=state.data.events.filter(e=>!ids.has(e.id)).concat(preview.events);});closeModal();render();toast(`${t.label} ${preview.events.length}일을 등록했어요`);}catch(error){if(status.isConnected){status.textContent=error.message;submit.disabled=false;input.disabled=false;}}};
+  }
   function settingsModal() {
     openModal(
       "선생님에게 맞는 이음",
-      `<div class="setting-row"><div>반·담임<small>보강 안내의 담임 자동 수신자</small></div>${button("class-teachers","설정","users")}</div><div class="setting-row"><div>학교 일과표<small>임시 일과표가 없는 날의 기본 교시 시간</small></div>${button("bell-default-settings","설정","clock")}</div><div class="setting-row"><div>캘린더 위치<small>본창 크기를 유지하고 선택한 방향으로 오늘 일정이 열립니다.</small></div><select class="input" id="calendar-position" aria-label="캘린더 위치" style="width:110px">${[["left","왼쪽"],["right","오른쪽"]].map(([value,label])=>`<option value="${value}" ${state.settings.calendarPosition===value?"selected":""}>${label}</option>`).join("")}</select></div><div class="setting-row"><div>다음에도 바로 들어오기<small>${native ? "설치형 앱은 보안을 위해 매 실행 시 로그인합니다." : "이 브라우저에 이름만 저장해요. 실제 자동 로그인은 아닙니다."}</small></div><label class="switch"><input type="checkbox" id="auto-login" aria-label="바로 들어오기" ${native ? "disabled" : ""} ${state.settings.autoLogin ? "checked" : ""}><span></span></label></div>${[
+      `<div class="setting-row"><div>기타 업무 담당자<small>업무별 전체 일정 수신자와 생활 안전 담당 부서</small></div>${button("duty-settings","설정","users")}</div><div class="setting-row"><div>반·담임<small>보강 안내의 담임 자동 수신자</small></div>${button("class-teachers","설정","users")}</div><div class="setting-row"><div>학교 일과표<small>임시 일과표가 없는 날의 기본 교시 시간</small></div>${button("bell-default-settings","설정","clock")}</div><div class="setting-row"><div>캘린더 위치<small>본창 크기를 유지하고 선택한 방향으로 오늘 일정이 열립니다.</small></div><select class="input" id="calendar-position" aria-label="캘린더 위치" style="width:110px">${[["left","왼쪽"],["right","오른쪽"]].map(([value,label])=>`<option value="${value}" ${state.settings.calendarPosition===value?"selected":""}>${label}</option>`).join("")}</select></div><div class="setting-row"><div>다음에도 바로 들어오기<small>${native ? "설치형 앱은 보안을 위해 매 실행 시 로그인합니다." : "이 브라우저에 이름만 저장해요. 실제 자동 로그인은 아닙니다."}</small></div><label class="switch"><input type="checkbox" id="auto-login" aria-label="바로 들어오기" ${native ? "disabled" : ""} ${state.settings.autoLogin ? "checked" : ""}><span></span></label></div>${[
         ["orgFont", "교직원 목록 글자", 12, 22],
         ["mailFont", "메시지 본문 글자", 12, 24],
         ["chatFont", "대화 글자", 12, 22],
@@ -1945,6 +1977,9 @@
     if(action === "class-teachers"){classTeachersForm();return;}
     if(action === "bell-default-settings"){bellScheduleForm({basic:true});return;}
     if(action === "bell-schedule"){if(target.closest(".school-work-menu"))closeModal();bellScheduleForm();return;}
+    if(action === "nav-other-work"){otherWorkMenu();return;}
+    if(action === "duty-settings"){dutySettingsForm();return;}
+    if(action.startsWith("duty-import-")){dutyImportForm(action.slice(12));return;}
     if(action === "nav-school-work"){openModal("교무업무",'<div class="school-work-menu">'+button("makeup-notice","보강 안내","calendar")+button("lesson-change","수업 변경","calendar")+button("bell-schedule","일과표","clock")+'</div>',button("close-modal","닫기"));return;}
     if(action === "back-main"){state.page="people";render();return;}
     if(action === "import-server"){native.importConnection().then(value=>{if(value?.error)toast("서버 연결 실패",value.error);else if(value){network.connection=value;login();toast("서버 연결 파일을 가져왔어요",value.schoolName);}});return;}
