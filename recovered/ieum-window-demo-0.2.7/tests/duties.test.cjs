@@ -15,3 +15,12 @@ test('safety rosters enforce the selected department and reject unknown, nonteac
  assert.equal(duties.plan('lunch',[['2026-10-15','가교사']],config,[...people,{...people[2],id:'duplicate'}]).errors.length,1);
  assert.throws(()=>duties.plan('lunch',[['2026-10-15','가교사']],{...config,managers:{...config.managers,lunch:[]}},people));
 });
+
+test('duty reassignment replaces calendar targets, preserves duty times and validates active teachers',()=>{
+ for(const [kind,tag] of [['safety','안전 지도'],['lunch','중식 지도'],['study','자율학습']]){
+  const event=duties.plan(kind,kind==='safety'?[['2026-10-16','안전','가교사']]:[['2026-10-16','가교사']],config,people).events[0];
+  const next=duties.reassign(event,kind==='safety'?['s','b']:['b'],config,people);
+  assert.deepEqual(next.targets,kind==='safety'?['m','s','b']:['m','b']);assert.ok(!next.targets.includes('a'));assert.equal(next.date,event.date);assert.equal(next.start,event.start);assert.equal(next.end,event.end);assert.equal(duties.types[kind].tag,tag);
+  assert.throws(()=>duties.reassign(event,[],config,people));assert.throws(()=>duties.reassign(event,['x'],config,people));assert.throws(()=>duties.reassign(event,['b'],config,people.map(p=>p.id==='b'?{...p,disabled:true}:p)));
+ }
+});

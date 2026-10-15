@@ -271,6 +271,14 @@ async function startServer(options = {}) {
       const active=new Set(dutyPeople().map(p=>p.id));
       for(const row of db.prepare('SELECT * FROM events').all()){const event=parse(row.payload);if(!event.duty)continue;event.targets=[...new Set([...config.managers[event.duty.kind],...event.duty.assigned])].filter(id=>active.has(id));db.prepare('UPDATE events SET payload=? WHERE id=?').run(json(event),row.id);}
       break;}
+    case 'duty.update':{
+      const row=db.prepare('SELECT * FROM events WHERE id=?').get(opId);if(!row)fail(404,'업무 일정을 찾을 수 없습니다.');
+      const existing=parse(row.payload),kind=existing.duty?.kind,config=dutySettings();
+      if(!Object.hasOwn(duties.types,kind))fail(400,'업무 일정만 배정을 변경할 수 있습니다.');
+      if(!user.admin&&!config.managers[kind].includes(user.id))fail(403,'관리자 또는 이 업무의 담당자만 배정을 변경할 수 있습니다.');
+      if(!duties.sameAssignment(existing.duty.assigned,v.expectedAssigned))fail(409,'다른 사용자가 배정을 변경했습니다. 상세 화면을 다시 열어 주세요.');
+      let updated;try{updated=duties.reassign(existing,v.assigned,config,dutyPeople());}catch(error){fail(400,error.message);}
+      db.prepare('UPDATE events SET payload=? WHERE id=?').run(json(updated),opId);break;}
     case 'duty.import':{
       const config=dutySettings();if(!Object.hasOwn(duties.types,v.kind))fail(400,'업무 종류를 확인해 주세요.');
       if(!user.admin&&!config.managers[v.kind].includes(user.id))fail(403,'관리자 또는 이 업무의 담당자만 업로드할 수 있습니다.');

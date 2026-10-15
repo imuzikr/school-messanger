@@ -1,7 +1,7 @@
 name: Verify and package duty demo
 on:
   push:
-    branches: [codex/duty-demo-0.2.63]
+    branches: [codex/duty-demo-0.2.64]
 permissions:
   contents: read
 defaults:
@@ -62,17 +62,21 @@ jobs:
         run: |
           npm ci
           npm install --no-save --package-lock=false playwright@1.56.1 pngjs@7.0.0
-          $env:IEUM_TEST_EXECUTABLE=(Resolve-Path "release/Ieum-Deadline-Demo-0.2.63-win-x64/Ieum-Deadline-Demo.exe").Path
+          python -m pip install openpyxl==3.1.5
+          $env:IEUM_TEST_PYTHON="python"
+          $env:IEUM_TEST_EXECUTABLE=(Resolve-Path "release/Ieum-Deadline-Demo-0.2.64-win-x64/Ieum-Deadline-Demo.exe").Path
+          node tests/electron-duties.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node tests/electron-briefing.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -c "from zipfile import ZipFile; z=ZipFile('release/Ieum-Deadline-Demo-0.2.63-win-x64.zip'); assert z.testzip() is None; print('Windows ZIP CRC PASS')"
+          python -c "from zipfile import ZipFile; z=ZipFile('release/Ieum-Deadline-Demo-0.2.64-win-x64.zip'); assert z.testzip() is None; print('Windows ZIP CRC PASS')"
       - uses: actions/upload-artifact@v4
         with:
-          name: Ieum-Demo-0.2.63
-          path: recovered/ieum-window-demo-0.2.7/release/Ieum-Deadline-Demo-0.2.63-win-x64.zip
+          name: Ieum-Demo-0.2.64
+          path: recovered/ieum-window-demo-0.2.7/release/Ieum-Deadline-Demo-0.2.64-win-x64.zip
       - name: Publish tested portable demo
         env:
           GH_TOKEN: ${{ github.token }}
         shell: pwsh
         run: |
-          gh release create v0.2.63 release/Ieum-Deadline-Demo-0.2.63-win-x64.zip release/SHA256SUMS.txt --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "이음 Windows 데모 0.2.63" --notes "오늘의 브리핑 제목 표시줄 드래그 이동, 기타 업무의 담당자 설정 버튼 제거. 담당자 설정은 설정 메뉴에서 진행합니다. 전체 압축 해제 후 Ieum-Deadline-Demo.exe를 실행하세요."
+          gh release create v0.2.64 release/Ieum-Deadline-Demo-0.2.64-win-x64.zip release/SHA256SUMS.txt --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "이음 Windows 데모 0.2.64" --notes "업무별 태그와 상세 화면의 배정 교사 편집. 날짜별 교사 교환 시 해당 교사들의 캘린더에 동기화하며 업무 담당자는 계속 수신합니다. 전체 압축 해제 후 Ieum-Deadline-Demo.exe를 실행하세요."

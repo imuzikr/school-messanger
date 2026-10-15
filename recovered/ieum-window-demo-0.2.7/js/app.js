@@ -448,7 +448,7 @@
         )
         .join(
           "",
-        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.63</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
+        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.64</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
     );
   }
   const groupLabel=p=>String(p[state.group]||"").trim()||({grade:"학년 미지정",otherGroup:"기타 미지정"}[state.group]||"미지정");
@@ -1662,8 +1662,9 @@
     if (!e) return;
     openScheduleDetail(e,
       calendarTitle(e),
-      `<div class="chip ${e.type === "personal" ? "" : e.type === "repeat" ? "orange" : "blue"}">${typeLabel(e.type)}</div><div style="margin-top:22px;display:grid;gap:16px;font-size:13px"><p>${icon("calendar", 16)} ${fmtDate(e.date)}</p><p>${icon("clock", 16)} ${e.start} – ${e.end}</p><p>${icon("school", 16)} ${esc(e.place || "장소 미정")}</p>${e.targets?.length ? `<p>${icon("users", 16)} ${e.targets.map((id) => esc(person(id).name)).join(", ")}</p>` : ""}<p class="muted" style="white-space:pre-wrap">${e.source&&e.note?`<small style="display:block">원문 안내</small>`:""}${esc(e.note || "등록된 메모가 없습니다.")}</p>${canMoveEvent(e)?`<p class="muted">블록을 드래그해 이동하고 위·아래 가장자리로 시간을 조절하세요.${e.source||e.targets?.length?" 함께 등록된 사람들의 일정 시간도 같이 바뀝니다.":""}</p>`:""}</div>`,
+      `<div class="chip ${e.type === "personal" ? "" : e.type === "repeat" ? "orange" : "blue"}">${esc(e.duty?IeumDuties.types[e.duty.kind]?.tag||typeLabel(e.type):typeLabel(e.type))}</div><div style="margin-top:22px;display:grid;gap:16px;font-size:13px"><p>${icon("calendar", 16)} ${fmtDate(e.date)}</p><p>${icon("clock", 16)} ${e.start} – ${e.end}</p><p>${icon("school", 16)} ${esc(e.place || "장소 미정")}</p>${e.targets?.length ? `<p>${icon("users", 16)} ${e.targets.map((id) => esc(person(id).name)).join(", ")}</p>` : ""}<p class="muted" style="white-space:pre-wrap">${e.source&&e.note?`<small style="display:block">원문 안내</small>`:""}${esc(e.note || "등록된 메모가 없습니다.")}</p>${canMoveEvent(e)?`<p class="muted">블록을 드래그해 이동하고 위·아래 가장자리로 시간을 조절하세요.${e.source||e.targets?.length?" 함께 등록된 사람들의 일정 시간도 같이 바뀝니다.":""}</p>`:""}</div>`,
       button("close-modal", "닫기") +
+        (canEditDuty(e)?button("edit-duty","편집","note","btn-primary",`data-event="${esc(id)}"`):"") +
         (e.readonly||e.noticeMail ? "" : button(
           "edit-event",
           "일정 수정",
@@ -1720,11 +1721,26 @@
   }
   const dutyConfig=()=>state.data.dutySettings||IeumDuties.defaults(state.data.people);
   async function dutyOperation(type,value,apply){
-    if(native){await network.queue;const result=await native.request('/sync',{operations:[{type,value}]});if(result.error)throw Error(result.error);await network.refresh();}
+    if(native){await network.queue;const result=await native.request('/sync',{operations:[{type,value}]});if(result.error){await network.refresh();throw Error(result.error);}await network.refresh();}
     else{const previous=JSON.parse(JSON.stringify(state.data));apply();if(!(await save())){state.data=previous;throw Error('저장하지 못했습니다.');}}
   }
   function otherWorkMenu(){
     openModal('기타 업무',`<div class="school-work-menu">${Object.entries(IeumDuties.types).map(([kind,t])=>button('duty-import-'+kind,t.label,'calendar')).join('')}</div>`,button('close-modal','닫기'));
+  }
+  function canEditDuty(event){return !!event?.duty&&(!native||state.profile?.admin||dutyConfig().managers[event.duty.kind]?.includes(state.profile?.id));}
+  function dutyAssignmentForm(id){
+    const event=state.data.events.find(e=>e.id===id);if(!canEditDuty(event))return;
+    const config=dutyConfig(),kind=event.duty.kind,type=IeumDuties.types[kind],teachers=state.data.people.filter(p=>!p.disabled&&IeumAnnouncements.isTeacher(p));
+    const expectedAssigned=[...event.duty.assigned];
+    const group=(label,list)=>`<fieldset class="duty-manager-group"><legend>${esc(label)}</legend><div class="duty-manager-list">${list.map(p=>`<label><input type="checkbox" data-duty-assignee value="${esc(p.id)}" ${expectedAssigned.includes(p.id)?'checked':''}> ${esc(p.name)} <small>${esc(p.department)}</small></label>`).join('')}</div></fieldset>`;
+    const isSafety=p=>p.department.replace(/\s+/g,'')===config.safetyDepartment.replace(/\s+/g,'');
+    openModal(type.label+' · 배정 교사 편집',`<form id="duty-assignment-form"><p><strong>${esc(event.date)}</strong> · ${event.start}–${event.end}</p><p class="muted">선택에서 제외한 교사의 배정은 취소되고, 새로 선택한 교사의 캘린더에 이 일정이 등록됩니다. 업무 담당자는 계속 받습니다.</p>${kind==='safety'?group(config.safetyDepartment,teachers.filter(isSafety))+group('그 외 교사',teachers.filter(p=>!isSafety(p))):group('배정 교사',teachers)}<p id="duty-assignment-error" role="alert"></p></form>`,button('duty-edit-cancel','취소','','',`data-event="${esc(id)}"`)+'<button class="btn btn-primary" type="submit" form="duty-assignment-form">저장</button>','wide');
+    const form=$('#duty-assignment-form'),errorLabel=$('#duty-assignment-error'),submit=$('[form="duty-assignment-form"]');
+    form.onsubmit=async e=>{e.preventDefault();submit.disabled=true;try{
+      const assigned=$$('[data-duty-assignee]:checked',form).map(el=>el.value),updated=IeumDuties.reassign(event,assigned,config,state.data.people);
+      await dutyOperation('duty.update',{id,assigned,expectedAssigned},()=>{const current=state.data.events.find(e=>e.id===id);if(!current||!IeumDuties.sameAssignment(current.duty.assigned,expectedAssigned))throw Error('배정이 변경되었습니다. 상세 화면을 다시 열어 주세요.');Object.assign(current,updated);});
+      closeModal();render();viewEvent(id);toast('배정 교사를 수정했어요','해당 교사들의 캘린더에 반영되었습니다.');
+    }catch(error){if(errorLabel.isConnected){errorLabel.textContent=error.message;submit.disabled=false;}}};
   }
   function dutySettingsForm(){
     const config=dutyConfig(),editable=!native||state.profile?.admin,people=state.data.people;
@@ -1978,6 +1994,8 @@
     if(action === "class-teachers"){classTeachersForm();return;}
     if(action === "bell-default-settings"){bellScheduleForm({basic:true});return;}
     if(action === "bell-schedule"){if(target.closest(".school-work-menu"))closeModal();bellScheduleForm();return;}
+    if(action === "edit-duty"){dutyAssignmentForm(target.dataset.event);return;}
+    if(action === "duty-edit-cancel"){viewEvent(target.dataset.event);return;}
     if(action === "nav-other-work"){otherWorkMenu();return;}
     if(action === "duty-settings"){dutySettingsForm();return;}
     if(action.startsWith("duty-import-")){dutyImportForm(action.slice(12));return;}

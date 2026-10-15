@@ -1,7 +1,7 @@
 /* Shared, authoritative duty assignment validation. */
 (function(root){
   const teachers=typeof module==='object'&&module.exports?require('./announcements.js'):root.IeumAnnouncements;
-  const types={safety:{label:'안전 지도',start:'07:00',end:'08:00'},lunch:{label:'중식 지도',start:'12:00',end:'13:00'},study:{label:'자율학습 지도',start:'18:00',end:'22:00'}};
+  const types={safety:{label:'안전 지도',tag:'안전 지도',start:'07:00',end:'08:00'},lunch:{label:'중식 지도',tag:'중식 지도',start:'12:00',end:'13:00'},study:{label:'자율학습 지도',tag:'자율학습',start:'18:00',end:'22:00'}};
   const norm=v=>String(v??'').normalize('NFKC').replace(/\s+/g,'');
   function defaults(people=[]){return {safetyDepartment:people.find(p=>/생활안전부|학생생활부|생활교육부/.test(norm(p.department)))?.department||'생활안전부',managers:{safety:[],lunch:[],study:[]}};}
   function settings(value,people){
@@ -38,9 +38,20 @@
     const events=[...groups.values()].sort((a,b)=>a.date.localeCompare(b.date)).map(g=>({id:`duty-${kind}-${g.date}`,title:types[kind].label,date:g.date,start:types[kind].start,end:types[kind].end,type:'group',place:'',note:'배정 교사: '+g.assigned.map(id=>people.find(p=>p.id===id).name).join(', '),targets:[...new Set([...managers,...g.assigned])],duty:{kind,assigned:g.assigned,safety:g.safety,general:g.general},readonly:true,canReschedule:false}));
     if(!events.length&&!errors.length)errors.push('등록할 배정이 없습니다.');return {events,errors};
   }
+  function sameAssignment(a,b){return Array.isArray(a)&&Array.isArray(b)&&JSON.stringify([...new Set(a)].sort())===JSON.stringify([...new Set(b)].sort());}
+  function reassign(event,assigned,config,people){
+    const kind=event?.duty?.kind;if(!Object.hasOwn(types,kind))throw Error('업무 일정을 찾을 수 없습니다.');
+    config=settings(config,people);if(!config.managers[kind].length)throw Error('설정에서 업무 담당자를 먼저 등록해 주세요.');
+    if(!Array.isArray(assigned)||!assigned.length||assigned.length>200||assigned.some(id=>typeof id!=='string'))throw Error('배정 교사를 한 명 이상 선택해 주세요.');
+    assigned=[...new Set(assigned)];const selected=assigned.map(id=>people.find(p=>p.id===id&&!p.disabled&&teachers.isTeacher(p)));
+    if(selected.some(p=>!p))throw Error('등록된 교사만 배정할 수 있습니다.');
+    const safety=selected.filter(p=>norm(p.department)===norm(config.safetyDepartment)).map(p=>p.id),general=assigned.filter(id=>!safety.includes(id));
+    if(kind==='safety'&&(!safety.length||!general.length))throw Error(config.safetyDepartment+' 교사와 그 외 교사를 각각 한 명 이상 선택해 주세요.');
+    return {...event,title:types[kind].label,targets:[...new Set([...config.managers[kind],...assigned])],note:'배정 교사: '+selected.map(p=>p.name).join(', '),duty:{kind,assigned,safety:kind==='safety'?safety:assigned,general:kind==='safety'?general:[]},readonly:true,canReschedule:false};
+  }
   function normalizeTitles(events){
     for(const event of events||[])if(event.duty&&Object.hasOwn(types,event.duty.kind))event.title=types[event.duty.kind].label;
     return events;
   }
-  const api={types,defaults,settings,date,plan,normalizeTitles};if(typeof module==='object'&&module.exports)module.exports=api;else root.IeumDuties=api;
+  const api={types,defaults,settings,date,plan,reassign,sameAssignment,normalizeTitles};if(typeof module==='object'&&module.exports)module.exports=api;else root.IeumDuties=api;
 })(typeof window==='object'?window:globalThis);

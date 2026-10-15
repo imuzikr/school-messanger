@@ -325,3 +325,5 @@ body.minimal-main .minimal-bar{display:flex;align-items:center;width:100vw;heigh
 /* The briefing title bar moves the frameless host; controls remain clickable. */
 .installed .briefing-modal .modal-head{-webkit-app-region:drag;user-select:none;cursor:move;}
 .installed .briefing-modal .modal-head button{-webkit-app-region:no-drag;cursor:pointer;}
+
+#duty-assignment-error{color:#a33f35;}
