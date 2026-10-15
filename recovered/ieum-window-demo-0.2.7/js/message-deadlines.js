@@ -6,6 +6,14 @@
  const legacyEventAction=/회의|연수|수업|상담|행사|협의회|출장|교육|설명회|간담회|면담|모임/;
  const legacyStartAction=/모여|모이|모입|모일|집합|참석|회의|연수|수업|상담|행사|협의회|출장|교육|설명회|간담회|면담|모임|만나|만납|뵙|뵐|뵈|봅시다|오세요|오십시오|와\s*주세요|와\s*주십시오/;
  const maintenanceAction=/소독|방역|청소|점검/;
+ const ceremonyAction=/(?:개회|폐회|입학|졸업|시업|종업|개학|방학|퇴임|퇴직|취임|이임|시상|수료|수여|발대|해단|기념|추모|시무|종무|준공)식|축제|운동회|체육대회|학예회|발표회|공연|전시회/;
+ const occurrenceAction=/(?:시작|진행|개최|실시|거행|개막|폐막)\s*(?:됩니다|될|되는|되고|되겠|합니다|할|하겠|해요|한다|하고)|열(?:립니다|릴|려|리는)/;
+ function activityGeneration(clause,start=false){
+  if((start?legacyStartAction:legacyEventAction).test(clause))return 0;
+  if(maintenanceAction.test(clause))return 1;
+  if(occurrenceAction.test(clause)||ceremonyAction.test(clause)&&!/자료|서류|문서|파일|사진|영상|안내문|계획서|일정표|결과/.test(clause))return 2;
+  return -1;
+ }
  const maintenanceCancelled=/취소|철회|연기|없(?:습니다|어요|음|다|을)|하지\s*않|진행하지|실시하지/;
  const key=d=>d.toISOString().slice(0,10);
  const valid=s=>/^\d{4}-\d{2}-\d{2}$/.test(s)&&Number.isFinite(Date.parse(s+'T00:00:00Z'))&&key(new Date(s+'T00:00:00Z'))===s;
@@ -37,7 +45,7 @@
   // Sentence boundaries retain dotted numeric dates and HH:mm times.
   for(const clause of text.slice(0,100000).split(/\n+|[!?。]+|\.(?=\s|$)/)){
    if(!/까지|마감|오전\s*중/.test(clause)||extractEvents(clause,sentAt).length)continue;
-   if((legacyEventAction.test(clause)||maintenanceAction.test(clause))&&!deadlineAction.test(clause)&&/(?:시|:\d{2}).*(?:에서|부터|[~～–—-]).*(?:시|:\d{2})/.test(clause))continue;
+   if(activityGeneration(clause)>=0&&!deadlineAction.test(clause)&&/(?:시|:\d{2}).*(?:에서|부터|[~～–—-]).*(?:시|:\d{2})/.test(clause))continue;
    if(/(?:마감|제출|등록|신청).{0,8}(?:취소|철회)|(?:제출|등록|신청)(?:하지\s*마|할\s*필요\s*없)/.test(clause))continue;
    if(/(?:알려|보내|전달|회신|제출).{0,5}(?:하지\s*마|지\s*마|필요\s*없|않아도)/.test(clause))continue;
    let m;const {date,hasDate}=resolveDate(clause,base);
@@ -56,11 +64,11 @@
  }
  function extractEvents(text,sentAt){
   const base=sentDate(sentAt);if(!base||typeof text!=='string')return [];
-  const result=[],added=[];
+  const result=[],added=[],announced=[];
   for(const clause of text.slice(0,100000).split(/\n+|[!?。]+|\.(?=\s|$)/)){
-   const legacy=legacyEventAction.test(clause);
-   if((!legacy&&!maintenanceAction.test(clause))||(!legacy&&maintenanceCancelled.test(clause))||(deadlineAction.test(clause)||/취소|철회|없습니다|하지\s*마/.test(clause)))continue;
-   const entries=legacy?result:added;
+   const generation=activityGeneration(clause),legacy=generation===0;
+   if(generation<0||(!legacy&&maintenanceCancelled.test(clause))||(deadlineAction.test(clause)||/취소|철회|없습니다|하지\s*마/.test(clause)))continue;
+   const entries=generation===0?result:generation===1?added:announced;
    const {date,hasDate}=resolveDate(clause,base);if(!hasDate||!valid(date))continue;
    const times=[...clause.matchAll(/(오전|오후)?\s*(\d{1,2})(?::(\d{2})|\s*시(?:\s*(\d{1,2})\s*분|\s*(반))?)/g)];
    if(times.length!==2)continue;
@@ -73,15 +81,15 @@
    const start=convert(times[0]),end=convert(times[1]);if(!start||!end||start>=end)continue;
    entries.push({date,start,end,title:clause.trim().slice(0,150),note:clause.trim().slice(0,1000),type:'personal',place:'',targets:[],rule:'event'});
   }
-  return [...result,...added];
+  return [...result,...added,...announced];
  }
  function extractStartEvents(text,sentAt,context={}){
   const base=sentDate(sentAt);if(!base||typeof text!=='string')return [];
-  const result=[],added=[],seen=new Set();
+  const result=[],added=[],announced=[],seen=new Set();
   for(const clause of text.slice(0,100000).split(/\n+|[!?。]+|\.(?=\s|$)/)){
-   const legacy=legacyStartAction.test(clause);
-   if((!legacy&&!maintenanceAction.test(clause))||(!legacy&&(deadlineAction.test(clause)||maintenanceCancelled.test(clause)))||/까지|제출|회신|마감|취소|철회|없습니다|하지\s*마|지\s*마|지\s*않|않[아습을]|못\s*(?:뵙|뵐|뵈|만나)|(?:뵙|뵐|뵈|만나)지\s*못/.test(clause))continue;
-   const entries=legacy?result:added;
+   const generation=activityGeneration(clause,true),legacy=generation===0;
+   if(generation<0||(!legacy&&(deadlineAction.test(clause)||maintenanceCancelled.test(clause)))||/까지|제출|회신|마감|취소|철회|없습니다|하지\s*마|지\s*마|지\s*않|않[아습을]|못\s*(?:뵙|뵐|뵈|만나)|(?:뵙|뵐|뵈|만나)지\s*못/.test(clause))continue;
+   const entries=generation===0?result:generation===1?added:announced;
    const {date}=resolveDate(clause,base);if(!valid(date))continue;
    const place=clause.match(/(?:\d+\s*층\s*)?(?:[가-힣A-Za-z0-9-]*(?:교실|회의실|교무실|도서관|강당|체육관)|\d+호(?:실)?|\d+\s*층)(?=으로|로|에서|에|\s|$)/)?.[0]||'';
    const times=[...clause.matchAll(/(오전|오후)?\s*(\d{1,2})(?::(\d{2})|\s*시(?:\s*(\d{1,2})\s*분|\s*(반))?)/g)];
@@ -103,8 +111,8 @@
    entries.push(entry);
    if(endMinutes>1440)entries.push({...entry,date:add(date,1),start:'00:00',end:'00:'+pad(endMinutes-1440)});
   }
-  // Append newly supported maintenance activities after all legacy entries to preserve ledger identities.
-  return [...result.filter(entry=>entry.period===undefined),...result.filter(entry=>entry.period!==undefined),...added.filter(entry=>entry.period===undefined),...added.filter(entry=>entry.period!==undefined)];
+  // Keep recognition generations in append-only groups so upgrades preserve calendar ledger identities.
+  return [...result.filter(entry=>entry.period===undefined),...result.filter(entry=>entry.period!==undefined),...added.filter(entry=>entry.period===undefined),...added.filter(entry=>entry.period!==undefined),...announced.filter(entry=>entry.period===undefined),...announced.filter(entry=>entry.period!==undefined)];
  }
  const sourceKey=(kind,id,owner,index)=>JSON.stringify([kind,id,owner,index]);
  function applyDemo(data,owner='me'){

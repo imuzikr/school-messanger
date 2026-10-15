@@ -1,0 +1,29 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path'),{_electron}=require('playwright');
+(async()=>{const data=fs.mkdtempSync(path.join(os.tmpdir(),'ieum-ceremonies-'));let app;
+try{
+ app=await _electron.launch({executablePath:process.env.IEUM_TEST_EXECUTABLE||require('electron'),args:['--no-sandbox','--disable-gpu',...(process.env.IEUM_TEST_EXECUTABLE?[]:[path.resolve(__dirname,'..')])],env:{...process.env,DISPLAY:process.env.DISPLAY||':99',IEUM_ROLE:'demo',IEUM_TEST_DATA_DIR:data},timeout:30000});
+ const main=await app.firstWindow();await require('./electron-helpers.cjs').dismissBriefing(main);const errors=[];main.on('pageerror',e=>errors.push(e.message));
+ const opened=app.waitForEvent('window');await main.locator('.person-line').first().dblclick();const compose=await opened;await compose.locator('#mail-editor').fill('내일 2시에 행사가 시작됩니다. 내일 3시에 의화제 개회식이 있습니다. 내일 4시에 퇴임식이 진행됩니다.');await compose.locator('[form=compose-form]').click().catch(e=>{if(!compose.isClosed())throw e;});
+ await main.waitForFunction(()=>JSON.parse(localStorage.getItem('ieum-v1')).data.mails.some(m=>m.body==='내일 2시에 행사가 시작됩니다. 내일 3시에 의화제 개회식이 있습니다. 내일 4시에 퇴임식이 진행됩니다.'));
+ const result=await main.evaluate(()=>{const d=JSON.parse(localStorage.getItem('ieum-v1')).data,m=d.mails.find(m=>m.body==='내일 2시에 행사가 시작됩니다. 내일 3시에 의화제 개회식이 있습니다. 내일 4시에 퇴임식이 진행됩니다.');return {mail:m.id,events:d.events.filter(e=>e.source?.id===m.id),deadlines:d.deadlines.filter(e=>e.source?.id===m.id)};});
+ assert.equal(result.events.length,3);assert.deepEqual(result.events.map(e=>e.start).sort(),['14:00','15:00','16:00']);assert.equal(result.deadlines.length,0);const event=result.events[0];assert.deepEqual([event.start,event.end],['14:00','15:00']);assert.equal(new Set(result.events.map(e=>e.date)).size,1);
+ const workspace=app.waitForEvent('window');await main.locator('.rail [data-action=nav-calendar]').click();const calendar=await workspace;calendar.on('pageerror',e=>errors.push(e.message));await calendar.locator('[data-calendar-timeline]').first().waitFor();
+ for(let n=0;n<2&&!await calendar.locator('[data-calendar-timeline="'+event.date+'"]').count();n++)await calendar.locator('[data-action=week-next]').click();
+ for(const item of result.events)await calendar.locator('[data-event="'+item.id+'"]').waitFor({state:'visible'});const block=calendar.locator('[data-event="'+event.id+'"]');await block.waitFor({state:'visible'});assert.match(await block.innerText(),/행사/);await block.click();await calendar.locator('.schedule-detail-modal').waitFor();assert.match(await calendar.locator('.modal-body').innerText(),/14:00\s*–\s*15:00/);
+ await calendar.locator('[data-action=schedule-source]').click();await calendar.locator('.schedule-source-modal').waitFor();assert.ok((await calendar.locator('.modal-body').innerText()).includes('내일 2시에 행사가 시작됩니다. 내일 3시에 의화제 개회식이 있습니다. 내일 4시에 퇴임식이 진행됩니다.'));
+ await calendar.close();
+
+ const fixture=await main.evaluate(()=>{const s=JSON.parse(localStorage.getItem('ieum-v1')),body='내일 2시에 행사가 시작됩니다. 내일 3시에 의화제 개회식이 있습니다. 내일 4시에 퇴임식이 진행됩니다.',id='user-old-ceremonies',source={kind:'mail',id};
+ s.data.mails.push({id,title:'행사 안내',body,createdAt:'2026-10-16T01:00:00Z',from:s.data.people[0].id,to:['me'],cc:[],folder:'inbox',files:[],receipts:['unread'],date:'2026-10-16',time:'10:00'});
+ const original={id:'auto-original-event',source,date:'2026-10-17',start:'14:00',end:'15:00',title:'내일 2시에 행사가 시작됩니다',note:'내일 2시에 행사가 시작됩니다',type:'personal',targets:[],place:'',rule:'start-event'};s.data.events.push(original);s.data.autoDeadlineSources[window.IeumDeadlines.sourceKey('mail-start-event',id,'me',0)]=original.id;localStorage.setItem('ieum-v1',JSON.stringify(s));return {id,original:original.id};});
+ await main.reload();await main.locator('.person-line').first().waitFor();const read=()=>main.evaluate(id=>JSON.parse(localStorage.getItem('ieum-v1')).data.events.filter(e=>e.source?.id===id),fixture.id);
+ let recovered=await read();assert.equal(recovered.length,3);assert.ok(recovered.some(e=>e.id===fixture.original));assert.deepEqual(recovered.map(e=>e.start).sort(),['14:00','15:00','16:00']);assert.ok(recovered.every(e=>e.date==='2026-10-17'));
+ const openedWeekend=app.waitForEvent('window');await main.locator('.rail [data-action=nav-calendar]').click();const weekend=await openedWeekend;await weekend.locator('[data-calendar-timeline]').first().waitFor();
+ // Select a known Saturday and check that all three recovered appointments can be seen.
+ await weekend.evaluate(id=>window.ieumDesktop.openWorkspace('calendar',{kind:'event',id}),fixture.original);await weekend.locator('.schedule-detail-modal').waitFor();await weekend.locator('.modal-foot [data-action="close-modal"]').click();
+ for(const entry of recovered)await weekend.locator('[data-event="'+entry.id+'"]').waitFor({state:'visible'});assert.ok(await weekend.locator('.day-column').count()>=6);await weekend.close();
+ await main.reload();await main.locator('.person-line').first().waitFor();assert.equal((await read()).length,3);
+ await main.evaluate(id=>{const s=JSON.parse(localStorage.getItem('ieum-v1'));s.data.events=s.data.events.filter(e=>e.source?.id!==id||e.start!=='15:00');localStorage.setItem('ieum-v1',JSON.stringify(s));},fixture.id);await main.reload();await main.locator('.person-line').first().waitFor();recovered=await read();assert.deepEqual(recovered.map(e=>e.start).sort(),['14:00','16:00']);assert.deepEqual(errors,[]);
+ console.log('PASS: three event announcements -> three calendar blocks; weekend visibility; existing event retained, missing ceremonies recovered and deletion tombstones respected');
+}finally{if(app)await app.close();fs.rmSync(data,{recursive:true,force:true});}})().catch(e=>{console.error(e);process.exitCode=1;});

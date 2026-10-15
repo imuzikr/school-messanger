@@ -1,7 +1,7 @@
 name: Verify and package duty demo
 on:
   push:
-    branches: [codex/duty-demo-0.2.66]
+    branches: [codex/duty-demo-0.2.67]
 permissions:
   contents: read
 defaults:
@@ -28,6 +28,7 @@ jobs:
           node --check js/app.js
           node --check desktop/main.cjs
           npm test
+          xvfb-run -a node tests/electron-ceremonies.cjs
           xvfb-run -a node tests/electron-maintenance.cjs
           xvfb-run -a node tests/electron-capture.cjs
           xvfb-run -a node tests/electron-duties.cjs
@@ -66,7 +67,9 @@ jobs:
           npm install --no-save --package-lock=false playwright@1.56.1 pngjs@7.0.0
           python -m pip install openpyxl==3.1.5
           $env:IEUM_TEST_PYTHON="python"
-          $env:IEUM_TEST_EXECUTABLE=(Resolve-Path "release/Ieum-Deadline-Demo-0.2.66-win-x64/Ieum-Deadline-Demo.exe").Path
+          $env:IEUM_TEST_EXECUTABLE=(Resolve-Path "release/Ieum-Deadline-Demo-0.2.67-win-x64/Ieum-Deadline-Demo.exe").Path
+          node tests/electron-ceremonies.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node tests/electron-maintenance.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node tests/electron-capture.cjs
@@ -75,14 +78,14 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node tests/electron-briefing.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -c "from zipfile import ZipFile; z=ZipFile('release/Ieum-Deadline-Demo-0.2.66-win-x64.zip'); assert z.testzip() is None; print('Windows ZIP CRC PASS')"
+          python -c "from zipfile import ZipFile; z=ZipFile('release/Ieum-Deadline-Demo-0.2.67-win-x64.zip'); assert z.testzip() is None; print('Windows ZIP CRC PASS')"
       - uses: actions/upload-artifact@v4
         with:
-          name: Ieum-Demo-0.2.66
-          path: recovered/ieum-window-demo-0.2.7/release/Ieum-Deadline-Demo-0.2.66-win-x64.zip
+          name: Ieum-Demo-0.2.67
+          path: recovered/ieum-window-demo-0.2.7/release/Ieum-Deadline-Demo-0.2.67-win-x64.zip
       - name: Publish tested portable demo
         env:
           GH_TOKEN: ${{ github.token }}
         shell: pwsh
         run: |
-          gh release create v0.2.66 release/Ieum-Deadline-Demo-0.2.66-win-x64.zip release/SHA256SUMS.txt --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "이음 Windows 데모 0.2.66" --notes "금요일 16시에 전체 소독이 있습니다 문장의 일정 인식 수정. 소독·방역·청소·점검 안내와 기존 메시지 재처리를 지원하며 중복 및 삭제 기록을 유지합니다. 전체 압축 해제 후 Ieum-Deadline-Demo.exe를 실행하세요."
+          gh release create v0.2.67 release/Ieum-Deadline-Demo-0.2.67-win-x64.zip release/SHA256SUMS.txt --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "이음 Windows 데모 0.2.67" --notes "개회식·퇴임식 등 행사 안내와 시작·진행·열림 표현의 일정 인식 보완. 한 메시지의 여러 일정을 각각 등록하고 주말 일정도 주간 달력에 표시합니다. 전체 압축 해제 후 Ieum-Deadline-Demo.exe를 실행하세요."

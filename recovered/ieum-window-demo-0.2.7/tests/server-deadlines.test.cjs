@@ -110,6 +110,13 @@ test('LAN send -> sender and recipient deadlines; atomic retry, deletion, restar
   await server.close();server=await start();admin=(await request('/login',{username:'admin',password})).token;recipient=(await request('/login',{username:'recipient',password:password+'x'})).token;
   await sanity(admin);assert.equal((await boot(recipient)).data.events.filter(e=>e.source?.id==='mail-sanitation').length,0,'deleted sanitation appointments stay deleted on backfill');
 
+  const ceremoniesText='내일 2시에 행사가 시작됩니다. 내일 3시에 의화제 개회식이 있습니다. 내일 4시에 퇴임식이 진행됩니다.',ceremonies={type:'mail.send',id:'mail-ceremonies',value:{title:'행사 일정 안내',body:ceremoniesText,to:[r.id],files:[]}};
+  assert.equal((await sync(admin,[ceremonies])).status,200);await sync(admin,[ceremonies]);
+  for(const token of [admin,recipient]){const data=(await boot(token)).data,entries=data.events.filter(e=>e.source?.id===ceremonies.id);assert.equal(entries.length,3);assert.deepEqual(entries.map(e=>e.start).sort(),['14:00','15:00','16:00']);assert.equal(new Set(entries.map(e=>e.date)).size,1);assert.ok(!data.deadlines.some(e=>e.source?.id===ceremonies.id));}
+  const ceremonialCopy=(await boot(recipient)).data.events.find(e=>e.source?.id===ceremonies.id&&e.start==='15:00');await sync(recipient,[{type:'event.delete',id:ceremonialCopy.id}]);
+  await server.close();server=await start();admin=(await request('/login',{username:'admin',password})).token;recipient=(await request('/login',{username:'recipient',password:password+'x'})).token;
+  assert.equal((await boot(admin)).data.events.filter(e=>e.source?.id===ceremonies.id).length,3);assert.deepEqual((await boot(recipient)).data.events.filter(e=>e.source?.id===ceremonies.id).map(e=>e.start).sort(),['14:00','16:00']);
+
   // Related source remains available beyond bootstrap's latest-500 window, only to room members.
   const oldSource=await request('/message-source',{id:'m-test'},recipient);
   assert.equal(oldSource.status,200);assert.equal(oldSource.message.text,'내일까지 제출');assert.equal(oldSource.room,'r-test');

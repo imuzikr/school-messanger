@@ -139,3 +139,18 @@ test('maintenance backfill preserves old clock, period and range ledger indices 
  data.events=data.events.filter(e=>e.id!=='old-0');rules.applyDemo(data);assert.equal(data.events.length,2);assert.ok(!data.events.some(e=>e.id==='old-0'));assert.equal(data.events.find(e=>e.id==='old-1').period,5);assert.equal(data.events.filter(e=>e.note.includes('소독')).length,1);rules.applyDemo(data);assert.equal(data.events.length,2);
  const ranges=rules.extractEvents('금요일 16시부터 18시까지 소독.\n금요일 10시부터 11시까지 회의.',at);assert.ok(ranges[0].note.includes('회의'));assert.ok(ranges[1].note.includes('소독'));
 });
+
+test('multi-sentence event announcements include opening and retirement ceremonies',()=>{
+ const at='2026-10-16T01:00:00Z',text='내일 2시에 행사가 시작됩니다. 내일 3시에 의화제 개회식이 있습니다. 내일 4시에 퇴임식이 진행됩니다.';
+ const entries=rules.extractStartEvents(text,at);assert.deepEqual(entries.map(e=>[e.date,e.start,e.end]),[['2026-10-17','14:00','15:00'],['2026-10-17','15:00','16:00'],['2026-10-17','16:00','17:00']]);assert.ok(entries[1].title.includes('의화제 개회식'));assert.deepEqual(rules.extract(text,at),[]);assert.equal(rules.extractStartEvents(text+'\n'+text,at).length,3);
+ for(const phrase of ['의화제가 열립니다','새 프로그램이 시작됩니다','기념식이 있습니다','졸업식이 진행됩니다','시상식이 개최됩니다'])assert.equal(rules.extractStartEvents('내일 3시에 '+phrase,at)[0].start,'15:00',phrase);
+ for(const phrase of ['개회식이 취소되었습니다','퇴임식은 연기됩니다','졸업식이 없습니다','개회식 자료가 있습니다','소식이 있습니다','지식이 있습니다','자료가 있습니다','개회식 참가 신청서를 3시까지 제출해 주세요'])assert.deepEqual(rules.extractStartEvents('내일 3시에 '+phrase,at),[],phrase);
+ assert.deepEqual(rules.extractEvents('내일 3시부터 4시까지 퇴임식이 진행됩니다.',at).map(e=>[e.start,e.end]),[['15:00','16:00']]);
+});
+test('new ceremony backfill appends after existing maintenance and legacy ledger entries',()=>{
+ const at='2026-10-16T01:00:00Z',body='내일 3시에 개회식이 있습니다.\n내일 4시에 전체 소독이 있습니다.\n내일 2시에 행사가 시작됩니다.',source={kind:'mail',id:'user-ceremonies'};
+ const entries=rules.extractStartEvents(body,at);assert.deepEqual(entries.map(e=>e.start),['14:00','16:00','15:00']);
+ const data={mails:[{id:source.id,body,createdAt:at,folder:'inbox'}],rooms:[],deadlines:[],events:[],autoDeadlineSources:{}};
+ entries.slice(0,2).forEach((entry,i)=>{const id='existing-'+i;data.events.push({...entry,id,source});data.autoDeadlineSources[rules.sourceKey('mail-start-event',source.id,'me',i)]=id;});data.events=data.events.filter(e=>e.id!=='existing-1');
+ rules.applyDemo(data);assert.equal(data.events.length,2);assert.ok(data.events.some(e=>e.id==='existing-0'&&e.start==='14:00'));assert.equal(data.events.filter(e=>e.start==='15:00').length,1);assert.ok(!data.events.some(e=>e.start==='16:00'));rules.applyDemo(data);assert.equal(data.events.length,2);
+});
