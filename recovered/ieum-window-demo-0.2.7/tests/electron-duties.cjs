@@ -6,6 +6,7 @@ try{
  const p=await app.firstWindow();const errors=[];p.on('pageerror',e=>errors.push(e.message));await require('./electron-helpers.cjs').dismissBriefing(p);
  await p.locator('[data-action="nav-other-work"]').click();assert.equal(await p.locator('.school-work-menu button').count(),3);assert.equal(await p.locator('.modal [data-action="duty-settings"]').count(),0);await p.locator('.modal-foot [data-action="close-modal"]').click();
  await p.locator('.rail [data-action="settings"]').click();await p.locator('[data-action="duty-settings"]').click();
+ const firstDepartment=await p.evaluate(()=>JSON.parse(localStorage.getItem('ieum-v1')).data.people[0].department);await p.locator('#duty-department').selectOption({label:firstDepartment});
  await p.locator('[data-duty-manager="lunch"]').first().check();await p.locator('[form="duty-settings-form"]').click();
  const people=await p.evaluate(()=>JSON.parse(localStorage.getItem('ieum-v1')).data.people);
  const assigned=people.slice(1).find(p=>/교사$/.test(p.role||'')||/부장$/.test(p.role||''));
