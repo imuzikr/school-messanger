@@ -359,3 +359,10 @@ Staff information opens in a singleton, resizable native window, up to 1400×860
 - New notes open in a large colored editor. Minimize, outside-click collapse, per-card expand and immediate grip dragging preserve content and order. The drawer establishes its closed layout before animating and uses a single eased transform.
 - Recipient-scoped homeroom selection tests cover explicit categorization, chronological accumulation, deduplication, reservations, recall/trash exclusion and typed-title priority.
 - Two authenticated Electron clients plus a second sending account verify composer selection, recipient-only live accumulation, normal-message exclusion, category validation, source navigation, recall and persistence after server restart. The demo flow is also tested against the packaged Windows application.
+
+## 0.2.79 — homeroom pins and compact calendar controls
+
+- All 71 Node tests passed locally. The Electron demo verifies header source/pin placement, personal pin/unpin, completion, reload persistence and original-message navigation.
+- Authenticated LAN flow verifies recipient-only pin permission, sender/outsider rejection, idempotent repeated requests, owner isolation, completion/date preservation, source metadata and server restart persistence.
+- The date reset was manually exercised in Electron: it fits next to the date, returns to today and keeps exactly two footer actions on other days.
+- The packaged Windows build runs the homeroom flow and existing calendar, duty, notes, staff and message regression flows in CI before publication.

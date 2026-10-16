@@ -10,5 +10,8 @@
    seen.add(m.id);return true;
   }).sort((a,b)=>stamp(a)-stamp(b)||String(a.id).localeCompare(String(b.id)));
  }
- const api={entries,stamp};if(typeof module==='object'&&module.exports)module.exports=api;else root.IeumHomeroom=api;
+ function pinnedItem(mail,date){
+  return {title:String(mail.title||'담임').slice(0,150),titleFromMail:true,date,dueTime:'',note:String(mail.body||'').slice(0,1000),done:false,homeroomMail:mail.id,source:{kind:'mail',id:mail.id}};
+ }
+ const api={entries,stamp,pinnedItem};if(typeof module==='object'&&module.exports)module.exports=api;else root.IeumHomeroom=api;
 })(typeof window==='object'?window:globalThis);

@@ -408,3 +408,6 @@ body.minimal-main .memo-editor,.unified-main:has(.briefing-overlay) .memo-editor
 .desktop-frame>.shell:has(.memo-tab){overflow:visible}
 .compact-body{overflow:hidden}
 .compact-header .memo-tab{border-right:1px solid #d5be74;border-left:0;border-radius:0 9px 9px 0;box-shadow:2px 2px 5px #69592012}
+
+/* Keep the date reset beside the date and reserve the footer for its two actions. */
+.agenda-header .agenda-today-reset{flex-shrink:0;padding:3px 7px;margin-left:5px;font-size:10px;line-height:16px;white-space:nowrap}

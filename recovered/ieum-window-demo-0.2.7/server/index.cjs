@@ -14,6 +14,7 @@ const announcements=require('../js/announcements.js');
 const duties=require('../js/duties.js');
 const exchanges=require('../js/duty-exchanges.js');
 const directory=require('../js/staff-directory.js');
+const homeroom=require('../js/homeroom.js');
 x509.cryptoProvider.set(crypto.webcrypto);
 const { promisify } = require('node:util');
 const scrypt = promisify(crypto.scrypt);
@@ -336,11 +337,20 @@ async function startServer(options = {}) {
       for(const event of db.prepare('SELECT * FROM events').all()){const payload=parse(event.payload);if(!['makeup','lessonChange'].includes(payload.type)||date&&payload.date!==date)continue;const slot=resolvePeriod(payload.date,payload.period);payload.start=slot.start;payload.end=slot.end;db.prepare('UPDATE events SET payload=? WHERE id=?').run(json(payload),event.id);}
       break;
     }
+    case 'homeroom.pin':{
+      const mailId=str(v.mail,100),itemId='user-homeroom-'+hash(json([user.id,mailId]));
+      if(typeof v.pinned!=='boolean')fail(400,'고정 여부가 올바르지 않습니다.');
+      if(!v.pinned){db.prepare('DELETE FROM items WHERE id=? AND owner=?').run(itemId,user.id);break;}
+      const row=db.prepare('SELECT * FROM mails WHERE id=?').get(mailId),recipient=db.prepare("SELECT * FROM recipients WHERE mail_id=? AND user_id=? AND status NOT IN('recalled','scheduled') AND folder<>'trash'").get(mailId,user.id);
+      if(!row||!recipient||parse(row.payload).category!=='homeroom')fail(403,'수신한 담임 메시지만 고정할 수 있습니다.');
+      const payload=homeroom.pinnedItem({...parse(row.payload),id:mailId},dateKey());
+      db.prepare('INSERT OR IGNORE INTO items VALUES(?,?,?,?)').run(itemId,user.id,'deadlines',json(payload));break;
+    }
     case 'item.upsert':{
       if(!['notes','deadlines','tasks','shortcuts'].includes(op.kind))fail(400,'개인 항목 종류가 올바르지 않습니다.');const existing=db.prepare('SELECT owner,kind,payload FROM items WHERE id=?').get(opId);if(existing&&(existing.owner!==user.id||existing.kind!==op.kind))fail(403,'본인의 항목만 수정할 수 있습니다.');
       let payload;
       if(op.kind==='notes')payload={date:validDate(v.date),time:str(v.time,5),text:str(v.text,1200)};
-      if(op.kind==='deadlines'){const dueTime=str(v.dueTime||'',5,false);if(dueTime&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(dueTime))fail(400,'마감 시간 형식이 올바르지 않습니다.');payload={title:str(v.title,150),date:validDate(v.date),dueTime,note:str(v.note||'',1000,false),done:!!v.done,...(existing&&parse(existing.payload).source?{source:parse(existing.payload).source,rule:parse(existing.payload).rule}: {})};}
+      if(op.kind==='deadlines'){const dueTime=str(v.dueTime||'',5,false);if(dueTime&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(dueTime))fail(400,'마감 시간 형식이 올바르지 않습니다.');payload={title:str(v.title,150),date:validDate(v.date),dueTime,note:str(v.note||'',1000,false),done:!!v.done,...(existing&&parse(existing.payload).source?{source:parse(existing.payload).source,rule:parse(existing.payload).rule,titleFromMail:parse(existing.payload).titleFromMail,...(parse(existing.payload).homeroomMail?{homeroomMail:parse(existing.payload).homeroomMail}:{})}: {})};}
       if(op.kind==='tasks')payload={title:str(v.title,150),done:!!v.done};
       if(op.kind==='shortcuts'){const url=new URL(str(v.url,2000));if(!['https:','http:'].includes(url.protocol)||url.username||url.password)fail(400,'웹 주소 형식이 올바르지 않습니다.');payload={title:str(v.title,100),desc:str(v.desc||'',200,false),url:url.href,icon:'link'};}
       db.prepare('INSERT INTO items VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload').run(opId,user.id,op.kind,json(payload));break;}
