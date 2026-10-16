@@ -96,12 +96,14 @@ test('LAN send -> sender and recipient deadlines; atomic retry, deletion, restar
   const mixed={type:'mail.send',id:'mail-maintenance-mixed',value:{title:'일정 안내',body:'금요일 16시부터 18시까지 전체 소독이 있습니다.\n금요일 10시부터 11시까지 회의가 있습니다.',to:[r.id],files:[]}};
   assert.equal((await sync(admin,[mixed])).status,200);const oldCopies=(await boot(admin)).data.events.filter(e=>e.source?.id===mixed.id),missed=oldCopies.find(e=>e.start==='16:00');assert.equal(oldCopies.length,2);
   await server.close();server=null;const oldDb=new (require('node:sqlite').DatabaseSync)(path.join(dataDir,'ieum.sqlite')),owner=oldDb.prepare('SELECT owner FROM events WHERE id=?').get(missed.id).owner;
+  const oldTitle=oldCopies.find(e=>e.id!==missed.id);delete oldTitle.titleFromMail;oldTitle.title='오래된 본문 제목';oldDb.prepare('UPDATE events SET payload=? WHERE id=?').run(JSON.stringify(oldTitle),oldTitle.id);
   oldDb.prepare('DELETE FROM events WHERE id=?').run(missed.id);oldDb.prepare('DELETE FROM auto_deadline_sources WHERE item_id=?').run(missed.id);
   oldDb.prepare('INSERT INTO items VALUES(?,?,?,?)').run('old-sanitation-due',owner,'deadlines',JSON.stringify({title:missed.title,note:missed.note,date:missed.date,dueTime:'18:00',rule:'explicit',source:{kind:'mail',id:mixed.id}}));
   oldDb.prepare('INSERT INTO auto_deadline_sources VALUES(?,?)').run(JSON.stringify(['mail',mixed.id,owner,0]),'old-sanitation-due');oldDb.close();
   server=await start();admin=(await request('/login',{username:'admin',password})).token;recipient=(await request('/login',{username:'recipient',password:password+'x'})).token;
   const restored=(await boot(admin)).data;assert.deepEqual(restored.events.filter(e=>e.source?.id===mixed.id).map(e=>e.start).sort(),['10:00','16:00']);assert.ok(!restored.deadlines.some(e=>e.id==='old-sanitation-due'));
 
+  const migrated=(await boot(admin)).data.events.find(e=>e.id===oldTitle.id);assert.equal(migrated.title,mixed.value.title);assert.equal(migrated.titleFromMail,true);assert.equal(migrated.start,oldTitle.start);
   const sanitationText='금요일 16시에 전체 소독이 있습니다.',sanitation={type:'mail.send',id:'mail-sanitation',value:{title:sanitationText,body:sanitationText,to:[r.id],files:[]}},sanitationChat={type:'message.send',id:'chat-sanitation',room:'r-test',value:{text:sanitationText}};
   assert.equal((await sync(admin,[sanitation,sanitationChat])).status,200);await sync(admin,[sanitation,sanitationChat]);
   const sanity=async token=>{const data=(await boot(token)).data;for(const source of ['mail-sanitation','chat-sanitation']){const events=data.events.filter(e=>e.source?.id===source);assert.equal(events.length,1);assert.deepEqual([events[0].start,events[0].end],['16:00','17:00']);assert.equal(new Date(events[0].date+'T00:00:00Z').getUTCDay(),5);assert.ok(!data.deadlines.some(d=>d.source?.id===source));}return data;};
@@ -122,6 +124,10 @@ test('LAN send -> sender and recipient deadlines; atomic retry, deletion, restar
   assert.equal(oldSource.status,200);assert.equal(oldSource.message.text,'내일까지 제출');assert.equal(oldSource.room,'r-test');
   assert.equal((await request('/message-source',{id:'m-test'},outToken)).status,403);
   assert.equal((await request('/message-source',{id:'missing'},recipient)).status,404);
+  for(const [index,title] of ['기타','행사','오늘의 업무 안내'].entries()){
+    const id='title-rule-'+index;assert.equal((await sync(admin,[{type:'mail.send',id,value:{title,body:'오늘까지 보내주세요.\n내일 2시에 행사가 시작됩니다.\n내일 4시부터 5시까지 회의가 있습니다.\n오늘 5교시에 모여주세요.',to:[r.id],files:[]}}])).status,200);
+    for(const token of [admin,recipient]){const d=(await boot(token)).data,items=[...d.events,...d.deadlines].filter(e=>e.source?.id===id);assert.equal(items.length,4);assert.ok(items.every(e=>e.title===title&&e.titleFromMail));}
+  }
   const fillers=Array.from({length:501},(_,i)=>({type:'message.send',id:'history-'+i,room:'r-test',value:{text:'일반 대화 '+i}}));
   await sync(admin,fillers.slice(0,300));await sync(admin,fillers.slice(300));
   assert.ok(!(await boot(recipient)).data.rooms.find(r=>r.id==='r-test').messages.some(m=>m.id==='m-test'));

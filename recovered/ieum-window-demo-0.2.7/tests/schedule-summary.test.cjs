@@ -23,3 +23,8 @@ test('calendar titles omit relative dates and original times without rewriting m
  assert.equal(calendarTitle({title:'내일 발표 준비'}),'내일 발표 준비');
  assert.equal(calendarTitle({title:'오늘 3시',source:{kind:'mail',id:'a'}}),'일정');
 });
+
+test('calendar displays resolved mail titles exactly rather than condensing them',()=>{
+ const {calendarTitle}=require('../js/schedule-summary.js');
+ for(const title of ['기타','행사','오늘의 업무 안내','내일 3시 회의'])assert.equal(calendarTitle({title,titleFromMail:true,source:{kind:'mail',id:'a'}}),title);
+});

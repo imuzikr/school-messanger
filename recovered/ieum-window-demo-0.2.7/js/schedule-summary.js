@@ -34,6 +34,7 @@
     return {task,date:clean(item.date),time:item.dueTime?`${item.dueTime}까지 (마감)`:item.start?`${item.start} – ${item.end||'종료 미기재'}`:'시간 미기재',place,preparation:preparation||'별도 안내 없음'};
   }
   function calendarTitle(item){
+    if(item.titleFromMail)return String(item.title||'');
     if(!['mail','message'].includes(item.source?.kind))return String(item.title||'');
     return taskIn(item.title)||(item.dueTime?'마감':'일정');
   }

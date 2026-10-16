@@ -115,15 +115,21 @@
   return [...result.filter(entry=>entry.period===undefined),...result.filter(entry=>entry.period!==undefined),...added.filter(entry=>entry.period===undefined),...added.filter(entry=>entry.period!==undefined),...announced.filter(entry=>entry.period===undefined),...announced.filter(entry=>entry.period!==undefined)];
  }
  const sourceKey=(kind,id,owner,index)=>JSON.stringify([kind,id,owner,index]);
+ function withSourceTitle(entry,kind,payload){
+  const title=kind==='mail'?String(payload?.title||'').trim():'';
+  return title?{...entry,title:title.slice(0,150),titleFromMail:true}:entry;
+ }
  function applyDemo(data,owner='me'){
   data.autoDeadlineSources ||= {};data.deadlines ||= [];data.events ||= [];
+  const mails=new Map((data.mails||[]).map(mail=>[mail.id,mail]));
+  for(const item of [...data.events,...data.deadlines])if(item.source?.kind==='mail'&&!item.titleFromMail)Object.assign(item,withSourceTitle(item,'mail',mails.get(item.source.id)));
   const sources=[];
   for(const room of data.rooms||[])for(const m of room.messages||[])sources.push({kind:'message',id:m.id,text:m.text,at:m.createdAt??m.date});
   for(const m of data.mails||[])if(m.folder!=='trash'&&!m.notice&&!m.calendarEvent&&!m.scheduleAnnouncement&&!m.scheduled)sources.push({kind:'mail',id:m.id,text:(m.title||'')+'\n'+m.body,at:m.createdAt??m.date,mail:m});
   for(const item of data.deadlines)if(item.rule==='lunch')item.dueTime=lunchTime(item.date,data);
-  for(const s of sources)extractEvents(s.text,s.at).forEach((entry,i)=>{const k=sourceKey(s.kind+'-event',s.id,owner,i);if(data.autoDeadlineSources[k])return;const id='auto-'+encodeURIComponent(k);data.autoDeadlineSources[k]=id;data.events.push({id,...entry,source:{kind:s.kind,id:s.id}});data.deadlines=data.deadlines.filter(d=>!(d.source?.kind===s.kind&&d.source?.id===s.id&&d.note===entry.note));if(s.mail&&!s.mail.eventId)s.mail.eventId=id;});
-  for(const s of sources)extractStartEvents(s.text,s.at,data).forEach((d,i)=>{const k=sourceKey(s.kind+'-start-event',s.id,owner,i);if(data.autoDeadlineSources[k])return;const id='auto-'+encodeURIComponent(k);data.autoDeadlineSources[k]=id;data.events.push({id,...d,source:{kind:s.kind,id:s.id}});if(s.mail&&!s.mail.eventId)s.mail.eventId=id;});
-  for(const s of sources)extract(s.text,s.at,data).forEach((d,i)=>{const k=sourceKey(s.kind,s.id,owner,i);if(data.autoDeadlineSources[k])return;const id='auto-'+encodeURIComponent(k);data.autoDeadlineSources[k]=id;data.deadlines.push({id,...d,done:false,source:{kind:s.kind,id:s.id}});if(s.mail&&!s.mail.eventId)s.mail.eventId=id;});
+  for(const s of sources)extractEvents(s.text,s.at).forEach((entry,i)=>{const k=sourceKey(s.kind+'-event',s.id,owner,i);if(data.autoDeadlineSources[k])return;const id='auto-'+encodeURIComponent(k);data.autoDeadlineSources[k]=id;data.events.push({id,...withSourceTitle(entry,s.kind,s.mail),source:{kind:s.kind,id:s.id}});data.deadlines=data.deadlines.filter(d=>!(d.source?.kind===s.kind&&d.source?.id===s.id&&d.note===entry.note));if(s.mail&&!s.mail.eventId)s.mail.eventId=id;});
+  for(const s of sources)extractStartEvents(s.text,s.at,data).forEach((d,i)=>{const k=sourceKey(s.kind+'-start-event',s.id,owner,i);if(data.autoDeadlineSources[k])return;const id='auto-'+encodeURIComponent(k);data.autoDeadlineSources[k]=id;data.events.push({id,...withSourceTitle(d,s.kind,s.mail),source:{kind:s.kind,id:s.id}});if(s.mail&&!s.mail.eventId)s.mail.eventId=id;});
+  for(const s of sources)extract(s.text,s.at,data).forEach((d,i)=>{const k=sourceKey(s.kind,s.id,owner,i);if(data.autoDeadlineSources[k])return;const id='auto-'+encodeURIComponent(k);data.autoDeadlineSources[k]=id;data.deadlines.push({id,...withSourceTitle(d,s.kind,s.mail),done:false,source:{kind:s.kind,id:s.id}});if(s.mail&&!s.mail.eventId)s.mail.eventId=id;});
  }
- return {extract,extractEvents,extractStartEvents,sentDate,lunchTime,sourceKey,applyDemo};
+ return {extract,extractEvents,extractStartEvents,sentDate,lunchTime,sourceKey,withSourceTitle,applyDemo};
 });

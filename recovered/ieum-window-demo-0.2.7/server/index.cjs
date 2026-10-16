@@ -124,7 +124,7 @@ async function startServer(options = {}) {
     for(const owner of new Set([sender,...recipients]))appointments.forEach((entry,index)=>{
       const key=deadlines.sourceKey(kind+'-start-event',sourceId,owner,index),itemId='auto-'+hash(key);
       const inserted=db.prepare('INSERT OR IGNORE INTO auto_deadline_sources VALUES(?,?)').run(key,itemId);
-      if(inserted.changes){db.prepare('INSERT INTO events VALUES(?,?,?)').run(itemId,owner,json({...entry,source:{kind,id:sourceId}}));
+      if(inserted.changes){db.prepare('INSERT INTO events VALUES(?,?,?)').run(itemId,owner,json({...deadlines.withSourceTitle(entry,kind,payload),source:{kind,id:sourceId}}));
         if(kind==='mail'&&owner===sender)db.prepare('UPDATE mails SET event_id=coalesce(event_id,?) WHERE id=?').run(itemId,sourceId);
         if(kind==='mail')db.prepare('UPDATE recipients SET event_id=coalesce(event_id,?) WHERE mail_id=? AND user_id=?').run(itemId,sourceId,owner);}
     });
@@ -135,7 +135,7 @@ async function startServer(options = {}) {
     const appointments=deadlines.extractEvents(text,payload.scheduled||payload.createdAt||payload.date);
     for(const owner of new Set([sender,...recipients]))appointments.forEach((entry,index)=>{const key=deadlines.sourceKey(kind+'-event',sourceId,owner,index),itemId='auto-'+hash(key);
         const inserted=db.prepare('INSERT OR IGNORE INTO auto_deadline_sources VALUES(?,?)').run(key,itemId);
-        if(inserted.changes){db.prepare('INSERT INTO events VALUES(?,?,?)').run(itemId,owner,json({...entry,source:{kind,id:sourceId}}));
+        if(inserted.changes){db.prepare('INSERT INTO events VALUES(?,?,?)').run(itemId,owner,json({...deadlines.withSourceTitle(entry,kind,payload),source:{kind,id:sourceId}}));
           if(kind==='mail'&&owner===sender)db.prepare('UPDATE mails SET event_id=coalesce(event_id,?) WHERE id=?').run(itemId,sourceId);
           if(kind==='mail')db.prepare('UPDATE recipients SET event_id=coalesce(event_id,?) WHERE mail_id=? AND user_id=?').run(itemId,sourceId,owner);}
       });
@@ -151,7 +151,7 @@ async function startServer(options = {}) {
     for(const owner of new Set([sender,...recipients])){
       entries.forEach((entry,index)=>{const key=deadlines.sourceKey(kind,sourceId,owner,index),itemId='auto-'+hash(key);
         const inserted=db.prepare('INSERT OR IGNORE INTO auto_deadline_sources VALUES(?,?)').run(key,itemId);
-        if(inserted.changes){db.prepare('INSERT INTO items VALUES(?,?,?,?)').run(itemId,owner,'deadlines',json({...entry,done:false,source:{kind,id:sourceId}}));
+        if(inserted.changes){db.prepare('INSERT INTO items VALUES(?,?,?,?)').run(itemId,owner,'deadlines',json({...deadlines.withSourceTitle(entry,kind,payload),done:false,source:{kind,id:sourceId}}));
           if(kind==='mail'&&owner===sender)db.prepare('UPDATE mails SET event_id=coalesce(event_id,?) WHERE id=?').run(itemId,sourceId);
           if(kind==='mail')db.prepare('UPDATE recipients SET event_id=coalesce(event_id,?) WHERE mail_id=? AND user_id=?').run(itemId,sourceId,owner);}
       });
@@ -352,6 +352,12 @@ async function startServer(options = {}) {
   for(const mail of db.prepare('SELECT id,sender,payload FROM mails').all()){
     const recipients=db.prepare("SELECT user_id,status FROM recipients WHERE mail_id=?").all(mail.id);if(recipients.some(r=>r.status==='scheduled'))continue;
     const targets=recipients.filter(r=>r.status!=='recalled').map(r=>r.user_id),payload=parse(mail.payload);registerStartEvents('mail',mail.id,mail.sender,targets,payload);registerRangeEvents('mail',mail.id,mail.sender,targets,payload);
+  }
+  for(const table of ['events','items'])for(const row of db.prepare(table==='events'?'SELECT id,payload FROM events':"SELECT id,payload FROM items WHERE kind='deadlines'").all()){
+    const entry=parse(row.payload);if(entry.source?.kind!=='mail'||entry.titleFromMail)continue;
+    const mail=db.prepare('SELECT payload FROM mails WHERE id=?').get(entry.source.id);if(!mail)continue;
+    const updated=deadlines.withSourceTitle(entry,'mail',parse(mail.payload));
+    if(updated!==entry)db.prepare(`UPDATE ${table} SET payload=? WHERE id=?`).run(json(updated),row.id);
   }
   db.exec('COMMIT');}catch(error){db.exec('ROLLBACK');db.close();throw error;}
   const server=https.createServer({key:tls.key,cert:tls.cert,minVersion:'TLSv1.2'},async(req,res)=>{

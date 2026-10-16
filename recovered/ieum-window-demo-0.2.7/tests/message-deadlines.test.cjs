@@ -154,3 +154,20 @@ test('new ceremony backfill appends after existing maintenance and legacy ledger
  entries.slice(0,2).forEach((entry,i)=>{const id='existing-'+i;data.events.push({...entry,id,source});data.autoDeadlineSources[rules.sourceKey('mail-start-event',source.id,'me',i)]=id;});data.events=data.events.filter(e=>e.id!=='existing-1');
  rules.applyDemo(data);assert.equal(data.events.length,2);assert.ok(data.events.some(e=>e.id==='existing-0'&&e.start==='14:00'));assert.equal(data.events.filter(e=>e.start==='15:00').length,1);assert.ok(!data.events.some(e=>e.start==='16:00'));rules.applyDemo(data);assert.equal(data.events.length,2);
 });
+
+test('mail titles are authoritative for deadlines, ranges and period events without changing extraction',()=>{
+ for(const title of ['기타','행사','오늘의 업무 안내']){
+  const data={mails:[{id:'titles',title,body:'오늘까지 보내주세요.\n내일 2시에 행사가 시작됩니다.\n내일 4시부터 5시까지 회의가 있습니다.\n오늘 5교시에 모여주세요.',folder:'sent',createdAt:sent}],events:[],deadlines:[],rooms:[]};
+  data.defaultPeriods=[{period:5,start:'13:00',end:'13:45'}];rules.applyDemo(data);assert.equal(data.deadlines.length,1);assert.equal(data.events.length,3);
+  for(const e of [...data.events,...data.deadlines]){assert.equal(e.title,title);assert.equal(e.titleFromMail,true);assert.ok(e.note);}
+ }
+ const entry={title:'내일 회의'};assert.equal(rules.withSourceTitle(entry,'message',{title:'기타'}),entry);assert.equal(rules.withSourceTitle(entry,'mail',{title:'  '}),entry);
+});
+test('existing automatic mail titles migrate without moving, restoring, duplicating or resetting completion',()=>{
+ const data={mails:[{id:'legacy-title',title:'기타',body:'오늘까지 보내주세요. 내일 2시에 행사가 시작됩니다.',folder:'sent',createdAt:sent}],rooms:[],events:[],deadlines:[]};rules.applyDemo(data);
+ for(const item of [...data.events,...data.deadlines]){delete item.titleFromMail;item.title='예전 본문 제목';item.date='2026-11-01';}
+ data.events[0].start='17:15';data.events[0].end='18:30';data.deadlines[0].dueTime='18:00';data.deadlines[0].done=true;
+ const ids=[...data.events,...data.deadlines].map(e=>e.id);rules.applyDemo(data);assert.deepEqual([...data.events,...data.deadlines].map(e=>e.id),ids);assert.ok([...data.events,...data.deadlines].every(e=>e.title==='기타'&&e.date==='2026-11-01'));
+ assert.equal(data.events[0].start,'17:15');assert.equal(data.deadlines[0].dueTime,'18:00');assert.equal(data.deadlines[0].done,true);
+ data.events=[];rules.applyDemo(data);assert.equal(data.events.length,0);
+});
