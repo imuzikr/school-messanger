@@ -112,7 +112,7 @@ else app.whenReady().then(async()=>{
  Menu.setApplicationMenu(null);
  const area=screen.getPrimaryDisplay().workArea,host=role!=='server';
  TODAY_WIDTH=Math.max(120,Math.min(330,Math.floor((area.width-430-MEMO_TAB_WIDTH)/2)));
- mainWindow=createWindow(role==='server'?'ieum://app/desktop/server.html':'ieum://app/index.html',host?{mainHost:true,transparent:true,backgroundColor:'#00000000',hasShadow:false,thickFrame:false,width:430+2*TODAY_WIDTH+MEMO_TAB_WIDTH,height:Math.min(830,area.height),minWidth:390+2*TODAY_WIDTH+MEMO_TAB_WIDTH,x:area.x+Math.round((area.width-430)/2)-TODAY_WIDTH,y:area.y+Math.max(0,Math.round((area.height-830)/2))}:{width:760,height:760,minWidth:650});
+ mainWindow=createWindow(role==='server'?'ieum://app/desktop/server.html':'ieum://app/index.html',host?{mainHost:true,transparent:true,backgroundColor:'#00000000',hasShadow:false,thickFrame:false,width:430+2*TODAY_WIDTH+MEMO_TAB_WIDTH,height:Math.min(830,area.height),minWidth:390+2*TODAY_WIDTH+MEMO_TAB_WIDTH,x:area.x+Math.round((area.width-430-2*TODAY_WIDTH-MEMO_TAB_WIDTH)/2),y:area.y+Math.max(0,Math.round((area.height-830)/2))}:{width:760,height:760,minWidth:650});
  if(host){mainWindow.on('resize',()=>applyMainShape());applyMainShape();}
  // One native window owns the organization and both wings: focus, move, minimize and restore are atomic.
  mainWindow.on('close',e=>{if(!quitting){e.preventDefault();mainWindow.hide();}});
@@ -132,9 +132,9 @@ function applyMainShape(){
  if(!mainWindow||mainWindow.isDestroyed()||role==='server')return;
  const b=mainWindow.getContentBounds();
  // Closed reserve is absent from the native hit/paint region, so it cannot block another app.
- const orgX=TODAY_WIDTH,orgWidth=b.width-2*TODAY_WIDTH-MEMO_TAB_WIDTH,tab={x:orgX+orgWidth,y:29,width:MEMO_TAB_WIDTH,height:49};
+ const orgX=TODAY_WIDTH,orgWidth=b.width-2*TODAY_WIDTH-MEMO_TAB_WIDTH,tab={x:orgX+orgWidth+((memoOpen||memoAnimation!==null)&&todaySide==='left'?TODAY_WIDTH:0),y:29,width:MEMO_TAB_WIDTH,height:49};
  const calendar=todayOpen||todayAnimation!==null,memo=memoOpen||memoAnimation!==null,left=todaySide==='left'?calendar:memo,right=todaySide==='left'?memo:calendar;
- const region=minimalState?[{x:0,y:0,width:b.width,height:b.height}]:briefingBounds?[briefingBounds]:[{x:left?0:orgX,y:0,width:orgWidth+(left?TODAY_WIDTH:0)+(right?TODAY_WIDTH:0),height:b.height},...(!right?[tab]:[])];
+ const region=minimalState?[{x:0,y:0,width:b.width,height:b.height}]:briefingBounds?[briefingBounds]:[{x:left?0:orgX,y:0,width:orgWidth+(left?TODAY_WIDTH:0)+(right?TODAY_WIDTH:0),height:b.height},...(todaySide==='left'?[tab]:[])];
  mainWindow.setShape(region);return region;
 }
 expose('ieum:briefing-shape',(event,bounds)=>{
@@ -157,7 +157,7 @@ expose('ieum:resize',()=>({ok:true}));
 function fitMainWings(){
  const b=mainWindow.getBounds(),org={x:b.x+TODAY_WIDTH,y:b.y,width:b.width-2*TODAY_WIDTH-MEMO_TAB_WIDTH,height:b.height},area=screen.getDisplayMatching(org).workArea;
  const left=todaySide==='left'?todayOpen:memoOpen,right=todaySide==='left'?memoOpen:todayOpen;
- const visibleLeft=left?0:TODAY_WIDTH,visibleRight=b.width-MEMO_TAB_WIDTH-(right?0:TODAY_WIDTH);
+ const visibleLeft=left?0:TODAY_WIDTH,visibleRight=b.width-(memoOpen&&todaySide==='left'?0:MEMO_TAB_WIDTH)-(right?0:TODAY_WIDTH);
  const x=Math.max(area.x-visibleLeft,Math.min(b.x,area.x+area.width-visibleRight));if(x!==b.x)mainWindow.setBounds({...b,x},false);
 }
 expose('ieum:today',(event,open,position)=>{

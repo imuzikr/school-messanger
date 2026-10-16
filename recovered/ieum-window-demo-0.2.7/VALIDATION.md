@@ -373,3 +373,9 @@ Staff information opens in a singleton, resizable native window, up to 1400×860
 - New packaged-Windows-ready Electron flow samples animation frames for intermediate positions, monotonic movement and no overshoot; checks independent opening/closing, preserved native bounds, both calendar-side preferences, reload and rapid toggles.
 - Pixel checks verify full transparency below the external memo tab. Dialog geometry checks verify exact centering with one or both wings, excluding the 12px tab gutter; the homeroom explanatory paragraph is absent.
 - Existing notes, homeroom pin/completion/reload, minimal/restore, briefing transparent surfaces/source navigation, calendar drag and authenticated account-local notes flows pass locally. The full suite and packaged Windows flows run before release publication.
+
+## 0.2.81 — drawer-attached seamless memo handle
+
+- The persistent handle is mounted above the frame seam and moves using the same transform duration/easing as the drawer. Native paint/hit regions include the handle at the outer drawer edge while opening/closing; display-edge fitting includes its full protrusion.
+- Electron samples the handle-to-drawer offset during both opening and closing, verifies no gap or drifting, and checks opaque yellow pixels across the main-frame boundary with zero handle border.
+- Existing sticky note interactions, account-local persistence, briefing transparency and minimal/restore flows pass locally. The complete source and packaged Windows suites run before publication.

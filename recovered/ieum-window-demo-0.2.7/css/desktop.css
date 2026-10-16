@@ -352,7 +352,7 @@ body.minimal-main .minimal-bar{display:flex;align-items:center;width:100vw;heigh
 
 /* A small index tab opens a personal notebook in the shared side reserve. */
 .compact-header:has(.memo-tab){padding-right:48px}
-.compact-header .memo-tab{position:absolute;right:0;top:29px;width:29px;height:49px;padding:5px 3px;border:1px solid #d5be74;border-right:0;border-radius:9px 0 0 9px;background:#fff0b9;color:#6d5926;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:10px;font-weight:700;cursor:pointer;box-shadow:-2px 2px 5px #6959200a;-webkit-app-region:no-drag}
+
 .memo-tab:hover,.memo-tab[aria-expanded=true]{background:#f7df90;color:#4d3d18}
 .memo-tab:focus-visible{outline:2px solid var(--green);outline-offset:-3px}
 .memo-drawer{position:absolute;left:100%;top:0;bottom:0;width:330px;z-index:1;display:flex;flex-direction:column;background:#f6f5ef;color:var(--ink);border:1px solid #a6b1a4;border-left:0;box-sizing:border-box;transform:translateX(-100%);opacity:0;pointer-events:none;visibility:hidden;transition:transform 440ms cubic-bezier(.22,.8,.25,1),opacity 320ms ease,visibility 0s 440ms;overflow:hidden}
@@ -396,7 +396,7 @@ body.minimal-main .memo-drawer{display:none!important}
 
 /* The tab projects beyond the main frame into its own native hit region. */
 .compact-header:has(.memo-tab){padding-right:36px}
-.compact-header .memo-tab{right:-12px}
+
 .memo-drawer{opacity:1;transform:translate3d(-100%,0,0);transition:transform 480ms cubic-bezier(.16,1,.3,1),visibility 0s 480ms;will-change:transform}
 .memo-drawer.open{transform:translate3d(0,0,0)}
 .memo-expand{padding:0;border:0;background:transparent;color:#847957;font-size:17px;width:23px;height:25px;border-radius:5px;cursor:pointer;margin-left:auto}
@@ -411,7 +411,7 @@ body.minimal-main .memo-editor,.unified-main:has(.briefing-overlay) .memo-editor
 @media(prefers-reduced-motion:reduce){.memo-drawer{transition:none}.memo-editor{animation:none}}
 .desktop-frame>.shell:has(.memo-tab){overflow:visible}
 .compact-body{overflow:hidden}
-.compact-header .memo-tab{border-right:1px solid #d5be74;border-left:0;border-radius:0 9px 9px 0;box-shadow:2px 2px 5px #69592012}
+
 
 /* Keep the date reset beside the date and reserve the footer for its two actions. */
 .agenda-header .agenda-today-reset{flex-shrink:0;padding:3px 7px;margin-left:5px;font-size:10px;line-height:16px;white-space:nowrap}
@@ -421,7 +421,16 @@ body.minimal-main .memo-editor,.unified-main:has(.briefing-overlay) .memo-editor
 .today-drawer.left{transform:translate3d(100%,0,0)}.today-drawer.right,.memo-drawer{transform:translate3d(-100%,0,0)}
 .memo-drawer.left{transform:translate3d(100%,0,0);border-left:1px solid #a6b1a4;border-right:0}
 .today-drawer.open,.memo-drawer.open{transform:translate3d(0,0,0);visibility:visible;transition-delay:0s}
-.compact-header .memo-tab{box-shadow:none}
+
 .homeroom-modal{animation:none}
 @media(prefers-reduced-motion:reduce){.today-drawer,.memo-drawer{transition:none}}
 .unified-main:has(.briefing-overlay) .today-drawer{visibility:hidden!important}
+
+/* A single opaque handle follows the drawer edge, above the frame seam. */
+.memo-tab{position:fixed;z-index:30;width:29px;height:49px;padding:5px 3px;border:0!important;outline:0;box-shadow:none!important;border-radius:0 9px 9px 0;background:#fff0b9;color:#6d5926;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:10px;font-weight:700;cursor:pointer;transform:translate3d(0,0,0);transition:transform 420ms cubic-bezier(.25,.1,.25,1);will-change:transform;-webkit-app-region:no-drag}
+.memo-tab.open{transform:translate3d(var(--memo-travel),0,0)}
+.memo-tab.left{border-radius:9px 0 0 9px}
+body:has(>.memo-tab) .compact-header{padding-right:36px}
+.memo-tab:focus-visible{outline:2px solid var(--green);outline-offset:-3px}
+body.minimal-main>.memo-tab,.unified-main:has(.briefing-overlay)>.memo-tab{display:none!important}
+@media(prefers-reduced-motion:reduce){.memo-tab{transition:none}}
