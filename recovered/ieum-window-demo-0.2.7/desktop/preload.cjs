@@ -2,6 +2,7 @@
 const {contextBridge,ipcRenderer}=require('electron');
 contextBridge.exposeInMainWorld('ieumDesktop',Object.freeze({
   mainHost: process.argv.includes('--ieum-main-host'),
+  wingWidth: Number(process.argv.find(v=>v.startsWith('--ieum-wing-width='))?.split('=')[1])||330,
   mode: process.argv.includes('--ieum-demo') ? 'demo' : 'installed',
   request: (route,payload)=>ipcRenderer.invoke('ieum:request',route,payload),
   connection: ()=>ipcRenderer.invoke('ieum:connection'),

@@ -124,15 +124,19 @@ body.today-panel-window{background:transparent!important;overflow:hidden}
 @media(max-width:360px){.mail-toolbar{flex-wrap:wrap}.mail-toolbar .search{flex-basis:100%}}
 
 /* Calendar and organization share one shaped native window, with a transparent reserved side. */
-body.unified-main{--organization-left:330px;background:transparent!important;overflow:hidden}
-body.unified-main[data-host-side="right"]{--organization-left:0px}
-.unified-main.installed.compact-mode .desktop-frame{position:relative;width:calc(100vw - 342px);height:100vh;margin:0 0 0 var(--organization-left);overflow:visible;background:transparent}
-.unified-main .desktop-frame>.shell{background:var(--surface,#fff);box-shadow:0 0 18px #193e3618}
+body.unified-main{--wing-width:330px;--organization-left:var(--wing-width);--organization-width:calc(100vw - var(--wing-width) - var(--wing-width) - 12px);--surface-left:var(--organization-left);--surface-width:var(--organization-width);background:transparent!important;overflow:hidden}
+
+.unified-main.installed.compact-mode .desktop-frame{position:relative;width:var(--organization-width);height:100vh;margin:0 0 0 var(--organization-left);overflow:visible;background:transparent}
+.unified-main .desktop-frame>.shell{background:var(--surface,#fff);box-shadow:inset 0 0 0 1px #a9b8ad}
 .unified-main .today-drawer{box-shadow:none}
 .unified-main .agenda-header{-webkit-app-region:drag}
 .unified-main .agenda-header button{-webkit-app-region:no-drag}
-.unified-main .login-page{width:calc(100vw - 342px);margin-left:var(--organization-left);height:100vh}
-.unified-main:not(.today-expanded) .overlay{left:var(--organization-left);right:auto;width:calc(100vw - 342px)}
+.unified-main .login-page{width:var(--organization-width);margin-left:var(--organization-left);height:100vh}
+.unified-main.today-expanded[data-host-side="left"],.unified-main.memo-expanded[data-host-side="right"]{--surface-left:0px;--surface-width:calc(100vw - var(--wing-width) - 12px)}
+.unified-main.today-expanded[data-host-side="right"],.unified-main.memo-expanded:not([data-host-side="right"]){--surface-width:calc(100vw - var(--wing-width) - 12px)}
+.unified-main.today-expanded.memo-expanded{--surface-left:0px;--surface-width:calc(100vw - 12px)}
+.unified-main .overlay{left:var(--surface-left);right:auto;width:var(--surface-width);box-sizing:border-box}
+.unified-main .today-drawer,.unified-main .today-drawer>.compact-today{width:var(--wing-width)}
 
 /* Personal calendar entries use color and a text badge, so color is not the only cue. */
 .event.private-schedule,.timeline-card.private-schedule{background:#fff3cf;border-left:4px solid #d39a26;color:#604814}
@@ -149,7 +153,7 @@ body.unified-main[data-host-side="right"]{--organization-left:0px}
 /* A transparent native host must not blur the screen behind the briefing. */
 .overlay.briefing-overlay{background:transparent;backdrop-filter:none}
 .briefing-overlay .briefing-modal{box-shadow:none;border:1px solid var(--line);animation:none}
-.unified-main .overlay.briefing-overlay{left:var(--organization-left);right:auto;width:calc(100vw - 342px)}
+.unified-main .overlay.briefing-overlay{left:var(--organization-left);right:auto;width:var(--organization-width)}
 .unified-main:has(.briefing-overlay) .desktop-frame>.shell{box-shadow:none}
 
 .agenda-deadlines{max-height:230px;overflow:auto;flex-shrink:0}
@@ -411,3 +415,13 @@ body.minimal-main .memo-editor,.unified-main:has(.briefing-overlay) .memo-editor
 
 /* Keep the date reset beside the date and reserve the footer for its two actions. */
 .agenda-header .agenda-today-reset{flex-shrink:0;padding:3px 7px;margin-left:5px;font-size:10px;line-height:16px;white-space:nowrap}
+
+/* Independent wings share fixed coordinates and one non-overshooting slide. */
+.today-drawer,.memo-drawer{opacity:1;visibility:hidden;transition:transform 420ms cubic-bezier(.25,.1,.25,1),visibility 0s 420ms;will-change:transform}
+.today-drawer.left{transform:translate3d(100%,0,0)}.today-drawer.right,.memo-drawer{transform:translate3d(-100%,0,0)}
+.memo-drawer.left{transform:translate3d(100%,0,0);border-left:1px solid #a6b1a4;border-right:0}
+.today-drawer.open,.memo-drawer.open{transform:translate3d(0,0,0);visibility:visible;transition-delay:0s}
+.compact-header .memo-tab{box-shadow:none}
+.homeroom-modal{animation:none}
+@media(prefers-reduced-motion:reduce){.today-drawer,.memo-drawer{transition:none}}
+.unified-main:has(.briefing-overlay) .today-drawer{visibility:hidden!important}

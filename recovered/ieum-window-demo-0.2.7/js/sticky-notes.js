@@ -35,7 +35,7 @@
       if(this.host!==host){this.observer?.disconnect();this.host=host;if(host){this.observer=new ResizeObserver(()=>this.position());this.observer.observe(host);}}
       if(host&&user){if(this.root.parentElement!==document.body)document.body.append(this.root);this.position();}else this.root.remove();
     }
-    position(){if(!this.host?.isConnected)return;const r=this.host.getBoundingClientRect(),overlay=!document.body.classList.contains('unified-main')&&innerWidth<780;Object.assign(this.root.style,{position:'fixed',left:(overlay?Math.max(r.left,r.right-330):r.right)+'px',right:'auto',top:r.top+'px',bottom:'auto',height:r.height+'px',width:Math.min(330,overlay?r.width:330)+'px'});this.positionEditor();}
+    position(){if(!this.host?.isConnected)return;const r=this.host.getBoundingClientRect(),native=document.body.classList.contains('unified-main'),width=native?(window.ieumDesktop?.wingWidth||330):330,overlay=!native&&innerWidth<780,left=native&&document.body.dataset.hostSide==='right';this.root.classList.toggle('left',left);Object.assign(this.root.style,{position:'fixed',left:(overlay?Math.max(r.left,r.right-width):left?r.left-width:r.right)+'px',right:'auto',top:r.top+'px',bottom:'auto',height:r.height+'px',width:Math.min(width,overlay?r.width:width)+'px'});this.positionEditor();}
     setOpen(open){
       const changed=this.open!==!!open;this.open=!!open;this.root.inert=!open;this.root.setAttribute('aria-hidden',String(!open));
       if(!open){cancelAnimationFrame(this.openFrame);this.collapseEditor();this.cancelDrag();if(this.root.contains(document.activeElement))this.host?.querySelector('.memo-tab')?.focus({preventScroll:true});this.root.classList.remove('open');}

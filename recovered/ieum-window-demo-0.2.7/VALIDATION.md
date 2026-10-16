@@ -366,3 +366,10 @@ Staff information opens in a singleton, resizable native window, up to 1400×860
 - Authenticated LAN flow verifies recipient-only pin permission, sender/outsider rejection, idempotent repeated requests, owner isolation, completion/date preservation, source metadata and server restart persistence.
 - The date reset was manually exercised in Electron: it fits next to the date, returns to today and keeps exactly two footer actions on other days.
 - The packaged Windows build runs the homeroom flow and existing calendar, duty, notes, staff and message regression flows in CI before publication.
+
+## 0.2.80 — independent calendar and memo wings
+
+- Native main window reserves independent left/right areas. The organization keeps its screen coordinates while either or both wings open; each close animation has its own native clipping timer. Widths adapt to the initial display work area.
+- New packaged-Windows-ready Electron flow samples animation frames for intermediate positions, monotonic movement and no overshoot; checks independent opening/closing, preserved native bounds, both calendar-side preferences, reload and rapid toggles.
+- Pixel checks verify full transparency below the external memo tab. Dialog geometry checks verify exact centering with one or both wings, excluding the 12px tab gutter; the homeroom explanatory paragraph is absent.
+- Existing notes, homeroom pin/completion/reload, minimal/restore, briefing transparent surfaces/source navigation, calendar drag and authenticated account-local notes flows pass locally. The full suite and packaged Windows flows run before release publication.

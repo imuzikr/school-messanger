@@ -8,8 +8,9 @@ const role=app.isPackaged?require('../package.json').ieumRole||'client':process.
 app.setName(role==='demo'?'IeumDemo':role==='server'?'IeumServer':'IeumClient');
 if(!app.isPackaged&&process.env.IEUM_TEST_DATA_DIR)app.setPath('userData',process.env.IEUM_TEST_DATA_DIR);
 const windows=new Set();
-let todaySide='left',todayAnimation=null,todayOpen=false,memoOpen=false,minimalState=null,briefingBounds=null;
-const TODAY_WIDTH=330, MEMO_TAB_WIDTH=12;
+let todaySide='left',todayAnimation=null,memoAnimation=null,todayOpen=false,memoOpen=false,minimalState=null,briefingBounds=null;
+let TODAY_WIDTH=330;
+const MEMO_TAB_WIDTH=12, WING_DURATION=420;
 const connectionPath=()=>path.join(app.getPath('userData'),'connection.json');
 const configPath=()=>path.join(app.getPath('userData'),'server-config.json');
 function readJSON(file){try{return JSON.parse(fs.readFileSync(file,'utf8'));}catch{return null;}}
@@ -57,7 +58,7 @@ function connectStream(){
  function retry(){if(activeToken!==token||!token)return;emit({kind:'disconnected'});if(!reconnect)reconnect=setTimeout(()=>{reconnect=null;connectStream()},3000);}
 }
 function createWindow(url,options={}){
- const window=new BrowserWindow({width:options.width||430,height:options.height||830,minWidth:options.minWidth||390,minHeight:600,show:false,frame:false,backgroundColor:'#f6f8f4',title:'이음',...options,webPreferences:{preload:path.join(__dirname,'preload.cjs'),additionalArguments:[...(role==='demo'?['--ieum-demo']:[]),...(options.mainHost?['--ieum-main-host']:[])],contextIsolation:true,nodeIntegration:false,sandbox:true,webSecurity:true}});
+ const window=new BrowserWindow({width:options.width||430,height:options.height||830,minWidth:options.minWidth||390,minHeight:600,show:false,frame:false,backgroundColor:'#f6f8f4',title:'이음',...options,webPreferences:{preload:path.join(__dirname,'preload.cjs'),additionalArguments:[...(role==='demo'?['--ieum-demo']:[]),...(options.mainHost?['--ieum-main-host','--ieum-wing-width='+TODAY_WIDTH]:[])],contextIsolation:true,nodeIntegration:false,sandbox:true,webSecurity:true}});
  windows.add(window);window.once('ready-to-show',()=>{window.show();});window.on('closed',()=>windows.delete(window));
  window.webContents.setWindowOpenHandler(({url})=>{try{if(['https:','http:'].includes(new URL(url).protocol))shell.openExternal(url);}catch{}return {action:'deny'};});
  window.webContents.on('will-navigate',(e,target)=>{if(!target.startsWith('ieum://app/'))e.preventDefault();});
@@ -69,23 +70,23 @@ function setMinimalMain(open){
  if(open){
   if(minimalState)return {minimal:true};
   const bounds=w.getBounds(),area=screen.getDisplayMatching(bounds).workArea;
-  const x=Math.max(area.x,Math.min(bounds.x+(todaySide==='left'?TODAY_WIDTH:0),area.x+area.width-360));
+  const x=Math.max(area.x,Math.min(bounds.x+TODAY_WIDTH,area.x+area.width-360));
   const y=Math.max(area.y,Math.min(bounds.y,area.y+area.height-56));
   minimalState={bounds,minimum:w.getMinimumSize(),maximum:w.getMaximumSize(),resizable:w.isResizable(),topmost:w.isAlwaysOnTop(),initial:{x,y}};
-  clearTimeout(todayAnimation);todayAnimation=null;
+  clearTimeout(todayAnimation);clearTimeout(memoAnimation);todayAnimation=null;memoAnimation=null;
   w.setMinimumSize(360,56);w.setMaximumSize(360,56);w.setResizable(false);
-  w.setBounds({x,y,width:360,height:56},false);w.setAlwaysOnTop(true);applyMainShape(todayOpen);
+  w.setBounds({x,y,width:360,height:56},false);w.setAlwaysOnTop(true);applyMainShape();
  }else{
   if(!minimalState)return {minimal:false};
   const saved=minimalState,current=w.getBounds(),bounds={...saved.bounds};
   if(current.x!==saved.initial.x||current.y!==saved.initial.y){
-   const area=screen.getDisplayMatching(current).workArea,orgWidth=bounds.width-TODAY_WIDTH-MEMO_TAB_WIDTH;
+   const area=screen.getDisplayMatching(current).workArea,orgWidth=bounds.width-2*TODAY_WIDTH-MEMO_TAB_WIDTH;
    const orgX=Math.max(area.x,Math.min(current.x,area.x+Math.max(0,area.width-orgWidth)));
-   bounds.x=orgX-(todaySide==='left'?TODAY_WIDTH:0);bounds.y=Math.max(area.y,Math.min(current.y,area.y+Math.max(0,area.height-bounds.height)));
+   bounds.x=orgX-TODAY_WIDTH;bounds.y=Math.max(area.y,Math.min(current.y,area.y+Math.max(0,area.height-bounds.height)));
   }
   minimalState=null;
   w.setResizable(saved.resizable);w.setMaximumSize(...saved.maximum);w.setMinimumSize(...saved.minimum);
-  w.setBounds(bounds,false);w.setAlwaysOnTop(saved.topmost);applyMainShape(todayOpen);
+  w.setBounds(bounds,false);w.setAlwaysOnTop(saved.topmost);applyMainShape();
  }
  emit({kind:'minimal-main',open:!!minimalState});
  if(!minimalState){emit({kind:'today-panel',open:todayOpen,side:todaySide});emit({kind:'memo-panel',open:memoOpen});}
@@ -110,9 +111,10 @@ else app.whenReady().then(async()=>{
  connection=role==='demo'?null:readJSON(connectionPath());if(connection){try{connection=validateConnection(connection)}catch{connection=null}}
  Menu.setApplicationMenu(null);
  const area=screen.getPrimaryDisplay().workArea,host=role!=='server';
- mainWindow=createWindow(role==='server'?'ieum://app/desktop/server.html':'ieum://app/index.html',host?{mainHost:true,transparent:true,backgroundColor:'#00000000',hasShadow:false,width:430+TODAY_WIDTH+MEMO_TAB_WIDTH,height:Math.min(830,area.height),minWidth:390+TODAY_WIDTH+MEMO_TAB_WIDTH,x:area.x+Math.round((area.width-430)/2)-TODAY_WIDTH,y:area.y+Math.max(0,Math.round((area.height-830)/2))}:{width:760,height:760,minWidth:650});
- if(host){mainWindow.on('resize',()=>applyMainShape(todayOpen));applyMainShape(false);}
- // One native window owns both views: focus, move, minimize and restore are atomic.
+ TODAY_WIDTH=Math.max(120,Math.min(330,Math.floor((area.width-430-MEMO_TAB_WIDTH)/2)));
+ mainWindow=createWindow(role==='server'?'ieum://app/desktop/server.html':'ieum://app/index.html',host?{mainHost:true,transparent:true,backgroundColor:'#00000000',hasShadow:false,thickFrame:false,width:430+2*TODAY_WIDTH+MEMO_TAB_WIDTH,height:Math.min(830,area.height),minWidth:390+2*TODAY_WIDTH+MEMO_TAB_WIDTH,x:area.x+Math.round((area.width-430)/2)-TODAY_WIDTH,y:area.y+Math.max(0,Math.round((area.height-830)/2))}:{width:760,height:760,minWidth:650});
+ if(host){mainWindow.on('resize',()=>applyMainShape());applyMainShape();}
+ // One native window owns the organization and both wings: focus, move, minimize and restore are atomic.
  mainWindow.on('close',e=>{if(!quitting){e.preventDefault();mainWindow.hide();}});
  const {nativeImage}=require('electron');const trayImage=nativeImage.createFromPath(path.join(ROOT,'assets','ieum-icon.png'));tray=new Tray(trayImage.resize({width:20,height:20}));tray.setToolTip(role==='server'?'이음 교내 서버':'이음 학교 메신저');tray.on('double-click',bringMain);tray.setContextMenu(Menu.buildFromTemplate([{label:role==='server'?'서버 관리 열기':'메신저 열기',click:bringMain},{type:'separator'},{label:'이음 종료',click:()=>{quitting=true;app.quit()}}]));
  if(role==='server'){const cfg=readJSON(configPath());if(cfg){try{await startLocal(cfg);}catch{emit({kind:'server-start-error'});}}}
@@ -124,14 +126,15 @@ expose('ieum:request',async(event,route,payload)=>{
  if(route==='/password'&&!result.error)connectStream();
  if(route==='/logout'){token=null;liveUsername=null;stopStream();emit({kind:'logout'});}return result;
 });
-expose('ieum:window-state',event=>({minimal:BrowserWindow.fromWebContents(event.sender)===mainWindow&&!!minimalState,memo:BrowserWindow.fromWebContents(event.sender)===mainWindow&&memoOpen,side:todaySide}));
+expose('ieum:window-state',event=>({minimal:BrowserWindow.fromWebContents(event.sender)===mainWindow&&!!minimalState,memo:BrowserWindow.fromWebContents(event.sender)===mainWindow&&memoOpen,today:BrowserWindow.fromWebContents(event.sender)===mainWindow&&todayOpen,side:todaySide}));
 expose('ieum:window',(event,action)=>{const w=BrowserWindow.fromWebContents(event.sender);if(action==='minimal'||action==='restore-main'){if(w!==mainWindow)throw new Error('메신저 본창에서만 사용할 수 있습니다.');return setMinimalMain(action==='minimal');}if(action==='minimize')w.minimize();else if(action==='close')w.close();else if(action==='maximize')w.isMaximized()?w.unmaximize():w.maximize();else if(action==='show')w.show();});
-function applyMainShape(open){
+function applyMainShape(){
  if(!mainWindow||mainWindow.isDestroyed()||role==='server')return;
  const b=mainWindow.getContentBounds();
  // Closed reserve is absent from the native hit/paint region, so it cannot block another app.
- const orgX=todaySide==='left'?TODAY_WIDTH:0,orgWidth=b.width-TODAY_WIDTH-MEMO_TAB_WIDTH,tab={x:orgX+orgWidth,y:29,width:MEMO_TAB_WIDTH,height:49};
- const region=minimalState?[{x:0,y:0,width:b.width,height:b.height}]:briefingBounds?[briefingBounds]:(open||memoOpen)?[{x:0,y:0,width:b.width-MEMO_TAB_WIDTH,height:b.height},...(todaySide==='left'?[tab]:[])]:[{x:orgX,y:0,width:orgWidth,height:b.height},tab];
+ const orgX=TODAY_WIDTH,orgWidth=b.width-2*TODAY_WIDTH-MEMO_TAB_WIDTH,tab={x:orgX+orgWidth,y:29,width:MEMO_TAB_WIDTH,height:49};
+ const calendar=todayOpen||todayAnimation!==null,memo=memoOpen||memoAnimation!==null,left=todaySide==='left'?calendar:memo,right=todaySide==='left'?memo:calendar;
+ const region=minimalState?[{x:0,y:0,width:b.width,height:b.height}]:briefingBounds?[briefingBounds]:[{x:left?0:orgX,y:0,width:orgWidth+(left?TODAY_WIDTH:0)+(right?TODAY_WIDTH:0),height:b.height},...(!right?[tab]:[])];
  mainWindow.setShape(region);return region;
 }
 expose('ieum:briefing-shape',(event,bounds)=>{
@@ -142,7 +145,7 @@ expose('ieum:briefing-shape',(event,bounds)=>{
   const b=mainWindow.getContentBounds(),x=Math.max(0,Math.min(b.width-1,Math.floor(bounds.x))),y=Math.max(0,Math.min(b.height-1,Math.floor(bounds.y)));
   briefingBounds={x,y,width:Math.max(1,Math.min(b.width-x,Math.ceil(bounds.width))),height:Math.max(1,Math.min(b.height-y,Math.ceil(bounds.height)))};
  }
- return {region:applyMainShape(todayOpen)};
+ return {region:applyMainShape()};
 });
 function sourceTarget(target){
  if(target==null)return null;
@@ -151,35 +154,27 @@ function sourceTarget(target){
 }
 function targetQuery(target){return target?'&source='+encodeURIComponent(target.kind)+'&item='+encodeURIComponent(target.id):'';}
 expose('ieum:resize',()=>({ok:true}));
+function fitMainWings(){
+ const b=mainWindow.getBounds(),org={x:b.x+TODAY_WIDTH,y:b.y,width:b.width-2*TODAY_WIDTH-MEMO_TAB_WIDTH,height:b.height},area=screen.getDisplayMatching(org).workArea;
+ const left=todaySide==='left'?todayOpen:memoOpen,right=todaySide==='left'?memoOpen:todayOpen;
+ const visibleLeft=left?0:TODAY_WIDTH,visibleRight=b.width-MEMO_TAB_WIDTH-(right?0:TODAY_WIDTH);
+ const x=Math.max(area.x-visibleLeft,Math.min(b.x,area.x+area.width-visibleRight));if(x!==b.x)mainWindow.setBounds({...b,x},false);
+}
 expose('ieum:today',(event,open,position)=>{
  if(BrowserWindow.fromWebContents(event.sender)!==mainWindow||role==='server')throw new Error('본창에서만 오늘 일정을 열 수 있습니다.');
  if(minimalState)return {ok:true};
- const side=position==='right'?'right':position==='left'?'left':todaySide;
- const wasOpen=todayOpen;
- if(open&&memoOpen){memoOpen=false;emit({kind:'memo-panel',open:false});}
- clearTimeout(todayAnimation);
- if(side!==todaySide){
-  const b=mainWindow.getBounds();
-  // Shift the transparent host, keeping the organization rectangle at exactly the same screen coordinates.
-  mainWindow.setBounds({...b,x:b.x+(todaySide==='left'?TODAY_WIDTH:-TODAY_WIDTH)},false);
-  todaySide=side;
- }
- todayOpen=!!open;
- if(todayOpen)applyMainShape(true);
- else if(!wasOpen)applyMainShape(false);
- else todayAnimation=setTimeout(()=>applyMainShape(false),480);
- emit({kind:'today-panel',open:todayOpen,side:todaySide});
- return {ok:true};
+ const wasOpen=todayOpen;clearTimeout(todayAnimation);todayAnimation=null;
+ todaySide=position==='right'?'right':position==='left'?'left':todaySide;todayOpen=!!open;
+ if(!todayOpen&&wasOpen)todayAnimation=setTimeout(()=>{todayAnimation=null;applyMainShape();},WING_DURATION+40);
+ if(todayOpen)fitMainWings();applyMainShape();
+ emit({kind:'today-panel',open:todayOpen,side:todaySide});return {ok:true};
 });
 expose('ieum:memo',(event,open)=>{
  if(BrowserWindow.fromWebContents(event.sender)!==mainWindow||role==='server')throw new Error('메신저 본창에서만 메모장을 열 수 있습니다.');
  if(minimalState)return {ok:true};
- const wasOpen=memoOpen;clearTimeout(todayAnimation);
- if(open){
-  const b=mainWindow.getBounds(),org={x:b.x+(todaySide==='left'?TODAY_WIDTH:0),y:b.y,width:b.width-TODAY_WIDTH-MEMO_TAB_WIDTH,height:b.height},area=screen.getDisplayMatching(org).workArea;
-  const x=Math.max(area.x,Math.min(org.x,area.x+area.width-b.width));if(x!==b.x)mainWindow.setBounds({...b,x},false);todaySide='right';
-  todayOpen=false;memoOpen=true;applyMainShape(true);emit({kind:'today-panel',open:false,side:todaySide});
- }else{memoOpen=false;if(wasOpen)todayAnimation=setTimeout(()=>applyMainShape(todayOpen),560);else applyMainShape(todayOpen);}
+ const wasOpen=memoOpen;clearTimeout(memoAnimation);memoAnimation=null;memoOpen=!!open;
+ if(!memoOpen&&wasOpen)memoAnimation=setTimeout(()=>{memoAnimation=null;applyMainShape();},WING_DURATION+40);
+ if(memoOpen)fitMainWings();applyMainShape();
  emit({kind:'memo-panel',open:memoOpen});return {ok:true};
 });
 expose('ieum:workspace',(event,page,value)=>{
