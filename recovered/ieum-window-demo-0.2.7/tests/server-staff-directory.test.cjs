@@ -1,0 +1,26 @@
+'use strict';
+const {test}=require('node:test'),assert=require('node:assert/strict'),https=require('node:https'),fs=require('node:fs'),os=require('node:os'),path=require('node:path'),crypto=require('node:crypto');
+const {startServer}=require('../server/index.cjs'),staff=require('../js/staff-directory.js');
+test('staff import validates atomically, creates login accounts and updates existing calendars and homerooms',{timeout:30000},async()=>{
+ const dataDir=fs.mkdtempSync(path.join(os.tmpdir(),'ieum-staff-')),password=crypto.randomBytes(20).toString('hex');let server;
+ const start=()=>startServer({host:'127.0.0.1',port:0,address:'https://127.0.0.1:0',dataDir,admin:{username:'admin',password}});
+ async function request(route,payload,token){return new Promise((resolve,reject)=>{const body=payload===undefined?null:JSON.stringify(payload),req=https.request(new URL(route,server.connection.url),{method:body?'POST':'GET',ca:server.connection.certificate,headers:{...(body?{'content-type':'application/json'}:{}),...(token?{authorization:'Bearer '+token}:{})}},res=>{let raw='';res.on('data',v=>raw+=v);res.on('end',()=>resolve({status:res.statusCode,...JSON.parse(raw)}));});req.on('error',reject);if(body)req.write(body);req.end();});}
+ try{
+  server=await start();let admin=(await request('/login',{username:'admin',password})).token;
+  const old=await request('/admin/users',{username:'old',name:'기존교사',department:'생활안전부',password,extension:'101'},admin),teacher=(await request('/login',{username:'old',password})).token;await request('/password',{current:password,password:password+'x'},teacher);
+  const rows=[staff.headers,['기존교사','1','2','201','생활안전부','안전 지도, 중식 지도','과학실','과학부'],['신규교사','2','3','202','교무부','자율학습 지도','','연극부'],['신규직원','','','301','행정실','급여','','']];
+  assert.equal((await request('/admin/staff-import',{preview:true,rows},teacher)).status,403);
+  const preview=await request('/admin/staff-import',{preview:true,rows},admin);assert.deepEqual(preview.errors,[]);assert.equal((await request('/admin/users',undefined,admin)).users.length,2,'preview has no side effects');
+  const bad=await request('/admin/staff-import',{preview:true,rows:[...rows,['신규직원','','','','행정실','','','']]},admin);assert.ok(bad.errors.length);assert.equal((await request('/admin/staff-import',{rows:[...rows,['신규직원','','','','행정실','','','']],revision:bad.revision},admin)).status,400);assert.equal((await request('/admin/users',undefined,admin)).users.length,2);
+  const applied=await request('/admin/staff-import',{rows,revision:preview.revision},admin);assert.equal(applied.status,200);assert.equal(applied.accounts.length,2);assert.equal(applied.updated,3);assert.equal((await request('/login',{username:'old',password:password+'x'})).status,200,'existing login credentials remain valid');
+  const repeatedPreview=await request('/admin/staff-import',{rows,preview:true},admin),repeated=await request('/admin/staff-import',{rows,revision:repeatedPreview.revision},admin);assert.equal(repeated.status,200);assert.deepEqual(repeated.accounts,[]);assert.equal((await request('/admin/users',undefined,admin)).users.length,4,'reupload updates the same IDs without duplicate accounts');
+  let data=(await request('/bootstrap',undefined,teacher)).data;const added=data.people.find(p=>p.name==='신규교사');assert.equal(data.people.find(p=>p.id===old.id).extension,'201');assert.equal(added.club,'연극부');assert.equal(data.classTeachers.find(c=>c.className==='2학년 3반').teacher,added.id);assert.deepEqual(data.dutySettings.managers.study,[added.id]);
+  const credentials=applied.accounts.find(a=>a.name==='신규교사'),login=await request('/login',{username:credentials.username,password:credentials.password});assert.equal(login.user.mustChange,true);await request('/password',{current:credentials.password,password:password+'new'},login.token);
+  assert.equal((await request('/admin/staff-import',{rows,revision:preview.revision},admin)).status,409,'stale preview is rejected');
+  const sync=operations=>request('/sync',{operations},admin);assert.equal((await sync([{type:'duty.import',value:{kind:'lunch',rows:[['2026-10-19','기존교사']]}}])).status,200);
+  const changed=[staff.headers,['기존교사','','','201','생활안전부','안전 지도','',''],['신규교사','2','3','202','교무부','중식 지도, 자율학습 지도','','']];
+  const next=await request('/admin/staff-import',{rows:changed,preview:true},admin),result=await request('/admin/staff-import',{rows:changed,revision:next.revision},admin);assert.equal(result.status,200);assert.deepEqual(result.accounts,[]);
+  data=(await request('/bootstrap',undefined,login.token)).data;assert.ok(data.events.some(e=>e.duty?.kind==='lunch'),'new manager receives existing duty appointments');assert.deepEqual(data.dutySettings.managers.lunch,[added.id]);assert.ok(!data.classTeachers.some(c=>c.teacher===old.id));
+  await server.close();server=await start();admin=(await request('/login',{username:'admin',password})).token;data=(await request('/bootstrap',undefined,admin)).data;assert.equal(data.people.length,4);assert.equal(data.people.find(p=>p.name==='신규직원').role,'행정직원');assert.deepEqual(data.dutySettings.managers.lunch,[added.id]);assert.equal(data.people.find(p=>p.id===added.id).classNumber,'3');
+ }finally{if(server)await server.close();fs.rmSync(dataDir,{recursive:true,force:true});}
+});

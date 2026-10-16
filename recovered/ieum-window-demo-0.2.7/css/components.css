@@ -2954,3 +2954,5 @@ input[type="checkbox"] {
 .compose-title-options{display:flex;flex-wrap:wrap;gap:5px}
 .compose-title-options .btn{padding:4px 10px;min-height:28px;font-size:12px;border-radius:16px}
 .compose-title-options .btn[aria-pressed=true]{background:var(--green);border-color:var(--green);color:#fff}
+
+.staff-table-scroll{overflow:auto;max-height:340px}.staff-table-scroll .duty-table{min-width:850px}.staff-table-scroll td{white-space:pre-wrap;overflow-wrap:anywhere}

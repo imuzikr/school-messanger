@@ -12,6 +12,7 @@ const bell=require('./schedule.cjs');
 const deadlines=require('../js/message-deadlines.js');
 const announcements=require('../js/announcements.js');
 const duties=require('../js/duties.js');
+const directory=require('../js/staff-directory.js');
 x509.cryptoProvider.set(crypto.webcrypto);
 const { promisify } = require('node:util');
 const scrypt = promisify(crypto.scrypt);
@@ -92,6 +93,7 @@ async function startServer(options = {}) {
   const columns=new Set(db.prepare('PRAGMA table_info(users)').all().map(column=>column.name));
   if(!columns.has('grade'))db.exec("ALTER TABLE users ADD COLUMN grade TEXT NOT NULL DEFAULT ''");
   if(!columns.has('other_group'))db.exec("ALTER TABLE users ADD COLUMN other_group TEXT NOT NULL DEFAULT ''");
+  for(const column of ['class_number','work','special_room','club'])if(!columns.has(column))db.exec(`ALTER TABLE users ADD COLUMN ${column} TEXT NOT NULL DEFAULT ''`);
   const existing=db.prepare('SELECT count(*) n FROM users').get().n;
   if(!existing){
     if(!options.admin?.username||!options.admin?.password){db.close();fail(400,'최초 실행에는 관리자 아이디와 비밀번호를 설정해야 합니다.');}
@@ -103,7 +105,7 @@ async function startServer(options = {}) {
   const periodsFor=date=>{const temporary=db.prepare('SELECT periods FROM bell_schedules WHERE date=?').get(date);return temporary?parse(temporary.periods):defaultPeriods();};
   const resolvePeriod=(date,period)=>{if(!Number.isInteger(Number(period)))fail(400,'수업은 정수 교시로 지정하세요.');const slot=periodsFor(date).find(p=>p.period===Number(period));if(!slot)fail(409,'보강에 지정된 교시가 일과표에 없습니다. 보강 교시를 먼저 변경하세요.');return slot;};
   const streams=new Map(), loginAttempts=new Map();
-  const userPublic=u=>({id:u.id,username:u.username,name:u.name,department:u.department,role:u.role,subject:u.subject,extension:u.extension,grade:u.grade||'',otherGroup:u.other_group||'',admin:!!u.admin,disabled:!!u.disabled,mustChange:!!u.must_change,status:streams.has(u.id)?'online':'offline'});
+  const userPublic=u=>({id:u.id,username:u.username,name:u.name,department:u.department,role:u.role,subject:u.subject,extension:u.extension,grade:u.grade||'',otherGroup:u.other_group||'',classNumber:u.class_number||'',work:u.work||'',specialRoom:u.special_room||'',club:u.club||'',admin:!!u.admin,disabled:!!u.disabled,mustChange:!!u.must_change,status:streams.has(u.id)?'online':'offline'});
   const notify=(audience=null,kind='changed')=>{
     for(const [userId,connections] of streams){if(audience&&!audience.includes(userId))continue;for(const response of connections)response.write(`event: update\ndata: ${json({kind})}\n\n`);}
     options.onChange?.();
@@ -406,6 +408,31 @@ async function startServer(options = {}) {
         const payload=await body(req);if(!Array.isArray(payload.operations)||payload.operations.length>300)fail(400,'변경 요청은 300개까지 가능합니다.');
         db.exec('BEGIN IMMEDIATE');try{for(const op of payload.operations)operation(user,op);db.exec('COMMIT');}catch(error){db.exec('ROLLBACK');throw error;}
         notify();send(res,200,{ok:true});return;
+      }
+      if(route==='/admin/staff-import'&&req.method==='POST'){
+        if(!user.admin)fail(403,'관리자만 교직원 엑셀을 등록할 수 있습니다.');
+        const input=await body(req);
+        const snapshot=()=>({people:db.prepare('SELECT * FROM users ORDER BY id').all().map(u=>{const {status,...person}=userPublic(u);return person;}),classTeachers:parse(db.prepare("SELECT value FROM metadata WHERE key='classTeachers'").get()?.value||'[]'),dutySettings:dutySettings()});
+        const before=snapshot(),revision=hash(json(before)),plan=directory.plan(input.rows,before.people,before);
+        if(input.preview){send(res,200,{...plan,revision});return;}
+        if(input.revision!==revision)fail(409,'교직원 정보가 변경되었습니다. 파일을 다시 선택해 확인해 주세요.');
+        if(plan.errors.length)fail(400,plan.errors.slice(0,10).join('\n'));
+        const fresh=plan.entries.filter(e=>e.isNew);if(fresh.length>200)fail(400,'신규 교직원은 한 번에 200명까지 추가할 수 있습니다. 파일을 나누어 주세요.');
+        const accounts=[],records=new Map(),idMap={};
+        // Bound password hashing concurrency and keep plaintext credentials out of storage.
+        for(let offset=0;offset<fresh.length;offset+=2)await Promise.all(fresh.slice(offset,offset+2).map(async entry=>{const password='Tmp-'+crypto.randomBytes(18).toString('base64url'),username='staff-'+crypto.randomBytes(8).toString('hex'),userId=id('staff'),record=await passwordRecord(password);idMap[entry.id]=userId;records.set(userId,{...record,username});accounts.push({name:entry.name,username,password});}));
+        if(hash(json(snapshot()))!==revision)fail(409,'교직원 정보가 변경되었습니다. 파일을 다시 선택해 확인해 주세요.');
+        const resolved=directory.resolve(plan,idMap);
+        db.exec('BEGIN IMMEDIATE');try{
+          for(const entry of resolved.entries){const record=records.get(entry.id);
+            if(record)db.prepare('INSERT INTO users(id,username,name,department,role,subject,extension,digest,salt,admin,disabled,must_change,grade,other_group,class_number,work,special_room,club) VALUES(?,?,?,?,?,?,?,?,?,0,0,1,?,?,?,?,?,?)').run(entry.id,record.username,entry.name,entry.department,entry.role,'',entry.extension,record.digest,record.salt,entry.grade,'',entry.classNumber,entry.work,entry.specialRoom,entry.club);
+            else db.prepare('UPDATE users SET name=?,grade=?,class_number=?,extension=?,department=?,work=?,special_room=?,club=? WHERE id=?').run(entry.name,entry.grade,entry.classNumber,entry.extension,entry.department,entry.work,entry.specialRoom,entry.club,entry.id);
+          }
+          for(const [key,value] of Object.entries({classTeachers:resolved.classTeachers,dutySettings:resolved.dutySettings}))db.prepare('INSERT INTO metadata VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').run(key,json(value));
+          for(const row of db.prepare('SELECT * FROM events').all()){const event=parse(row.payload);if(!event.duty)continue;event.targets=[...new Set([...resolved.dutySettings.managers[event.duty.kind],...event.duty.assigned])];db.prepare('UPDATE events SET payload=? WHERE id=?').run(json(event),row.id);}
+          db.exec('COMMIT');
+        }catch(error){db.exec('ROLLBACK');throw error;}
+        notify();send(res,200,{ok:true,updated:resolved.entries.length,accounts});return;
       }
       if(route==='/admin/users'&&user.admin){
         if(req.method==='GET'){send(res,200,{users:db.prepare('SELECT * FROM users ORDER BY department,name').all().map(userPublic)});return;}
