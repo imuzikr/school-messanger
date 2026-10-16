@@ -106,7 +106,7 @@
   const requestedCompose=params.get("compose")==="1";
   let mailHeaderObserver=null;
   let composeStarted=false,mailSending=false,eventWindowStarted=false,eventSaving=false,demoRefreshPending=false;
-  let mainHostSynced=false,briefingTargetStarted=false;
+  let mainHostSynced=false,briefingTargetStarted=false,memoBoard=null;
   let network = null;
   let connectionStatus = native ? "서버 연결 필요" : "화면 데모";
   const state = {
@@ -354,15 +354,16 @@
 
     
   function render() {
+    const memoFocus=memoBoard?.focusState();
     if (!native) save();
     applySettings();
     document.body.classList.toggle("installed",!!windowApi);
     if(windowApi?.mainHost){
       document.body.classList.add("unified-main","compact-mode");
-      if(!mainHostSynced){mainHostSynced=true;windowApi.windowState().then(value=>{state.minimal=!!value.minimal;document.body.classList.toggle("minimal-main",state.minimal);});windowApi.toggleToday(false,state.settings.calendarPosition);}
+      if(!mainHostSynced){mainHostSynced=true;windowApi.windowState().then(value=>{state.minimal=!!value.minimal;document.body.classList.toggle("minimal-main",state.minimal);if(value.memo&&state.user){state.showMemo=true;document.body.dataset.hostSide=value.side;syncMemoPanel();}else windowApi.toggleToday(false,state.settings.calendarPosition);});}
       document.body.classList.toggle("minimal-main",state.minimal);
     }
-    if(!state.user){if(windowApi?.mainHost&&state.minimal)windowApi.windowAction("restore-main");if(windowApi?.mainHost&&state.showToday){state.showToday=false;windowApi.toggleToday(false,state.settings.calendarPosition);}login();return;}
+    if(!state.user){if(state.showMemo){state.showMemo=false;if(windowApi?.mainHost)windowApi.toggleMemo(false);}memoBoard?.mount(null,null);document.body.classList.remove("memo-expanded");if(windowApi?.mainHost&&state.minimal)windowApi.windowAction("restore-main");if(windowApi?.mainHost&&state.showToday){state.showToday=false;windowApi.toggleToday(false,state.settings.calendarPosition);}login();return;}
     if(requestedStaff){document.body.classList.add("staff-window");document.body.classList.remove("compact-mode");$("#app").innerHTML="";if(!staffStarted){staffStarted=true;staffImportForm();}return;}
     if(requestedCompose){
       document.body.classList.add("compose-window");document.body.classList.remove("compact-mode");
@@ -376,18 +377,31 @@
     const labels={people:"교직원",chat:"대화",inbox:"메시지함",calendar:"내 캘린더",announcements:"학교 소식",links:"바로가기"};
     const nav=[["people","users","조직도"],["inbox","mail","메시지함"],["chat","chat","대화"],["calendar","calendar","내 캘린더"],["school-work","checklist","교무업무"],["other-work","briefcase","기타 업무"],["announcements","notice","학교소식"],["links","link","바로가기"]];
     const controls=`<div class="compact-window-controls">${windowApi?ib("window-minimize","최소화","left")+(windowApi.mainHost?ib("window-minimal","미니멀","minimal"):"")+ib("window-close","닫기","x"):workspace?ib("back-main","메신저 본창으로","x"):""}</div>`;
-    const header=`<header class="compact-header">${avatar({name:state.user,status:"online"})}<div class="compact-profile"><div class="school-heading"><button class="btn-quiet" data-action="back-main" title="조직도로 돌아가기" style="padding:0;text-align:left"><strong>${esc(state.data.schoolName||"○○고등학교")}</strong></button><span class="school-population" aria-label="전체 ${state.data.people.length}명, 접속 ${state.data.people.filter(p=>p.status==='online').length}명"><span>전체 ${state.data.people.length}</span><span class="population-online">접속 ${state.data.people.filter(p=>p.status==='online').length}</span></span></div><small>${esc(state.user)} · ${esc(state.profile?.department||"교무기획부")}</small></div><button class="icon-btn" data-action="nav-inbox" aria-label="메시지함">${icon("mail",20)}${unreadMails()?`<span class="badge">${unreadMails()}</span>`:""}</button>${ib("nav-chat","대화 목록","chat")}${controls}</header>`;
+    const header=`<header class="compact-header">${avatar({name:state.user,status:"online"})}<div class="compact-profile"><div class="school-heading"><button class="btn-quiet" data-action="back-main" title="조직도로 돌아가기" style="padding:0;text-align:left"><strong>${esc(state.data.schoolName||"○○고등학교")}</strong></button><span class="school-population" aria-label="전체 ${state.data.people.length}명, 접속 ${state.data.people.filter(p=>p.status==='online').length}명"><span>전체 ${state.data.people.length}</span><span class="population-online">접속 ${state.data.people.filter(p=>p.status==='online').length}</span></span></div><small>${esc(state.user)} · ${esc(state.profile?.department||"교무기획부")}</small></div><button class="icon-btn" data-action="nav-inbox" aria-label="메시지함">${icon("mail",20)}${unreadMails()?`<span class="badge">${unreadMails()}</span>`:""}</button>${ib("nav-chat","대화 목록","chat")}${controls}${memoTab()}</header>`;
     const rail=`<nav class="rail" aria-label="주 메뉴">${nav.map(([p,i,l])=>`<button class="nav-item ${state.page===p?"active":""}" data-action="nav-${p}" ${state.page===p?'aria-current="page"':''}>${icon(i,23)}<span>${l}</span>${p==="other-work"&&exchangeCount()?`<b class="badge">${exchangeCount()}</b>`:p==="chat"&&unreadChats()?`<b class="badge">${unreadChats()}</b>`:p==="inbox"&&unreadMails()?`<b class="badge">${unreadMails()}</b>`:""}</button>`).join("")}<div class="rail-bottom">${ib("settings","설정","settings")}${ib("logout","로그아웃","logout")}<button class="nav-item" data-action="toggle-today" aria-pressed="${state.showToday}">${icon("calendar",20)}<span>오늘 일정</span></button></div></nav>`;
     const status=`<footer class="connection-status" id="connection-status"><span>${esc(connectionStatus)}</span><span>${native?"교내 서버":"화면 체험"}</span></footer>`;
     $("#app").innerHTML=workspace?`<div class="workspace-frame ${requestedChat?'chat-only':''}"><div class="shell"><div class="workspace"><header class="topbar"><strong>${esc(labels[state.page]||"대화")} · 이음</strong><div class="top-actions">${!windowApi?button("back-main","본창으로","left"):""}${windowApi?ib("window-minimize","최소화","left")+ib("window-maximize","최대화","popout")+ib("window-close","닫기","x"):""}</div></header><main class="page" id="main-content"></main>${status}</div></div></div>`:`<div class="desktop-frame no-today"><div class="shell">${header}<div class="compact-body">${rail}<div class="workspace"><main class="page" id="main-content"></main>${status}</div></div></div>${!windowApi||windowApi.mainHost?`<div class="today-drawer ${state.settings.calendarPosition==='right'?'right':'left'} ${state.showToday?'open':''}" aria-hidden="${!state.showToday}" ${state.showToday?'':'inert'}>${compactAgenda()}</div>`:''}</div>`;
     if(windowApi?.mainHost){
       $("#app").insertAdjacentHTML("beforeend",`<aside class="minimal-bar" aria-label="이음 미니멀 패널"><span class="minimal-grip" title="끌어서 이동" aria-label="끌어서 이동">⠿</span><button type="button" class="minimal-restore" data-action="window-restore-main" aria-label="메신저 본체 펼치기"><span class="minimal-school" title="${esc(state.data.schoolName||"○○고등학교")}">${esc(state.data.schoolName||"○○고등학교")}</span><span class="minimal-count" title="안 읽은 메시지" aria-label="안 읽은 메시지 ${unreadMails()}개">${icon("mail",15)}<b data-minimal-mails>${unreadMails()}</b></span><span class="minimal-count" title="새 대화" aria-label="새 대화 ${unreadChats()}개">${icon("chat",15)}<b data-minimal-chats>${unreadChats()}</b></span></button><div class="minimal-actions">${ib("window-minimize","최소화","left")}${ib("window-close","닫기","x")}</div></aside>`);
     }
+    syncMemoPanel();memoBoard?.restoreFocus(memoFocus);
     renderPage();renderFloating();
     maybeShowBriefing();
     if(params.get("source")&&!briefingTargetStarted){briefingTargetStarted=true;queueMicrotask(()=>revealBriefingTarget({kind:params.get("source"),id:params.get("item"),room:requestedChat}).catch(error=>toast("관련 내용을 열지 못했어요",error.message)));}
     if(params.get("eventDraft")==="1"&&!eventWindowStarted){eventWindowStarted=true;windowApi.composeDraft().then(draft=>eventForm(draft));}
 
+  }
+  function memoTab(){return `<button type="button" class="memo-tab" data-action="toggle-memo" aria-label="개인 메모장" aria-expanded="${!!state.showMemo}" aria-controls="memo-panel" title="개인 메모장">${icon('note',15)}<span>메모</span></button>`;}
+  function syncMemoPanel(){
+    const host=$('.desktop-frame');if(!host||!state.user||windowApi&&!windowApi.mainHost){memoBoard?.mount(null,null);return;}
+    if(!memoBoard)memoBoard=new IeumStickyNotes.Board({onClose:()=>toggleMemo(false)});
+    memoBoard.mount(host,native?'account:'+state.profile.id:'demo:'+state.user);memoBoard.setOpen(!!state.showMemo);
+    document.body.classList.toggle('memo-expanded',!!state.showMemo);$$('[data-action="toggle-memo"]').forEach(el=>el.setAttribute('aria-expanded',String(!!state.showMemo)));
+  }
+  async function toggleMemo(open=!state.showMemo){
+    if(windowApi?.toggleMemo){const result=await windowApi.toggleMemo(open);if(result.error)toast('메모장을 열지 못했어요',result.error);return;}
+    state.showMemo=open;if(open){state.showToday=false;$('.today-drawer')?.classList.remove('open');const drawer=$('.today-drawer');if(drawer){drawer.inert=true;drawer.setAttribute('aria-hidden','true');}}
+    syncMemoPanel();
   }
   function compactAgendaList() {
     const events=state.data.events.filter(e=>e.date===state.today).sort((a,b)=>a.start.localeCompare(b.start));
@@ -465,7 +479,7 @@
         )
         .join(
           "",
-        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.76</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
+        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.77</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
     );
   }
   const groupLabel=p=>String(p[state.group]||"").trim()||({grade:"학년 미지정",otherGroup:"기타 미지정"}[state.group]||"미지정");
@@ -2055,6 +2069,7 @@
     if(action === "bell-default-settings"){bellScheduleForm({basic:true});return;}
     if(action === "bell-schedule"){if(target.closest(".school-work-menu"))closeModal();bellScheduleForm();return;}
     if(action === "edit-duty"){dutyAssignmentForm(target.dataset.event);return;}
+    if(action==='toggle-memo'){toggleMemo();return;}
     if(action==='exchanges'){exchangeListForm();return;}
     if(action==='exchange-new'){exchangeRequestForm(target.dataset.event);return;}
     if(action==='exchange-detail'){exchangeDetailForm(target.dataset.exchange);return;}
@@ -2129,6 +2144,7 @@
       case "toggle-today":
         if(requestedToday){windowApi?.toggleToday(false);return;}
         state.showToday = !state.showToday;
+        if(state.showToday&&!windowApi){state.showMemo=false;syncMemoPanel();}
         if(windowApi)windowApi.toggleToday(state.showToday,state.settings.calendarPosition);
         else {const drawer=$(".today-drawer");if(drawer){drawer.classList.toggle("open",state.showToday);drawer.inert=!state.showToday;drawer.setAttribute("aria-hidden",String(!state.showToday));}}
         $$('[data-action="toggle-today"]').forEach(el=>el.setAttribute('aria-pressed',String(state.showToday)));
@@ -2947,11 +2963,12 @@
   document.addEventListener("dblclick", e=>{const person=e.target.closest('.org-tree .person-line');if(person)composeMail({to:selectedMessageRecipients(person.dataset.person)});});
   windowApi?.subscribe(event=>{
     if(event.kind==='briefing-target')revealBriefingTarget(event.target).catch(error=>toast('관련 내용을 열지 못했어요',error.message));
+    if(event.kind==='memo-panel'&&windowApi.mainHost){state.showMemo=event.open;syncMemoPanel();}
     if(event.kind==='minimal-main'&&windowApi.mainHost){state.minimal=event.open;document.body.classList.toggle('minimal-main',event.open);}
     if(event.kind==='today-panel'){
       state.showToday=event.open;
       if(windowApi.mainHost){
-        document.body.dataset.hostSide=event.side;
+        document.body.dataset.hostSide=event.side;memoBoard?.position();
         document.body.classList.toggle('today-expanded',event.open);
         updateBriefingShape?.();
         const drawer=$(".today-drawer");

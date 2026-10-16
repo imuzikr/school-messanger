@@ -8,7 +8,7 @@ const role=app.isPackaged?require('../package.json').ieumRole||'client':process.
 app.setName(role==='demo'?'IeumDemo':role==='server'?'IeumServer':'IeumClient');
 if(!app.isPackaged&&process.env.IEUM_TEST_DATA_DIR)app.setPath('userData',process.env.IEUM_TEST_DATA_DIR);
 const windows=new Set();
-let todaySide='left',todayAnimation=null,todayOpen=false,minimalState=null,briefingBounds=null;
+let todaySide='left',todayAnimation=null,todayOpen=false,memoOpen=false,minimalState=null,briefingBounds=null;
 const TODAY_WIDTH=330;
 const connectionPath=()=>path.join(app.getPath('userData'),'connection.json');
 const configPath=()=>path.join(app.getPath('userData'),'server-config.json');
@@ -88,7 +88,7 @@ function setMinimalMain(open){
   w.setBounds(bounds,false);w.setAlwaysOnTop(saved.topmost);applyMainShape(todayOpen);
  }
  emit({kind:'minimal-main',open:!!minimalState});
- if(!minimalState)emit({kind:'today-panel',open:todayOpen,side:todaySide});
+ if(!minimalState){emit({kind:'today-panel',open:todayOpen,side:todaySide});emit({kind:'memo-panel',open:memoOpen});}
  return {minimal:!!minimalState};
 }
 function bringMain(){if(mainWindow&&!mainWindow.isDestroyed()){if(minimalState)setMinimalMain(false);if(mainWindow.isMinimized())mainWindow.restore();mainWindow.show();mainWindow.focus();}}
@@ -124,13 +124,13 @@ expose('ieum:request',async(event,route,payload)=>{
  if(route==='/password'&&!result.error)connectStream();
  if(route==='/logout'){token=null;liveUsername=null;stopStream();emit({kind:'logout'});}return result;
 });
-expose('ieum:window-state',event=>({minimal:BrowserWindow.fromWebContents(event.sender)===mainWindow&&!!minimalState}));
+expose('ieum:window-state',event=>({minimal:BrowserWindow.fromWebContents(event.sender)===mainWindow&&!!minimalState,memo:BrowserWindow.fromWebContents(event.sender)===mainWindow&&memoOpen,side:todaySide}));
 expose('ieum:window',(event,action)=>{const w=BrowserWindow.fromWebContents(event.sender);if(action==='minimal'||action==='restore-main'){if(w!==mainWindow)throw new Error('메신저 본창에서만 사용할 수 있습니다.');return setMinimalMain(action==='minimal');}if(action==='minimize')w.minimize();else if(action==='close')w.close();else if(action==='maximize')w.isMaximized()?w.unmaximize():w.maximize();else if(action==='show')w.show();});
 function applyMainShape(open){
  if(!mainWindow||mainWindow.isDestroyed()||role==='server')return;
  const b=mainWindow.getContentBounds();
  // Closed reserve is absent from the native hit/paint region, so it cannot block another app.
- const region=minimalState?[{x:0,y:0,width:b.width,height:b.height}]:briefingBounds?[briefingBounds]:open?[{x:0,y:0,width:b.width,height:b.height}]:[{x:todaySide==='left'?TODAY_WIDTH:0,y:0,width:b.width-TODAY_WIDTH,height:b.height}];
+ const region=minimalState?[{x:0,y:0,width:b.width,height:b.height}]:briefingBounds?[briefingBounds]:(open||memoOpen)?[{x:0,y:0,width:b.width,height:b.height}]:[{x:todaySide==='left'?TODAY_WIDTH:0,y:0,width:b.width-TODAY_WIDTH,height:b.height}];
  mainWindow.setShape(region);return region;
 }
 expose('ieum:briefing-shape',(event,bounds)=>{
@@ -155,6 +155,7 @@ expose('ieum:today',(event,open,position)=>{
  if(minimalState)return {ok:true};
  const side=position==='right'?'right':position==='left'?'left':todaySide;
  const wasOpen=todayOpen;
+ if(open&&memoOpen){memoOpen=false;emit({kind:'memo-panel',open:false});}
  clearTimeout(todayAnimation);
  if(side!==todaySide){
   const b=mainWindow.getBounds();
@@ -168,6 +169,17 @@ expose('ieum:today',(event,open,position)=>{
  else todayAnimation=setTimeout(()=>applyMainShape(false),480);
  emit({kind:'today-panel',open:todayOpen,side:todaySide});
  return {ok:true};
+});
+expose('ieum:memo',(event,open)=>{
+ if(BrowserWindow.fromWebContents(event.sender)!==mainWindow||role==='server')throw new Error('메신저 본창에서만 메모장을 열 수 있습니다.');
+ if(minimalState)return {ok:true};
+ const wasOpen=memoOpen;clearTimeout(todayAnimation);
+ if(open){
+  const b=mainWindow.getBounds(),org={x:b.x+(todaySide==='left'?TODAY_WIDTH:0),y:b.y,width:b.width-TODAY_WIDTH,height:b.height},area=screen.getDisplayMatching(org).workArea;
+  const x=Math.max(area.x,Math.min(org.x,area.x+area.width-b.width));if(x!==b.x)mainWindow.setBounds({...b,x},false);todaySide='right';
+  todayOpen=false;memoOpen=true;applyMainShape(true);emit({kind:'today-panel',open:false,side:todaySide});
+ }else{memoOpen=false;if(wasOpen)todayAnimation=setTimeout(()=>applyMainShape(todayOpen),480);else applyMainShape(todayOpen);}
+ emit({kind:'memo-panel',open:memoOpen});return {ok:true};
 });
 expose('ieum:workspace',(event,page,value)=>{
  if(!['inbox','calendar','announcements','links','staff'].includes(page))throw new Error('지원하지 않는 작업 창입니다.');

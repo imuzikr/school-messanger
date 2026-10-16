@@ -1,0 +1,100 @@
+/* Personal, device-local sticky notes. Never part of the messenger's server sync. */
+(function(root){
+  'use strict';
+  const colors=['yellow','green','pink','blue'];
+  const blank=()=>({version:1,view:'grid',notes:[]});
+  function validate(value){
+    if(!value||value.version!==1||!['list','grid'].includes(value.view)||!Array.isArray(value.notes)||value.notes.length>200)throw Error('저장된 메모를 읽을 수 없습니다.');
+    const seen=new Set();
+    for(const n of value.notes){if(!n||typeof n.id!=='string'||!/^[-\w]{1,100}$/.test(n.id)||seen.has(n.id)||typeof n.text!=='string'||n.text.length>4000||!colors.includes(n.color)||!Number.isFinite(n.createdAt)||!Number.isFinite(n.updatedAt))throw Error('저장된 메모를 읽을 수 없습니다.');seen.add(n.id);}
+    return value;
+  }
+  class Store{
+    constructor(storage,user){if(typeof user!=='string'||!user)throw Error('메모를 사용할 계정을 확인해 주세요.');this.storage=storage;this.key='ieum-sticky-v1:'+encodeURIComponent(user);}
+    load(){const raw=this.storage.getItem(this.key);return raw===null?blank():validate(JSON.parse(raw));}
+    save(value){this.storage.setItem(this.key,JSON.stringify(validate(value)));}
+  }
+  class Board{
+    constructor({onClose}){
+      this.onClose=onClose;this.user=null;this.data=blank();this.undo=[];this.drag=null;this.failed=false;this.readError=false;
+      this.root=document.createElement('aside');this.root.id='memo-panel';this.root.className='memo-drawer';this.root.setAttribute('aria-label','개인 메모장');this.root.setAttribute('aria-hidden','true');this.root.inert=true;
+      this.root.innerHTML='<header class="memo-head"><div><span class="memo-eyebrow">나만의 작은 기록</span><h2>메모장 <small id="memo-count">0</small></h2></div><button type="button" class="icon-btn" data-memo-close aria-label="메모장 닫기">×</button></header><div class="memo-tools"><div class="memo-views" role="group" aria-label="메모 보기 방식"><button type="button" data-memo-view="list" aria-pressed="false" title="목록 보기">☰ <span>목록</span></button><button type="button" data-memo-view="grid" aria-pressed="true" title="그리드 보기">▦ <span>그리드</span></button></div><button type="button" class="btn memo-add" data-memo-add>＋ 새 메모</button></div><p class="memo-hint">손잡이를 길게 눌러 이동하거나 아래에 놓아 삭제하세요.</p><div class="memo-cards" id="memo-cards"></div><div class="memo-trash" data-memo-trash hidden>여기에 놓아 삭제</div><footer class="memo-foot"><div class="memo-undo" hidden><span>메모를 삭제했습니다.</span><button type="button" data-memo-undo>되돌리기</button></div><div class="memo-save-line"><span id="memo-save-status" role="status" aria-live="polite">이 PC에 자동 저장됩니다.</span><button type="button" data-memo-retry hidden>다시 저장</button></div><span class="memo-announcement sr-only" aria-live="polite"></span></footer>';
+      this.list=this.root.querySelector('.memo-cards');
+      this.root.addEventListener('click',e=>this.click(e));
+      this.root.addEventListener('input',e=>{const input=e.target.closest('[data-memo-text]');if(!input)return;const note=this.data.notes.find(n=>n.id===input.dataset.memoText);if(!note)return;note.text=input.value;note.updatedAt=Date.now();this.fit(input);this.persist();});
+      this.root.addEventListener('pointerdown',e=>this.pointerDown(e));
+      this.root.addEventListener('keydown',e=>this.key(e));
+      this.root.addEventListener('contextmenu',e=>{if(e.target.closest('[data-memo-grip]'))e.preventDefault();});
+      window.addEventListener('storage',e=>{if(!this.store||e.key!==this.store.key)return;if(this.failed){this.status('다른 창에서 메모가 변경되었습니다. 현재 내용을 먼저 저장해 주세요.',true);return;}try{const focus=this.focusState();this.data=this.store.load();this.render();this.restoreFocus(focus);}catch{this.status('변경된 메모를 읽지 못했습니다. 현재 메모는 유지됩니다.',true);}});
+      window.addEventListener('blur',()=>this.cancelDrag());
+      window.addEventListener('resize',()=>this.position());
+    }
+    mount(host,user){
+      if(this.user!==user){this.cancelDrag();this.user=user;this.undo=[];this.failed=false;this.readError=false;this.store=user?new Store(localStorage,user):null;this.data=blank();if(this.store){try{this.data=this.store.load();}catch{this.readError=true;}}this.render();if(!this.readError)this.status('이 PC에 자동 저장됩니다.');}
+      if(this.host!==host){this.observer?.disconnect();this.host=host;if(host){this.observer=new ResizeObserver(()=>this.position());this.observer.observe(host);}}
+      if(host&&user){if(this.root.parentElement!==document.body)document.body.append(this.root);this.position();}else this.root.remove();
+    }
+    position(){if(!this.host?.isConnected)return;const r=this.host.getBoundingClientRect(),overlay=!document.body.classList.contains('unified-main')&&innerWidth<780;Object.assign(this.root.style,{position:'fixed',left:(overlay?Math.max(r.left,r.right-330):r.right)+'px',right:'auto',top:r.top+'px',bottom:'auto',height:r.height+'px',width:Math.min(330,overlay?r.width:330)+'px'});}
+    setOpen(open){this.open=!!open;if(!open){this.cancelDrag();if(this.root.contains(document.activeElement))this.host?.querySelector('.memo-tab')?.focus({preventScroll:true});}this.root.classList.toggle('open',!!open);this.root.inert=!open;this.root.setAttribute('aria-hidden',String(!open));if(open)requestAnimationFrame(()=>this.root.querySelectorAll('textarea').forEach(el=>this.fit(el)));}
+    focusState(){const el=document.activeElement;if(!this.root.contains(el))return null;return {el,id:el.dataset.memoText,start:el.selectionStart,end:el.selectionEnd,scroll:this.list.scrollTop};}
+    restoreFocus(s){if(s?.id&&!s.el.isConnected)s.el=this.list.querySelector(`[data-memo-text="${s.id}"]`);if(s?.el?.isConnected&&this.open){if(document.activeElement!==s.el)s.el.focus({preventScroll:true});if(s.start!=null&&s.el.setSelectionRange&&(s.el.selectionStart!==s.start||s.el.selectionEnd!==s.end))s.el.setSelectionRange(s.start,s.end);this.list.scrollTop=s.scroll;}}
+    status(message,error=false){const el=this.root.querySelector('#memo-save-status');el.textContent=message;el.classList.toggle('memo-error',error);this.root.querySelector('[data-memo-retry]').hidden=!this.failed||this.readError;}
+    announce(message){this.root.querySelector('.memo-announcement').textContent=message;}
+    persist(){try{this.store.save(this.data);this.failed=false;this.status('이 PC에 저장됨');return true;}catch{this.failed=true;this.status('저장하지 못했습니다. 현재 내용을 유지하고 다시 저장해 주세요.',true);return false;}}
+    fit(input){input.style.height='auto';input.style.height=Math.min(240,Math.max(this.data.view==='grid'?116:72,input.scrollHeight))+'px';}
+    render(){
+      this.cancelDrag();this.list.dataset.view=this.data.view;this.list.replaceChildren();
+      for(const [i,note] of this.data.notes.entries()){
+        const card=document.createElement('article');card.className='sticky-note '+note.color;card.dataset.memoId=note.id;
+        card.innerHTML='<div class="sticky-note-tools"><button type="button" class="memo-grip" data-memo-grip aria-label="메모 순서 이동" title="길게 눌러 이동 · Alt+방향키로 순서 이동">⠿</button><span class="memo-order"></span><button type="button" class="memo-delete" data-memo-delete aria-label="메모 삭제" title="메모 삭제">×</button></div><textarea data-memo-text spellcheck="false" maxlength="4000" placeholder="잊기 전에 적어 두세요…"></textarea>';
+        card.querySelector('.memo-order').textContent=String(i+1).padStart(2,'0');
+        const input=card.querySelector('textarea');input.dataset.memoText=note.id;input.setAttribute('aria-label',(i+1)+'번째 메모');input.value=note.text;input.disabled=this.readError;
+        this.list.append(card);this.fit(input);
+      }
+      if(!this.data.notes.length){const empty=document.createElement('div');empty.className='memo-empty';empty.innerHTML='<span aria-hidden="true">✎</span><strong>생각이 떠오르면 가볍게</strong><p>새 메모를 눌러 첫 기록을 남겨 보세요.</p>';this.list.append(empty);}
+      this.root.querySelector('#memo-count').textContent=this.data.notes.length;
+      this.root.querySelectorAll('[data-memo-view]').forEach(el=>el.setAttribute('aria-pressed',String(el.dataset.memoView===this.data.view)));
+      this.root.querySelector('[data-memo-add]').disabled=this.readError||this.data.notes.length>=200;
+      this.root.querySelector('.memo-undo').hidden=!this.undo.length;
+      if(this.readError)this.status('저장된 메모를 읽지 못했습니다. 기존 기록을 보호하기 위해 편집을 멈췄습니다.',true);
+    }
+    click(e){
+      const button=e.target.closest('button');if(!button||!this.root.contains(button))return;
+      if(button.hasAttribute('data-memo-close')){this.onClose();return;}
+      if(this.readError)return;
+      if(button.hasAttribute('data-memo-add')){
+        if(this.data.notes.length>=200)return;
+        const now=Date.now(),note={id:crypto.randomUUID(),text:'',color:colors[this.data.notes.length%colors.length],createdAt:now,updatedAt:now};this.data.notes.unshift(note);this.persist();this.render();this.list.scrollTop=0;this.list.querySelector('textarea').focus();
+      }else if(button.dataset.memoView){const focused=this.focusState();this.data.view=button.dataset.memoView;this.persist();this.render();this.restoreFocus(focused);}
+      else if(button.hasAttribute('data-memo-delete'))this.remove(button.closest('[data-memo-id]').dataset.memoId);
+      else if(button.hasAttribute('data-memo-undo')){
+        if(this.data.notes.length>=200){this.status('메모를 하나 지운 뒤 되돌릴 수 있습니다.',true);return;}const last=this.undo.pop();if(!last)return;this.data.notes.splice(Math.min(last.index,this.data.notes.length),0,last.note);this.persist();this.render();this.list.querySelector(`[data-memo-text="${last.note.id}"]`)?.focus();this.announce('삭제한 메모를 복원했습니다.');
+      }else if(button.hasAttribute('data-memo-retry'))this.persist();
+    }
+    remove(id){const index=this.data.notes.findIndex(n=>n.id===id);if(index<0)return;this.undo.push({index,note:this.data.notes.splice(index,1)[0]});if(this.undo.length>20)this.undo.shift();this.persist();this.render();this.root.querySelector('[data-memo-undo]').focus();this.announce('메모를 삭제했습니다. 되돌리기로 복원할 수 있습니다.');}
+    move(id,target,after){const note=this.data.notes.find(n=>n.id===id);if(!note||id===target)return;this.data.notes=this.data.notes.filter(n=>n.id!==id);let index=this.data.notes.findIndex(n=>n.id===target);if(index<0){this.data.notes.push(note);return;}this.data.notes.splice(index+(after?1:0),0,note);this.persist();this.render();this.announce('메모 순서를 변경했습니다.');}
+    key(e){
+      if(e.key==='Escape'&&this.drag){e.preventDefault();e.stopPropagation();this.cancelDrag();return;}
+      const grip=e.target.closest('[data-memo-grip]');if(!grip||!e.altKey||!['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key))return;
+      e.preventDefault();e.stopPropagation();const id=grip.closest('[data-memo-id]').dataset.memoId,index=this.data.notes.findIndex(n=>n.id===id),delta=['ArrowUp','ArrowLeft'].includes(e.key)?-1:1,target=this.data.notes[index+delta];if(!target)return;this.move(id,target.id,delta>0);this.list.querySelector(`[data-memo-id="${id}"] [data-memo-grip]`)?.focus();
+    }
+    pointerDown(e){
+      const grip=e.target.closest('[data-memo-grip]');if(!grip||this.readError||e.button!==0)return;e.preventDefault();this.cancelDrag();
+      const d={id:grip.closest('[data-memo-id]').dataset.memoId,grip,pointer:e.pointerId,x:e.clientX,y:e.clientY,initialX:e.clientX,initialY:e.clientY,active:false,target:null,after:false};this.drag=d;
+      grip.setPointerCapture(e.pointerId);
+      d.move=e=>{if(e.pointerId!==d.pointer)return;d.x=e.clientX;d.y=e.clientY;if(!d.active&&Math.hypot(d.x-d.initialX,d.y-d.initialY)>8){this.cancelDrag();return;}if(d.active){e.preventDefault();this.paintDrag(d);}};
+      d.finish=e=>{if(e.pointerId!==d.pointer)return;d.x=e.clientX;d.y=e.clientY;if(d.active)this.paintDrag(d);const active=d.active,trash=d.trash,target=d.target,after=d.after;this.cancelDrag();if(!active)return;if(trash)this.remove(d.id);else if(target){this.move(d.id,target,after);this.list.querySelector(`[data-memo-id="${d.id}"] [data-memo-grip]`)?.focus();}};
+      d.cancel=()=>this.cancelDrag();d.escape=e=>{if(e.key==='Escape'){e.preventDefault();this.cancelDrag();}};
+      grip.addEventListener('pointermove',d.move);grip.addEventListener('pointerup',d.finish);grip.addEventListener('pointercancel',d.cancel);grip.addEventListener('lostpointercapture',d.cancel);document.addEventListener('keydown',d.escape);
+      d.timer=setTimeout(()=>{if(this.drag!==d)return;d.active=true;this.root.classList.add('memo-organizing');this.list.querySelector(`[data-memo-id="${d.id}"]`).classList.add('is-moving');this.root.querySelector('[data-memo-trash]').hidden=false;d.ghost=document.createElement('div');d.ghost.className='memo-drag-ghost';d.ghost.textContent=this.data.notes.find(n=>n.id===d.id)?.text.slice(0,60)||'빈 메모';document.body.append(d.ghost);this.announce('메모 이동을 시작합니다. 다른 메모 옆에 놓거나 삭제 영역에 놓으세요.');const tick=()=>{if(this.drag!==d)return;const r=this.list.getBoundingClientRect();if(d.y>=r.top&&d.y<=r.bottom){if(d.y<r.top+35)this.list.scrollTop-=7;else if(d.y>r.bottom-35)this.list.scrollTop+=7;}this.paintDrag(d);d.frame=requestAnimationFrame(tick);};tick();},420);
+    }
+    paintDrag(d){
+      d.ghost.style.left=d.x+12+'px';d.ghost.style.top=d.y+12+'px';const trash=this.root.querySelector('[data-memo-trash]'),r=trash.getBoundingClientRect();d.trash=d.x>=r.left&&d.x<=r.right&&d.y>=r.top&&d.y<=r.bottom;trash.classList.toggle('over',d.trash);
+      this.list.querySelectorAll('.drop-before,.drop-after').forEach(el=>el.classList.remove('drop-before','drop-after'));d.target=null;
+      const card=document.elementFromPoint(d.x,d.y)?.closest('[data-memo-id]');if(d.trash||!card||!this.list.contains(card)||card.dataset.memoId===d.id)return;
+      const b=card.getBoundingClientRect();d.target=card.dataset.memoId;d.after=this.data.view==='grid'?d.x>b.left+b.width/2:d.y>b.top+b.height/2;card.classList.add(d.after?'drop-after':'drop-before');
+    }
+    cancelDrag(){const d=this.drag;if(!d)return;this.drag=null;clearTimeout(d.timer);cancelAnimationFrame(d.frame);d.ghost?.remove();d.grip.removeEventListener('pointermove',d.move);d.grip.removeEventListener('pointerup',d.finish);d.grip.removeEventListener('pointercancel',d.cancel);d.grip.removeEventListener('lostpointercapture',d.cancel);document.removeEventListener('keydown',d.escape);if(d.grip.hasPointerCapture(d.pointer))d.grip.releasePointerCapture(d.pointer);this.root.classList.remove('memo-organizing');this.root.querySelector('[data-memo-trash]').hidden=true;this.root.querySelector('[data-memo-trash]').classList.remove('over');this.list.querySelectorAll('.is-moving,.drop-before,.drop-after').forEach(el=>el.classList.remove('is-moving','drop-before','drop-after'));}
+  }
+  const api={Store,Board,validate,blank};if(typeof module==='object'&&module.exports)module.exports=api;else root.IeumStickyNotes=api;
+})(typeof window==='object'?window:globalThis);

@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('ieumDesktop',Object.freeze({
   briefingShape: bounds=>ipcRenderer.invoke('ieum:briefing-shape',bounds),
   openWorkspace: (page,target)=>ipcRenderer.invoke('ieum:workspace',page,target),
   toggleToday: (open,position)=>ipcRenderer.invoke('ieum:today',!!open,position),
+  toggleMemo: open=>ipcRenderer.invoke('ieum:memo',!!open),
   resizeMain: (open,position)=>ipcRenderer.invoke('ieum:resize',!!open,position),
   openCompose: draft=>ipcRenderer.invoke('ieum:compose',draft),
   composeDraft: ()=>ipcRenderer.invoke('ieum:compose-draft'),

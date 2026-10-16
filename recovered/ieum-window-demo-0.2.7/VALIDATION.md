@@ -344,3 +344,11 @@ Staff information opens in a singleton, resizable native window, up to 1400×860
 - Authenticated HTTPS tests verify isolated request visibility, server-derived actors, concurrent reply/approval rejection, rollback of both assignments plus history, manager targets, stale request invalidation and history after server restart.
 - Active Electron demo covers calendar entry, before/after comparison, reason, request/accept/approve, role-specific actions, unchanged preapproval calendars, both updated targets, audit trail, reload and cancellation.
 - Three separately authenticated Electron LAN clients exercise teacher request → recipient acceptance → manager approval, live SSE status changes on all three clients and each user's synchronized calendar. Installed clients have no demo role selector.
+
+## 0.2.77 — personal sliding sticky notes
+
+- Storage tests verify per-account namespaces, note/view persistence, malformed and duplicate records, size bounds and write errors without overwriting the original stored data.
+- Active Electron test exercises the main-only index tab, native slide and closed hit region, three local notes, list/grid, genuine long-press reordering, trash drop, Escape, Alt+arrow ordering, delete/undo and reload.
+- Forced local-storage failure retains the draft and retries successfully. An incoming update from another workspace preserves the focused note, selection and text. Existing calendar switching and native minimal/restore are verified.
+- Authenticated LAN test switches between two real accounts, checks separate notes and view preferences, hides notes on logout, restores the first account and confirms note text never appears in server bootstrap data.
+- Existing briefing shape and minimal-window flows remain covered; GUI flows run sequentially to avoid sharing desktop focus during pointer interactions.
