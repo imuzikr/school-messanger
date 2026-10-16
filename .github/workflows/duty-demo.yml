@@ -1,7 +1,7 @@
 name: Verify and package duty demo
 on:
   push:
-    branches: [codex/duty-demo-0.2.70]
+    branches: [codex/duty-demo-0.2.71]
 permissions:
   contents: read
 defaults:
@@ -28,6 +28,7 @@ jobs:
           node --check js/app.js
           node --check desktop/main.cjs
           npm test
+          xvfb-run -a node tests/electron-calendar-presentation.cjs
           xvfb-run -a node tests/electron-calendar-duty-drag.cjs
           xvfb-run -a node tests/electron-title-options.cjs
           xvfb-run -a node tests/electron-ceremonies.cjs
@@ -69,7 +70,9 @@ jobs:
           npm install --no-save --package-lock=false playwright@1.56.1 pngjs@7.0.0
           python -m pip install openpyxl==3.1.5
           $env:IEUM_TEST_PYTHON="python"
-          $env:IEUM_TEST_EXECUTABLE=(Resolve-Path "release/Ieum-Deadline-Demo-0.2.70-win-x64/Ieum-Deadline-Demo.exe").Path
+          $env:IEUM_TEST_EXECUTABLE=(Resolve-Path "release/Ieum-Deadline-Demo-0.2.71-win-x64/Ieum-Deadline-Demo.exe").Path
+          node tests/electron-calendar-presentation.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node tests/electron-calendar-duty-drag.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node tests/electron-title-options.cjs
@@ -84,14 +87,14 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node tests/electron-briefing.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -c "from zipfile import ZipFile; z=ZipFile('release/Ieum-Deadline-Demo-0.2.70-win-x64.zip'); assert z.testzip() is None; print('Windows ZIP CRC PASS')"
+          python -c "from zipfile import ZipFile; z=ZipFile('release/Ieum-Deadline-Demo-0.2.71-win-x64.zip'); assert z.testzip() is None; print('Windows ZIP CRC PASS')"
       - uses: actions/upload-artifact@v4
         with:
-          name: Ieum-Demo-0.2.70
-          path: recovered/ieum-window-demo-0.2.7/release/Ieum-Deadline-Demo-0.2.70-win-x64.zip
+          name: Ieum-Demo-0.2.71
+          path: recovered/ieum-window-demo-0.2.7/release/Ieum-Deadline-Demo-0.2.71-win-x64.zip
       - name: Publish tested portable demo
         env:
           GH_TOKEN: ${{ github.token }}
         shell: pwsh
         run: |
-          gh release create v0.2.70 release/Ieum-Deadline-Demo-0.2.70-win-x64.zip release/SHA256SUMS.txt --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "이음 Windows 데모 0.2.70" --notes "메시지에서 확정한 제목을 자동 등록 일정과 마감에 그대로 반영합니다. 제목 미입력 시 기타, 버튼 선택 시 선택 문구, 직접 입력 시 입력 제목을 사용합니다. 기존 자동 일정은 날짜·시간·완료 상태를 유지하며 제목만 보정합니다. 전체 압축 해제 후 Ieum-Deadline-Demo.exe를 실행하세요."
+          gh release create v0.2.71 release/Ieum-Deadline-Demo-0.2.71-win-x64.zip release/SHA256SUMS.txt --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "이음 Windows 데모 0.2.71" --notes "캘린더의 굵은 크기 조절 표시를 제거하고 겹치는 일정·마감은 나란히 배치해 점선으로 구분합니다. 오늘 일정 패널에 학사일정 영역을 추가하고 버튼을 내 일정 등록으로 수정했습니다. 전체 압축 해제 후 Ieum-Deadline-Demo.exe를 실행하세요."

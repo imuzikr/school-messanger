@@ -105,9 +105,7 @@ body.today-panel-window{background:transparent!important;overflow:hidden}
 [data-calendar-timeline] .event.movable,[data-calendar-timeline] .timeline-point{cursor:grab;touch-action:none;user-select:none}
 .event-resize{position:absolute;left:0;right:0;height:10px;z-index:3;cursor:ns-resize;touch-action:none}
 .event-resize.top{top:0}.event-resize.bottom{bottom:0}
-.event-resize:after{content:"";position:absolute;left:calc(50% - 12px);width:24px;height:3px;border-radius:2px;background:currentColor;opacity:.45}
-.event-resize.top:after{top:2px}.event-resize.bottom:after{bottom:2px}
-.event.movable:hover .event-resize:after{opacity:.7}
+
 
 [data-calendar-timeline] .event{min-height:14px}
 [data-calendar-timeline] .event.short{padding:0 8px}
@@ -333,3 +331,8 @@ body.minimal-main .minimal-bar{display:flex;align-items:center;width:100vw;heigh
 .editor-image-handle.nw{left:-6px;top:-6px;cursor:nwse-resize;}.editor-image-handle.ne{right:-6px;top:-6px;cursor:nesw-resize;}
 .editor-image-handle.sw{left:-6px;bottom:-6px;cursor:nesw-resize;}.editor-image-handle.se{right:-6px;bottom:-6px;cursor:nwse-resize;}
 .editor-image-handle:focus-visible{outline:2px solid var(--green);outline-offset:2px;}
+
+[data-calendar-timeline] .timeline-divider{border-right:1px dashed #91a58e}
+.agenda-academic{padding:12px 18px;border-bottom:1px solid var(--line);flex-shrink:0;max-height:110px;overflow:auto;font-size:11px}
+.agenda-academic h3{font-size:11px;color:var(--muted);margin-bottom:7px}
+.agenda-academic p{margin:4px 0;line-height:1.5;overflow-wrap:anywhere}
