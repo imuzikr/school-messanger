@@ -9,7 +9,7 @@ app.setName(role==='demo'?'IeumDemo':role==='server'?'IeumServer':'IeumClient');
 if(!app.isPackaged&&process.env.IEUM_TEST_DATA_DIR)app.setPath('userData',process.env.IEUM_TEST_DATA_DIR);
 const windows=new Set();
 let todaySide='left',todayAnimation=null,todayOpen=false,memoOpen=false,minimalState=null,briefingBounds=null;
-const TODAY_WIDTH=330;
+const TODAY_WIDTH=330, MEMO_TAB_WIDTH=12;
 const connectionPath=()=>path.join(app.getPath('userData'),'connection.json');
 const configPath=()=>path.join(app.getPath('userData'),'server-config.json');
 function readJSON(file){try{return JSON.parse(fs.readFileSync(file,'utf8'));}catch{return null;}}
@@ -79,7 +79,7 @@ function setMinimalMain(open){
   if(!minimalState)return {minimal:false};
   const saved=minimalState,current=w.getBounds(),bounds={...saved.bounds};
   if(current.x!==saved.initial.x||current.y!==saved.initial.y){
-   const area=screen.getDisplayMatching(current).workArea,orgWidth=bounds.width-TODAY_WIDTH;
+   const area=screen.getDisplayMatching(current).workArea,orgWidth=bounds.width-TODAY_WIDTH-MEMO_TAB_WIDTH;
    const orgX=Math.max(area.x,Math.min(current.x,area.x+Math.max(0,area.width-orgWidth)));
    bounds.x=orgX-(todaySide==='left'?TODAY_WIDTH:0);bounds.y=Math.max(area.y,Math.min(current.y,area.y+Math.max(0,area.height-bounds.height)));
   }
@@ -110,7 +110,7 @@ else app.whenReady().then(async()=>{
  connection=role==='demo'?null:readJSON(connectionPath());if(connection){try{connection=validateConnection(connection)}catch{connection=null}}
  Menu.setApplicationMenu(null);
  const area=screen.getPrimaryDisplay().workArea,host=role!=='server';
- mainWindow=createWindow(role==='server'?'ieum://app/desktop/server.html':'ieum://app/index.html',host?{mainHost:true,transparent:true,backgroundColor:'#00000000',hasShadow:false,width:430+TODAY_WIDTH,height:Math.min(830,area.height),minWidth:390+TODAY_WIDTH,x:area.x+Math.round((area.width-430)/2)-TODAY_WIDTH,y:area.y+Math.max(0,Math.round((area.height-830)/2))}:{width:760,height:760,minWidth:650});
+ mainWindow=createWindow(role==='server'?'ieum://app/desktop/server.html':'ieum://app/index.html',host?{mainHost:true,transparent:true,backgroundColor:'#00000000',hasShadow:false,width:430+TODAY_WIDTH+MEMO_TAB_WIDTH,height:Math.min(830,area.height),minWidth:390+TODAY_WIDTH+MEMO_TAB_WIDTH,x:area.x+Math.round((area.width-430)/2)-TODAY_WIDTH,y:area.y+Math.max(0,Math.round((area.height-830)/2))}:{width:760,height:760,minWidth:650});
  if(host){mainWindow.on('resize',()=>applyMainShape(todayOpen));applyMainShape(false);}
  // One native window owns both views: focus, move, minimize and restore are atomic.
  mainWindow.on('close',e=>{if(!quitting){e.preventDefault();mainWindow.hide();}});
@@ -130,7 +130,8 @@ function applyMainShape(open){
  if(!mainWindow||mainWindow.isDestroyed()||role==='server')return;
  const b=mainWindow.getContentBounds();
  // Closed reserve is absent from the native hit/paint region, so it cannot block another app.
- const region=minimalState?[{x:0,y:0,width:b.width,height:b.height}]:briefingBounds?[briefingBounds]:(open||memoOpen)?[{x:0,y:0,width:b.width,height:b.height}]:[{x:todaySide==='left'?TODAY_WIDTH:0,y:0,width:b.width-TODAY_WIDTH,height:b.height}];
+ const orgX=todaySide==='left'?TODAY_WIDTH:0,orgWidth=b.width-TODAY_WIDTH-MEMO_TAB_WIDTH,tab={x:orgX+orgWidth,y:29,width:MEMO_TAB_WIDTH,height:49};
+ const region=minimalState?[{x:0,y:0,width:b.width,height:b.height}]:briefingBounds?[briefingBounds]:(open||memoOpen)?[{x:0,y:0,width:b.width-MEMO_TAB_WIDTH,height:b.height},...(todaySide==='left'?[tab]:[])]:[{x:orgX,y:0,width:orgWidth,height:b.height},tab];
  mainWindow.setShape(region);return region;
 }
 expose('ieum:briefing-shape',(event,bounds)=>{
@@ -175,10 +176,10 @@ expose('ieum:memo',(event,open)=>{
  if(minimalState)return {ok:true};
  const wasOpen=memoOpen;clearTimeout(todayAnimation);
  if(open){
-  const b=mainWindow.getBounds(),org={x:b.x+(todaySide==='left'?TODAY_WIDTH:0),y:b.y,width:b.width-TODAY_WIDTH,height:b.height},area=screen.getDisplayMatching(org).workArea;
+  const b=mainWindow.getBounds(),org={x:b.x+(todaySide==='left'?TODAY_WIDTH:0),y:b.y,width:b.width-TODAY_WIDTH-MEMO_TAB_WIDTH,height:b.height},area=screen.getDisplayMatching(org).workArea;
   const x=Math.max(area.x,Math.min(org.x,area.x+area.width-b.width));if(x!==b.x)mainWindow.setBounds({...b,x},false);todaySide='right';
   todayOpen=false;memoOpen=true;applyMainShape(true);emit({kind:'today-panel',open:false,side:todaySide});
- }else{memoOpen=false;if(wasOpen)todayAnimation=setTimeout(()=>applyMainShape(todayOpen),480);else applyMainShape(todayOpen);}
+ }else{memoOpen=false;if(wasOpen)todayAnimation=setTimeout(()=>applyMainShape(todayOpen),560);else applyMainShape(todayOpen);}
  emit({kind:'memo-panel',open:memoOpen});return {ok:true};
 });
 expose('ieum:workspace',(event,page,value)=>{

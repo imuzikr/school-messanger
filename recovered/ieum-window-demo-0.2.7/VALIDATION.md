@@ -352,3 +352,10 @@ Staff information opens in a singleton, resizable native window, up to 1400×860
 - Forced local-storage failure retains the draft and retries successfully. An incoming update from another workspace preserves the focused note, selection and text. Existing calendar switching and native minimal/restore are verified.
 - Authenticated LAN test switches between two real accounts, checks separate notes and view preferences, hides notes on logout, restores the first account and confirms note text never appears in server bootstrap data.
 - Existing briefing shape and minimal-window flows remain covered; GUI flows run sequentially to avoid sharing desktop focus during pointer interactions.
+
+## 0.2.78 — expanded sticky editor and homeroom feed
+
+- The protruding tab has a separate 12px native hit region; the main messenger retains its original content width. Briefing clipping and the minimal bar remain independent of this region.
+- New notes open in a large colored editor. Minimize, outside-click collapse, per-card expand and immediate grip dragging preserve content and order. The drawer establishes its closed layout before animating and uses a single eased transform.
+- Recipient-scoped homeroom selection tests cover explicit categorization, chronological accumulation, deduplication, reservations, recall/trash exclusion and typed-title priority.
+- Two authenticated Electron clients plus a second sending account verify composer selection, recipient-only live accumulation, normal-message exclusion, category validation, source navigation, recall and persistence after server restart. The demo flow is also tested against the packaged Windows application.

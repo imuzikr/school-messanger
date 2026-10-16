@@ -126,13 +126,13 @@ body.today-panel-window{background:transparent!important;overflow:hidden}
 /* Calendar and organization share one shaped native window, with a transparent reserved side. */
 body.unified-main{--organization-left:330px;background:transparent!important;overflow:hidden}
 body.unified-main[data-host-side="right"]{--organization-left:0px}
-.unified-main.installed.compact-mode .desktop-frame{position:relative;width:calc(100vw - 330px);height:100vh;margin:0 0 0 var(--organization-left);overflow:visible;background:transparent}
+.unified-main.installed.compact-mode .desktop-frame{position:relative;width:calc(100vw - 342px);height:100vh;margin:0 0 0 var(--organization-left);overflow:visible;background:transparent}
 .unified-main .desktop-frame>.shell{background:var(--surface,#fff);box-shadow:0 0 18px #193e3618}
 .unified-main .today-drawer{box-shadow:none}
 .unified-main .agenda-header{-webkit-app-region:drag}
 .unified-main .agenda-header button{-webkit-app-region:no-drag}
-.unified-main .login-page{width:calc(100vw - 330px);margin-left:var(--organization-left);height:100vh}
-.unified-main:not(.today-expanded) .overlay{left:var(--organization-left);right:auto;width:calc(100vw - 330px)}
+.unified-main .login-page{width:calc(100vw - 342px);margin-left:var(--organization-left);height:100vh}
+.unified-main:not(.today-expanded) .overlay{left:var(--organization-left);right:auto;width:calc(100vw - 342px)}
 
 /* Personal calendar entries use color and a text badge, so color is not the only cue. */
 .event.private-schedule,.timeline-card.private-schedule{background:#fff3cf;border-left:4px solid #d39a26;color:#604814}
@@ -149,7 +149,7 @@ body.unified-main[data-host-side="right"]{--organization-left:0px}
 /* A transparent native host must not blur the screen behind the briefing. */
 .overlay.briefing-overlay{background:transparent;backdrop-filter:none}
 .briefing-overlay .briefing-modal{box-shadow:none;border:1px solid var(--line);animation:none}
-.unified-main .overlay.briefing-overlay{left:var(--organization-left);right:auto;width:calc(100vw - 330px)}
+.unified-main .overlay.briefing-overlay{left:var(--organization-left);right:auto;width:calc(100vw - 342px)}
 .unified-main:has(.briefing-overlay) .desktop-frame>.shell{box-shadow:none}
 
 .agenda-deadlines{max-height:230px;overflow:auto;flex-shrink:0}
@@ -389,3 +389,22 @@ body:not(.unified-main) .memo-drawer{box-shadow:var(--shadow)}
 
 body.minimal-main .memo-drawer{display:none!important}
 .unified-main:has(.briefing-overlay) .memo-drawer{visibility:hidden!important}
+
+/* The tab projects beyond the main frame into its own native hit region. */
+.compact-header:has(.memo-tab){padding-right:36px}
+.compact-header .memo-tab{right:-12px}
+.memo-drawer{opacity:1;transform:translate3d(-100%,0,0);transition:transform 480ms cubic-bezier(.16,1,.3,1),visibility 0s 480ms;will-change:transform}
+.memo-drawer.open{transform:translate3d(0,0,0)}
+.memo-expand{padding:0;border:0;background:transparent;color:#847957;font-size:17px;width:23px;height:25px;border-radius:5px;cursor:pointer;margin-left:auto}
+.memo-expand:hover{background:#84744515}.memo-expand+.memo-delete{margin-left:0}
+.memo-editor{position:fixed;z-index:85;display:flex;flex-direction:column;border:1px solid #cbbb86;border-radius:7px 7px 20px 7px;background:#fff0bd;box-shadow:0 18px 60px #29372a30;overflow:hidden;animation:memoEditorIn 180ms ease-out;color:#514d3e}
+.memo-editor.green{background:#e8efcf;border-color:#c2d09d}.memo-editor.pink{background:#f9e3dd;border-color:#e0bfb4}.memo-editor.blue{background:#e0edf2;border-color:#b4cdd9}
+.memo-editor[hidden]{display:none!important}.memo-editor-head{display:flex;align-items:center;justify-content:space-between;padding:12px 17px;border-bottom:1px solid #6b684018;font-size:12px;font-weight:600}.memo-editor-head button{border:0;background:transparent;width:30px;height:30px;font-size:22px;color:#756a49;cursor:pointer}
+.memo-editor textarea{flex:1;min-height:0;width:100%;resize:none;padding:20px;border:0;background:transparent;outline:none;font:inherit;font-size:16px;line-height:1.9;color:inherit;box-sizing:border-box}
+.memo-editor-foot{display:flex;gap:8px;align-items:center;justify-content:space-between;padding:10px 18px;font-size:11px;color:#6c715d}.memo-editor-foot button{border:0;background:transparent;color:var(--green);cursor:pointer;font:inherit;text-decoration:underline}
+body.minimal-main .memo-editor,.unified-main:has(.briefing-overlay) .memo-editor{display:none!important}
+@keyframes memoEditorIn{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.memo-drawer{transition:none}.memo-editor{animation:none}}
+.desktop-frame>.shell:has(.memo-tab){overflow:visible}
+.compact-body{overflow:hidden}
+.compact-header .memo-tab{border-right:1px solid #d5be74;border-left:0;border-radius:0 9px 9px 0;box-shadow:2px 2px 5px #69592012}
