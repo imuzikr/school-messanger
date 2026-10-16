@@ -99,6 +99,8 @@
   const native = desktopDemo ? null : windowApi;
   const params = new URLSearchParams(location.search);
   const requestedWorkspace = params.get("workspace");
+  const requestedStaff=requestedWorkspace==="staff";
+  let staffStarted=false;
   const requestedChat = params.get("chat");
   const requestedToday=params.get("todayPanel")==="1";
   const requestedCompose=params.get("compose")==="1";
@@ -356,6 +358,7 @@
       document.body.classList.toggle("minimal-main",state.minimal);
     }
     if(!state.user){if(windowApi?.mainHost&&state.minimal)windowApi.windowAction("restore-main");if(windowApi?.mainHost&&state.showToday){state.showToday=false;windowApi.toggleToday(false,state.settings.calendarPosition);}login();return;}
+    if(requestedStaff){document.body.classList.add("staff-window");document.body.classList.remove("compact-mode");$("#app").innerHTML="";if(!staffStarted){staffStarted=true;staffImportForm();}return;}
     if(requestedCompose){
       document.body.classList.add("compose-window");document.body.classList.remove("compact-mode");
       $("#app").innerHTML='<div class="compose-window-background"></div>';
@@ -457,7 +460,7 @@
         )
         .join(
           "",
-        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.74</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
+        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.75</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
     );
   }
   const groupLabel=p=>String(p[state.group]||"").trim()||({grade:"학년 미지정",otherGroup:"기타 미지정"}[state.group]||"미지정");
@@ -927,7 +930,8 @@
       el?.focus();
     });
   }
-  function closeModal() {
+  function closeModal(keepStaffWindow=false) {
+    if(requestedStaff&&!keepStaffWindow&&windowApi){windowApi.windowAction("close");return;}
     if(requestedCompose&&composeDraft&&!mailSending&&windowApi){windowApi?.windowAction("close");return;}
     if (modalCleanup) {
       modalCleanup();
@@ -1742,6 +1746,7 @@
     submit.onclick=async()=>{if(!preview||preview.errors.length)return;submit.disabled=true;input.disabled=true;try{await dutyOperation('duty.import',{kind,rows},()=>{const imported=IeumDuties.imports(state.data.events,preview.events),ids=new Set(imported.map(e=>e.id));state.data.events=state.data.events.filter(e=>!ids.has(e.id)).concat(imported);});closeModal();render();toast(`${t.label} ${preview.events.length}일을 등록했어요`);}catch(error){if(status.isConnected){status.textContent=error.message;submit.disabled=false;input.disabled=false;}}};
   }
   function staffImportForm(){
+    if(windowApi?.openWorkspace&&!requestedStaff){closeModal();windowApi.openWorkspace("staff").catch(error=>toast("교직원 정보 창을 열지 못했어요",error.message));return;}
     const allowed=!native||state.profile?.admin,columns=IeumStaffDirectory.headers;let editing=[{values:columns.map(()=>''),id:null}],preview=null,epoch=0,busy=false,timer=null,active=true;
     openModal('교직원 정보',`<div class="staff-import"><p class="muted">엑셀을 업로드하거나 행을 추가해 직접 입력하세요. 이름과 부서는 필수입니다. 학년·반은 담임으로 연결합니다.</p><div class="staff-editor-tools"><button class="btn" id="staff-choose" type="button" ${allowed?'':'disabled'}>엑셀 파일 선택</button><button class="btn" id="staff-add-row" type="button" ${allowed?'':'disabled'}>행 추가</button><button class="btn" id="staff-load" type="button" ${allowed?'':'disabled'}>기존 정보 불러오기</button><button class="btn" id="staff-check" type="button" ${allowed?'':'disabled'}>내용 확인</button><span id="staff-filename"></span><input type="file" accept=".xlsx" id="staff-file" hidden></div><p id="staff-status" role="status">표에 내용을 입력해 주세요.</p><div id="staff-preview" class="staff-table-scroll"></div><div id="staff-errors" role="alert"></div><p id="staff-summary" class="muted"></p><small class="muted">기존 행의 빈 값은 해당 정보를 지웁니다. 행을 제외하거나 파일에 넣지 않은 교직원은 삭제하지 않습니다. 여러 업무는 쉼표나 줄바꿈으로 구분하세요.</small>${allowed?'':'<p>관리자만 교직원 정보를 변경할 수 있습니다.</p>'}</div>`,button('close-modal','닫기')+'<button class="btn btn-primary" id="staff-apply" disabled>저장</button>','wide staff-editor-modal');
     const input=$('#staff-file'),status=$('#staff-status'),area=$('#staff-preview'),errorLabel=$('#staff-errors'),summary=$('#staff-summary'),submit=$('#staff-apply');
@@ -1768,8 +1773,9 @@
       let result;
       if(native){await network.queue;result=await native.request('/admin/staff-import',{...values,revision:preview.revision});if(result.error)throw Error(result.error);await network.refresh();}
       else{const current=IeumStaffDirectory.plan(values.rows,state.data.people,{classTeachers:state.data.classTeachers,dutySettings:dutyConfig()},values.identities);if(current.errors.length)throw Error(current.errors.join('\n'));const ids=Object.fromEntries(current.entries.filter(e=>e.isNew).map(e=>[e.id,uid('staff-import')])),resolved=IeumStaffDirectory.resolve(current,ids),previous=JSON.parse(JSON.stringify(state.data)),map=new Map(resolved.entries.map(e=>[e.id,{...e,status:e.status||'offline'}]));state.data.people=state.data.people.map(p=>map.get(p.id)||p).concat([...map.values()].filter(p=>!state.data.people.some(old=>old.id===p.id)));state.data.staffDirectoryPeople=[...(state.data.staffDirectoryPeople||[]).filter(p=>!map.has(p.id)),...map.values()];state.data.departments=[...new Set(state.data.people.map(p=>p.department))];state.data.classTeachers=resolved.classTeachers;state.data.dutySettings=resolved.dutySettings;state.data.events.filter(e=>e.duty).forEach(e=>e.targets=[...new Set([...resolved.dutySettings.managers[e.duty.kind],...e.duty.assigned])]);if(!(await save())){state.data=previous;throw Error('저장하지 못했습니다.');}result={updated:resolved.entries.length,accounts:[]};}
-      closeModal();render();
+      closeModal(true);render();
       if(result.accounts.length){const accounts=result.accounts;openModal('교직원 등록 완료',`<p>${result.updated}명의 정보를 반영했습니다.</p><p>신규 계정 ${accounts.length}개의 임시 로그인 정보를 다운로드해 해당 교직원에게 전달해 주세요. 첫 로그인 때 비밀번호를 변경합니다.</p><p class="muted">이 화면을 닫으면 임시 비밀번호는 다시 표시되지 않습니다. 필요하면 관리자에서 재발급할 수 있습니다.</p>`,'<button class="btn" data-action="close-modal">닫기</button><button class="btn btn-primary" id="staff-credentials">로그인 정보 다운로드</button>');$('#staff-credentials').onclick=()=>{const cell=value=>'"'+String(value).replace(/^[=+@\-\t\r]/,"'$&").replace(/"/g,'""')+'"',csv='\uFEFF'+[['이름','아이디','임시 비밀번호'],...accounts.map(a=>[a.name,a.username,a.password])].map(row=>row.map(cell).join(',')).join('\r\n'),url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download='교직원-임시-로그인.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};}
+      else if(requestedStaff)windowApi.windowAction('close');
       else toast('교직원 정보를 반영했어요',native?'':'신규 교직원은 데모 목록에 추가했습니다.');
     }catch(error){if(active){status.textContent=error.message;busy=false;$$('input,textarea,button',$('.staff-import')).forEach(el=>el.disabled=!allowed);submit.disabled=false;}}};
   }

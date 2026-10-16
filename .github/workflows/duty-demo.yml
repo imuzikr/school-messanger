@@ -1,7 +1,7 @@
 name: Verify and package duty demo
 on:
   push:
-    branches: [codex/duty-demo-0.2.74]
+    branches: [codex/duty-demo-0.2.75]
 permissions:
   contents: read
 defaults:
@@ -73,7 +73,7 @@ jobs:
           npm install --no-save --package-lock=false playwright@1.56.1 pngjs@7.0.0
           python -m pip install openpyxl==3.1.5
           $env:IEUM_TEST_PYTHON="python"
-          $env:IEUM_TEST_EXECUTABLE=(Resolve-Path "release/Ieum-Deadline-Demo-0.2.74-win-x64/Ieum-Deadline-Demo.exe").Path
+          $env:IEUM_TEST_EXECUTABLE=(Resolve-Path "release/Ieum-Deadline-Demo-0.2.75-win-x64/Ieum-Deadline-Demo.exe").Path
           node tests/electron-duty-manager-filter.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node tests/electron-staff-directory.cjs
@@ -94,14 +94,14 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node tests/electron-briefing.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -c "from zipfile import ZipFile; z=ZipFile('release/Ieum-Deadline-Demo-0.2.74-win-x64.zip'); assert z.testzip() is None; print('Windows ZIP CRC PASS')"
+          python -c "from zipfile import ZipFile; z=ZipFile('release/Ieum-Deadline-Demo-0.2.75-win-x64.zip'); assert z.testzip() is None; print('Windows ZIP CRC PASS')"
       - uses: actions/upload-artifact@v4
         with:
-          name: Ieum-Demo-0.2.74
-          path: recovered/ieum-window-demo-0.2.7/release/Ieum-Deadline-Demo-0.2.74-win-x64.zip
+          name: Ieum-Demo-0.2.75
+          path: recovered/ieum-window-demo-0.2.7/release/Ieum-Deadline-Demo-0.2.75-win-x64.zip
       - name: Publish tested portable demo
         env:
           GH_TOKEN: ${{ github.token }}
         shell: pwsh
         run: |
-          gh release create v0.2.74 release/Ieum-Deadline-Demo-0.2.74-win-x64.zip release/SHA256SUMS.txt --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "이음 Windows 데모 0.2.74" --notes "교직원 정보에 보직을 포함한 9열 편집 표, 수동 행 추가, 기존 정보 불러오기, 업로드 후 직접 수정을 추가했습니다. 별도 반·담임 설정 항목을 제거하고 부서별 담당자 카드를 교무부 2개, 생활 안전부 2개, 학년부 1개로 구분합니다. 전체 압축 해제 후 Ieum-Deadline-Demo.exe를 실행하세요."
+          gh release create v0.2.75 release/Ieum-Deadline-Demo-0.2.75-win-x64.zip release/SHA256SUMS.txt --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "이음 Windows 데모 0.2.75" --notes "교직원 정보를 메신저 밖의 독립된 큰 창에서 편집할 수 있습니다. 이름부터 동아리까지 9개 열과 행 관리가 한 화면에 표시되며, 창 이동·크기 조절과 작은 화면의 가로 스크롤을 지원합니다. 엑셀 업로드·수동 수정·저장 및 실제 서버 신규 계정 생성 검증을 통과했습니다. 전체 압축 해제 후 Ieum-Deadline-Demo.exe를 실행하세요."

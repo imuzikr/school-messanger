@@ -333,3 +333,7 @@ Linux Electron 실제 마우스 검사 tests/electron-calendar-edit.cjs: 일간/
 0.2.73: 기타 업무 담당자 화면을 메신저에서 업무 일정을 등록·관리할 사람을 고르는 화면으로 명확히 했습니다. 상단 부서 선택은 안전 지도 배정 구분 설정 대신 사람 목록 필터로 동작하며 세 업무 모두 해당 부서의 활성 교직원만 표시합니다. 부서를 전환해도 숨겨진 기존 선택을 유지하고 업무별 선택한 담당자를 별도로 보여줍니다. 저장 시 부서 필터와 독립적으로 전체 선택을 반영하고 안전 지도 구분 부서는 유지합니다. Electron에서 세 목록 필터링, 부서 간 복수 선택·저장·재로딩·선택 해제, 안전 지도 구분 부서 보존 및 기존 엑셀 등록·배정 교사 교환 흐름을 확인했습니다. Windows 패키지에서도 동일 필터·선택 보존 흐름을 검증한 뒤 배포합니다.
 
 0.2.74: 교직원 정보 모달을 이름/보직/학년/반/내선번호/부서/업무/특별실/동아리 9열의 직접 편집 표로 변경했습니다. 빈 틀, 파일 업로드 후 셀 수정, 수동 행 추가, 기존 명단 불러오기와 행 제외를 지원합니다. 보직은 계정 권한과 독립적으로 저장하며, 기존 행의 이름을 바꿔도 식별자·로그인 정보는 유지합니다. 변경하지 않은 담임/담당자 연결은 보존하고 이전 8열 엑셀도 읽습니다. 별도 반·담임 설정 행을 제거했습니다. 담당자 카드는 교무부 일과표·보강/시간표 2개, 생활 안전부 안전 지도·중식 지도 2개, 학년부 자율학습 지도 1개만 표시하며 부서별 사람 필터와 기존 선택을 유지합니다. 일과표 담당자의 실제 일과표 변경·안내 발송 권한도 연결했습니다. Node 테스트 61개 및 Electron에서 헤더/빈 틀, 파일 후 수정, 파일 없는 신규 입력, 기존 명단 이름 수정 시 중복 방지, 보직 보존, 부서별 카드·선택 저장, 기존 업무 엑셀/교사 교환, 설치형 HTTPS 신규 등록·CSV·첫 로그인을 검증했습니다. Windows 패키지에서도 동일 편집·카드 흐름을 확인한 뒤 배포합니다.
+
+## 0.2.75 — independent staff editor
+
+Staff information opens in a singleton, resizable native window, up to 1400×860 and clamped to the display work area. All nine staff headers and row actions fit at normal desktop sizes. Smaller windows retain a horizontal scroll fallback. The header supports native dragging; closing or saving leaves the messenger size unchanged. XLSX, manual rows, saved identity, LAN imports and credential download remain covered by active Electron tests.

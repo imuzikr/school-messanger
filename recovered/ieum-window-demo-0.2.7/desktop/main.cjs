@@ -170,11 +170,13 @@ expose('ieum:today',(event,open,position)=>{
  return {ok:true};
 });
 expose('ieum:workspace',(event,page,value)=>{
- if(!['inbox','calendar','announcements','links'].includes(page))throw new Error('지원하지 않는 작업 창입니다.');
+ if(!['inbox','calendar','announcements','links','staff'].includes(page))throw new Error('지원하지 않는 작업 창입니다.');
  const target=sourceTarget(value);
+ if(page==='staff'&&target)throw new Error('교직원 정보 창에서는 항목 이동을 지원하지 않습니다.');
  if(target&&(target.kind==='message'||(target.kind==='mail'?page!=='inbox':page!=='calendar')))throw new Error('이 항목을 열 수 없는 작업 창입니다.');
  const previous=[...windows].find(w=>!w.isDestroyed()&&w.ieumPage===page);
  if(previous){previous.show();previous.focus();if(target)previous.webContents.send('ieum:update',{kind:'briefing-target',target});return {ok:true};}
+ if(page==='staff'){const area=screen.getDisplayMatching(BrowserWindow.fromWebContents(event.sender).getBounds()).workArea;const width=Math.min(1400,area.width),height=Math.min(860,area.height);const w=createWindow('ieum://app/index.html?workspace=staff',{width,height,minWidth:Math.min(760,width),minHeight:Math.min(600,height),x:area.x+Math.round((area.width-width)/2),y:area.y+Math.round((area.height-height)/2)});w.ieumPage=page;return {ok:true};}
  const w=createWindow('ieum://app/index.html?workspace='+page+targetQuery(target),{width:page==='calendar'?1180:1080,height:800,minWidth:page==='inbox'?1000:700});w.ieumPage=page;return {ok:true};
 });
 expose('ieum:compose',(event,draft={})=>{if(!draft||typeof draft!=='object'||JSON.stringify(draft).length>4*1024*1024)throw new Error('작성 내용이 너무 큽니다.');const w=createWindow('ieum://app/index.html?compose=1',{width:720,height:820,minWidth:620});w.ieumComposeDraft=draft;return {ok:true};});

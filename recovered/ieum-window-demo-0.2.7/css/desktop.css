@@ -338,3 +338,10 @@ body.minimal-main .minimal-bar{display:flex;align-items:center;width:100vw;heigh
 .agenda-academic p{margin:4px 0;line-height:1.5;overflow-wrap:anywhere}
 
 .duty-manager-list label[hidden]{display:none}.duty-selected-managers{font-size:11px;color:var(--muted);line-height:1.6;margin:10px 0 0;overflow-wrap:anywhere}
+
+.staff-window .overlay{padding:0;background:var(--bg,#f6f8f4)}
+.staff-window .modal{width:100%;max-width:none;height:100vh;max-height:100vh;border:1px solid var(--line);border-radius:0;box-shadow:none;animation:none}
+.staff-window .modal-body{flex:1;overflow:auto}
+.staff-window .staff-table-scroll{max-height:calc(100vh - 340px)}
+.staff-window .modal-head{-webkit-app-region:drag;user-select:none}
+.staff-window .modal-head button{-webkit-app-region:no-drag}
