@@ -2,11 +2,13 @@
 (function(root){
   const teachers=typeof module==='object'&&module.exports?require('./announcements.js'):root.IeumAnnouncements;
   const types={safety:{label:'안전 지도',tag:'안전 지도',start:'07:00',end:'08:00'},lunch:{label:'중식 지도',tag:'중식 지도',start:'12:00',end:'13:00'},study:{label:'자율학습 지도',tag:'자율학습',start:'18:00',end:'22:00'}};
+  const managementTypes={timetable:{label:'일과표'},lessons:{label:'보강/시간표'},safety:types.safety,lunch:types.lunch,study:types.study};
+  function departmentKinds(department){const d=String(department||'').replace(/\s+/g,'');if(/교무/.test(d))return ['timetable','lessons'];if(/생활안전|학생생활|생활교육|안전생활|학생안전/.test(d))return ['safety','lunch'];if(/학년/.test(d))return ['study'];return [];}
   const norm=v=>String(v??'').normalize('NFKC').replace(/\s+/g,'');
-  function defaults(people=[]){return {safetyDepartment:people.find(p=>/생활안전부|학생생활부|생활교육부/.test(norm(p.department)))?.department||'생활안전부',managers:{safety:[],lunch:[],study:[]}};}
+  function defaults(people=[]){return {safetyDepartment:people.find(p=>/생활안전부|학생생활부|생활교육부/.test(norm(p.department)))?.department||'생활안전부',managers:{safety:[],lunch:[],study:[],timetable:[],lessons:[]}};}
   function settings(value,people){
     if(!value||!value.managers||typeof value.safetyDepartment!=='string'||!people.some(p=>!p.disabled&&p.department===value.safetyDepartment))throw Error('안전 지도 소속 부서를 선택해 주세요.');
-    const managers={};for(const kind of Object.keys(types)){const ids=value.managers[kind];if(!Array.isArray(ids)||ids.length>200||ids.some(id=>!people.some(p=>!p.disabled&&p.id===id)))throw Error('업무 담당자를 확인해 주세요.');managers[kind]=[...new Set(ids)];}
+    const managers={};for(const kind of Object.keys(managementTypes)){const ids=value.managers[kind]??[];if(!Array.isArray(ids)||ids.length>200||ids.some(id=>!people.some(p=>!p.disabled&&p.id===id)))throw Error('업무 담당자를 확인해 주세요.');managers[kind]=[...new Set(ids)];}
     return {safetyDepartment:value.safetyDepartment,managers};
   }
   function date(value){
@@ -67,5 +69,5 @@
     for(const event of events||[])if(event.duty&&Object.hasOwn(types,event.duty.kind))event.title=types[event.duty.kind].label;
     return events;
   }
-  const api={types,defaults,settings,date,plan,reassign,sameAssignment,imports,normalizeTitles};if(typeof module==='object'&&module.exports)module.exports=api;else root.IeumDuties=api;
+  const api={types,managementTypes,departmentKinds,defaults,settings,date,plan,reassign,sameAssignment,imports,normalizeTitles};if(typeof module==='object'&&module.exports)module.exports=api;else root.IeumDuties=api;
 })(typeof window==='object'?window:globalThis);

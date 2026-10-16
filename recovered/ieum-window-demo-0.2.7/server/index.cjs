@@ -93,7 +93,7 @@ async function startServer(options = {}) {
   const columns=new Set(db.prepare('PRAGMA table_info(users)').all().map(column=>column.name));
   if(!columns.has('grade'))db.exec("ALTER TABLE users ADD COLUMN grade TEXT NOT NULL DEFAULT ''");
   if(!columns.has('other_group'))db.exec("ALTER TABLE users ADD COLUMN other_group TEXT NOT NULL DEFAULT ''");
-  for(const column of ['class_number','work','special_room','club'])if(!columns.has(column))db.exec(`ALTER TABLE users ADD COLUMN ${column} TEXT NOT NULL DEFAULT ''`);
+  for(const column of ['class_number','work','special_room','club','position'])if(!columns.has(column))db.exec(`ALTER TABLE users ADD COLUMN ${column} TEXT NOT NULL DEFAULT ''`);
   const existing=db.prepare('SELECT count(*) n FROM users').get().n;
   if(!existing){
     if(!options.admin?.username||!options.admin?.password){db.close();fail(400,'최초 실행에는 관리자 아이디와 비밀번호를 설정해야 합니다.');}
@@ -105,7 +105,7 @@ async function startServer(options = {}) {
   const periodsFor=date=>{const temporary=db.prepare('SELECT periods FROM bell_schedules WHERE date=?').get(date);return temporary?parse(temporary.periods):defaultPeriods();};
   const resolvePeriod=(date,period)=>{if(!Number.isInteger(Number(period)))fail(400,'수업은 정수 교시로 지정하세요.');const slot=periodsFor(date).find(p=>p.period===Number(period));if(!slot)fail(409,'보강에 지정된 교시가 일과표에 없습니다. 보강 교시를 먼저 변경하세요.');return slot;};
   const streams=new Map(), loginAttempts=new Map();
-  const userPublic=u=>({id:u.id,username:u.username,name:u.name,department:u.department,role:u.role,subject:u.subject,extension:u.extension,grade:u.grade||'',otherGroup:u.other_group||'',classNumber:u.class_number||'',work:u.work||'',specialRoom:u.special_room||'',club:u.club||'',admin:!!u.admin,disabled:!!u.disabled,mustChange:!!u.must_change,status:streams.has(u.id)?'online':'offline'});
+  const userPublic=u=>({id:u.id,username:u.username,name:u.name,department:u.department,role:u.role,subject:u.subject,extension:u.extension,grade:u.grade||'',otherGroup:u.other_group||'',position:u.position||'',classNumber:u.class_number||'',work:u.work||'',specialRoom:u.special_room||'',club:u.club||'',admin:!!u.admin,disabled:!!u.disabled,mustChange:!!u.must_change,status:streams.has(u.id)?'online':'offline'});
   const notify=(audience=null,kind='changed')=>{
     for(const [userId,connections] of streams){if(audience&&!audience.includes(userId))continue;for(const response of connections)response.write(`event: update\ndata: ${json({kind})}\n\n`);}
     options.onChange?.();
@@ -210,7 +210,7 @@ async function startServer(options = {}) {
       if(op.liked)db.prepare('INSERT OR IGNORE INTO reactions VALUES(?,?)').run(opId,user.id);else db.prepare('DELETE FROM reactions WHERE message_id=? AND user_id=?').run(opId,user.id);break;}
     case 'mail.send':{
       const existing=db.prepare('SELECT sender FROM mails WHERE id=?').get(opId);if(existing){if(existing.sender!==user.id)fail(409,'메시지 식별자가 중복되었습니다.');return;}
-      let broadcast=null;if(v.scheduleAnnouncement){if(!user.admin)fail(403,'일과표 전체 안내는 관리자만 발송할 수 있습니다.');const scope=v.scheduleAnnouncement.scope==='default'?'default':'temporary',date=validDate(v.scheduleAnnouncement.date);broadcast={date,scope,...bell.announcement(date,scope==='default'?defaultPeriods():periodsFor(date),scope,str(v.title||'',150,false).trim(),!!v.scheduleAnnouncement.restored)};v={...v,title:broadcast.title,body:broadcast.body,html:broadcast.html,to:db.prepare('SELECT id FROM users WHERE disabled=0 AND id<>?').all(user.id).map(u=>u.id),cc:[],files:[],scheduled:'',notice:null,calendarEvent:null};}
+      let broadcast=null;if(v.scheduleAnnouncement){if(!user.admin&&!dutySettings().managers.timetable?.includes(user.id))fail(403,'일과표 담당자만 전체 안내를 발송할 수 있습니다.');const scope=v.scheduleAnnouncement.scope==='default'?'default':'temporary',date=validDate(v.scheduleAnnouncement.date);broadcast={date,scope,...bell.announcement(date,scope==='default'?defaultPeriods():periodsFor(date),scope,str(v.title||'',150,false).trim(),!!v.scheduleAnnouncement.restored)};v={...v,title:broadcast.title,body:broadcast.body,html:broadcast.html,to:db.prepare('SELECT id FROM users WHERE disabled=0 AND id<>?').all(user.id).map(u=>u.id),cc:[],files:[],scheduled:'',notice:null,calendarEvent:null};}
       let announcement=null;
       if(v.announcement){
         const audience=v.announcement.audience,department=str(v.announcement.department,60);
@@ -222,7 +222,7 @@ async function startServer(options = {}) {
       }
       let notice=null;
       if(v.notice){const n=v.notice;if(!['makeup','lessonChange'].includes(n.kind)||!Array.isArray(n.rows)||!n.rows.length||n.rows.length>7)fail(400,'보강/수업 변경 안내의 교시 배정이 올바르지 않습니다.');
-        const seen=new Set(),date=validDate(n.date);const rows=n.rows.map(row=>{const period=Number(row.period);if(!Number.isInteger(period)||period<1||period>7||seen.has(period))fail(400,'1~7교시를 중복 없이 선택하세요.');seen.add(period);resolvePeriod(date,period);const teacher=knownUsers([row.teacher])[0],className=str(row.className||'',40,n.kind==='lessonChange');let homeroomTeacher;if(n.kind==='makeup'&&className){const classes=parse(db.prepare("SELECT value FROM metadata WHERE key='classTeachers'").get()?.value||'[]');const mapping=classes.find(c=>c.className.replace(/\s+/g,'')===className.replace(/\s+/g,''));if(!mapping)fail(409,'선택한 반의 담임이 등록되지 않았습니다. 관리자에게 반·담임 설정을 요청하세요.');homeroomTeacher=knownUsers([mapping.teacher])[0];}let originalTeacher;if(n.kind==='lessonChange'){originalTeacher=knownUsers([row.originalTeacher])[0];if(originalTeacher===teacher)fail(400,'기존 교사와 교체 교사는 달라야 합니다.');}return {period,teacher,className,...(originalTeacher?{originalTeacher}:{}),...(homeroomTeacher?{homeroomTeacher}:{})};});notice={kind:n.kind,date,rows};if(v.scheduled)fail(400,'수업 안내는 예약 발송을 지원하지 않습니다.');}
+        const seen=new Set(),date=validDate(n.date);const rows=n.rows.map(row=>{const period=Number(row.period);if(!Number.isInteger(period)||period<1||period>7||seen.has(period))fail(400,'1~7교시를 중복 없이 선택하세요.');seen.add(period);resolvePeriod(date,period);const teacher=knownUsers([row.teacher])[0],className=str(row.className||'',40,n.kind==='lessonChange');let homeroomTeacher;if(n.kind==='makeup'&&className){const classes=parse(db.prepare("SELECT value FROM metadata WHERE key='classTeachers'").get()?.value||'[]');const mapping=classes.find(c=>c.className.replace(/\s+/g,'')===className.replace(/\s+/g,''));if(!mapping)fail(409,'선택한 반의 담임이 등록되지 않았습니다. 관리자에게 교직원 정보의 학년·반 등록을 요청하세요.');homeroomTeacher=knownUsers([mapping.teacher])[0];}let originalTeacher;if(n.kind==='lessonChange'){originalTeacher=knownUsers([row.originalTeacher])[0];if(originalTeacher===teacher)fail(400,'기존 교사와 교체 교사는 달라야 합니다.');}return {period,teacher,className,...(originalTeacher?{originalTeacher}:{}),...(homeroomTeacher?{homeroomTeacher}:{})};});notice={kind:n.kind,date,rows};if(v.scheduled)fail(400,'수업 안내는 예약 발송을 지원하지 않습니다.');}
       const to=broadcast&&!v.to.length?[]:knownUsers([...new Set([...(Array.isArray(v.to)?v.to:[]),...(Array.isArray(v.cc)?v.cc:[]),...(notice?notice.rows.flatMap(r=>[r.teacher,r.originalTeacher,r.homeroomTeacher].filter(Boolean)):[])])]),files=Array.isArray(v.files)?v.files:[];if(files.length>20)fail(400,'첨부 파일은 20개까지 가능합니다.');let bytes=0;
       const cleanFiles=files.map(f=>{const data=str(f.data,3*1024*1024,false);if(!/^data:[a-zA-Z0-9.+\/-]+;base64,[A-Za-z0-9+/=]*$/.test(data))fail(400,'첨부 파일 데이터 형식이 올바르지 않습니다.');const count=Buffer.from(data.split(',')[1],'base64').length;bytes+=count;if(count>2*1024*1024||bytes>3*1024*1024)fail(413,'첨부 파일 크기 제한을 초과했습니다.');return {name:str(f.name,180),size:str(f.size||Math.ceil(count/1024)+' KB',30),bytes:count,data};});
       for(const match of String(v.html||'').matchAll(/data:image\/(?:png|jpeg|webp|gif);base64,([A-Za-z0-9+/]+={0,2})/g)){
@@ -303,7 +303,7 @@ async function startServer(options = {}) {
     }
     case 'schedule.upsert':
     case 'schedule.delete':{
-      if(!user.admin)fail(403,'학교 일과표는 관리자만 변경할 수 있습니다.');
+      if(!user.admin&&!dutySettings().managers.timetable?.includes(user.id))fail(403,'학교 일과표는 관리자 또는 일과표 담당자만 변경할 수 있습니다.');
       const date=v.date?validDate(v.date):'';
       if(op.type==='schedule.delete'){if(!date)fail(400,'기본 일과표는 삭제할 수 없습니다.');db.prepare('DELETE FROM bell_schedules WHERE date=?').run(date);}
       else {let periods;try{periods=bell.validate(v.periods);}catch(error){fail(400,error.message);}
@@ -413,7 +413,7 @@ async function startServer(options = {}) {
         if(!user.admin)fail(403,'관리자만 교직원 엑셀을 등록할 수 있습니다.');
         const input=await body(req);
         const snapshot=()=>({people:db.prepare('SELECT * FROM users ORDER BY id').all().map(u=>{const {status,...person}=userPublic(u);return person;}),classTeachers:parse(db.prepare("SELECT value FROM metadata WHERE key='classTeachers'").get()?.value||'[]'),dutySettings:dutySettings()});
-        const before=snapshot(),revision=hash(json(before)),plan=directory.plan(input.rows,before.people,before);
+        const before=snapshot(),revision=hash(json(before)),plan=directory.plan(input.rows,before.people,before,input.identities);
         if(input.preview){send(res,200,{...plan,revision});return;}
         if(input.revision!==revision)fail(409,'교직원 정보가 변경되었습니다. 파일을 다시 선택해 확인해 주세요.');
         if(plan.errors.length)fail(400,plan.errors.slice(0,10).join('\n'));
@@ -425,8 +425,8 @@ async function startServer(options = {}) {
         const resolved=directory.resolve(plan,idMap);
         db.exec('BEGIN IMMEDIATE');try{
           for(const entry of resolved.entries){const record=records.get(entry.id);
-            if(record)db.prepare('INSERT INTO users(id,username,name,department,role,subject,extension,digest,salt,admin,disabled,must_change,grade,other_group,class_number,work,special_room,club) VALUES(?,?,?,?,?,?,?,?,?,0,0,1,?,?,?,?,?,?)').run(entry.id,record.username,entry.name,entry.department,entry.role,'',entry.extension,record.digest,record.salt,entry.grade,'',entry.classNumber,entry.work,entry.specialRoom,entry.club);
-            else db.prepare('UPDATE users SET name=?,grade=?,class_number=?,extension=?,department=?,work=?,special_room=?,club=? WHERE id=?').run(entry.name,entry.grade,entry.classNumber,entry.extension,entry.department,entry.work,entry.specialRoom,entry.club,entry.id);
+            if(record)db.prepare('INSERT INTO users(id,username,name,department,role,subject,extension,digest,salt,admin,disabled,must_change,grade,other_group,class_number,work,special_room,club,position) VALUES(?,?,?,?,?,?,?,?,?,0,0,1,?,?,?,?,?,?,?)').run(entry.id,record.username,entry.name,entry.department,entry.role,'',entry.extension,record.digest,record.salt,entry.grade,'',entry.classNumber,entry.work,entry.specialRoom,entry.club,entry.position);
+            else db.prepare('UPDATE users SET name=?,grade=?,class_number=?,extension=?,department=?,work=?,special_room=?,club=?,position=? WHERE id=?').run(entry.name,entry.grade,entry.classNumber,entry.extension,entry.department,entry.work,entry.specialRoom,entry.club,entry.position,entry.id);
           }
           for(const [key,value] of Object.entries({classTeachers:resolved.classTeachers,dutySettings:resolved.dutySettings}))db.prepare('INSERT INTO metadata VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').run(key,json(value));
           for(const row of db.prepare('SELECT * FROM events').all()){const event=parse(row.payload);if(!event.duty)continue;event.targets=[...new Set([...resolved.dutySettings.managers[event.duty.kind],...event.duty.assigned])];db.prepare('UPDATE events SET payload=? WHERE id=?').run(json(event),row.id);}

@@ -2956,3 +2956,5 @@ input[type="checkbox"] {
 .compose-title-options .btn[aria-pressed=true]{background:var(--green);border-color:var(--green);color:#fff}
 
 .staff-table-scroll{overflow:auto;max-height:340px}.staff-table-scroll .duty-table{min-width:850px}.staff-table-scroll td{white-space:pre-wrap;overflow-wrap:anywhere}
+
+.staff-editor-tools{display:flex;align-items:center;flex-wrap:wrap;gap:7px;margin:12px 0}.staff-editor-table{table-layout:fixed;min-width:1320px!important}.staff-editor-table th{position:sticky;top:0;background:var(--soft);z-index:1}.staff-editor-table td{padding:5px}.staff-editor-table .input{width:100%;min-width:100px;padding:8px}.staff-editor-modal .staff-table-scroll{max-height:45vh}.duty-manager-group[hidden]{display:none}

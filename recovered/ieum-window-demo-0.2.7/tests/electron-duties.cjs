@@ -6,8 +6,8 @@ try{
  const p=await app.firstWindow();const errors=[];p.on('pageerror',e=>errors.push(e.message));await require('./electron-helpers.cjs').dismissBriefing(p);
  await p.locator('[data-action="nav-other-work"]').click();assert.equal(await p.locator('.school-work-menu button').count(),3);assert.equal(await p.locator('.modal [data-action="duty-settings"]').count(),0);await p.locator('.modal-foot [data-action="close-modal"]').click();
  await p.locator('.rail [data-action="settings"]').click();await p.locator('[data-action="duty-settings"]').click();
- const firstDepartment=await p.evaluate(()=>JSON.parse(localStorage.getItem('ieum-v1')).data.people[0].department);await p.locator('#duty-department').selectOption({label:firstDepartment});
- await p.locator('[data-duty-manager="lunch"]').first().check();await p.locator('[form="duty-settings-form"]').click();
+ const firstDepartment=await p.evaluate(()=>{const d=JSON.parse(localStorage.getItem('ieum-v1')).data;return (d.dutySettings||window.IeumDuties.defaults(d.people)).safetyDepartment;});await p.locator('#duty-department').selectOption({label:firstDepartment});
+ const manager=await p.locator('[data-duty-manager="lunch"]:visible').first().getAttribute('value');await p.locator('[data-duty-manager="lunch"]:visible').first().check();await p.locator('[form="duty-settings-form"]').click();
  const people=await p.evaluate(()=>JSON.parse(localStorage.getItem('ieum-v1')).data.people);
  const assigned=people.slice(1).find(p=>/교사$/.test(p.role||'')||/부장$/.test(p.role||''));
  const replacement=people.find(p=>p.id!==assigned.id&&p.id!==people[0].id&&/교사$/.test(p.role||''));
@@ -28,7 +28,7 @@ try{
   await p.locator('.today-drawer [data-event="duty-lunch-'+date+'"]').click();assert.equal(await p.locator('.schedule-detail-modal .chip').innerText(),'중식 지도');
   await p.locator('[data-action="edit-duty"]').click();fs.mkdirSync(path.resolve(__dirname,'../release'),{recursive:true});await p.screenshot({path:path.resolve(__dirname,'../release/duty-assignment-edit.png')});await p.locator('[data-duty-assignee][value="'+oldTeacher.id+'"]').uncheck();await p.locator('[data-duty-assignee][value="'+newTeacher.id+'"]').check();await p.locator('[form="duty-assignment-form"]').click();
   await p.locator('#duty-assignment-form').waitFor({state:'detached'});await p.locator('.schedule-detail-modal').waitFor();
-  const changed=(await read()).find(e=>e.date===date);assert.ok(changed.targets.includes(newTeacher.id));assert.ok(!changed.targets.includes(oldTeacher.id));assert.ok(changed.targets.includes(people[0].id));assert.equal(changed.start,'12:00');assert.equal(changed.end,'13:00');
+  const changed=(await read()).find(e=>e.date===date);assert.ok(changed.targets.includes(newTeacher.id));assert.ok(!changed.targets.includes(oldTeacher.id));assert.ok(changed.targets.includes(manager));assert.equal(changed.start,'12:00');assert.equal(changed.end,'13:00');
   await p.locator('.modal-foot [data-action="close-modal"]').click();
  };
  const tomorrow=events[1].date;

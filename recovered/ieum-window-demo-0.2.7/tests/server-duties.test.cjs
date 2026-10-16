@@ -56,7 +56,7 @@ test('duty imports validate atomically, isolate calendars, enforce manager permi
   assert.equal((await sync(admin,[{type:'duty.settings',value:changed}])).status,200);
   assert.equal((await boot(manager.token)).data.events.length,0);assert.equal((await boot(alice.token)).data.events.length,2);
   assert.equal((await sync(manager.token,upload(rows))).status,403);
-  assert.deepEqual((await boot(alice.token)).data.dutySettings,changed);
+  assert.deepEqual((await boot(alice.token)).data.dutySettings,{...changed,managers:{...changed.managers,timetable:[],lessons:[]}});
   for(const [kind,start,end] of [['lunch','12:00','13:00'],['study','18:00','22:00']]){
    assert.equal((await sync(manager.token,[{type:'duty.import',value:{kind,rows:[['2026-10-18','alice']]}}])).status,200);
    const appointment=(await boot(alice.token)).data.events.find(e=>e.duty.kind===kind);assert.equal(appointment.start,start);assert.equal(appointment.end,end);
@@ -64,7 +64,7 @@ test('duty imports validate atomically, isolate calendars, enforce manager permi
   await server.close();server=await startServer({host:'127.0.0.1',port:0,address:'https://127.0.0.1:0',dataDir});
   const relogin=await request('/login',{username:'alice',password:password+'x'});
   assert.equal((await boot(relogin.token)).data.events.filter(e=>e.duty).length,4,'assignments persist through server restart');
-  assert.deepEqual((await boot(relogin.token)).data.dutySettings,changed);
+  assert.deepEqual((await boot(relogin.token)).data.dutySettings,{...changed,managers:{...changed.managers,timetable:[],lessons:[]}});
   const restored=(await boot(relogin.token)).data.events.find(e=>e.duty.kind==='safety'&&e.date==='2026-10-15');
   assert.equal((await sync(relogin.token,[{type:'event.reschedule',id:restored.id,value:{date:'2026-10-19',start:'07:15',end:'08:15',expected:{date:restored.date,start:restored.start,end:restored.end}}}])).status,200);
   assert.equal((await sync(relogin.token,upload([['2026-10-15','safety','bob']]))).status,200);
