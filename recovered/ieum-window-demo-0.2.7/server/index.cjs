@@ -12,6 +12,7 @@ const bell=require('./schedule.cjs');
 const deadlines=require('../js/message-deadlines.js');
 const announcements=require('../js/announcements.js');
 const duties=require('../js/duties.js');
+const exchanges=require('../js/duty-exchanges.js');
 const directory=require('../js/staff-directory.js');
 x509.cryptoProvider.set(crypto.webcrypto);
 const { promisify } = require('node:util');
@@ -81,6 +82,7 @@ async function startServer(options = {}) {
   CREATE TABLE IF NOT EXISTS reactions(message_id TEXT REFERENCES messages(id) ON DELETE CASCADE,user_id TEXT REFERENCES users(id) ON DELETE CASCADE,PRIMARY KEY(message_id,user_id));
   CREATE TABLE IF NOT EXISTS mails(id TEXT PRIMARY KEY,sender TEXT REFERENCES users(id),payload TEXT NOT NULL,sender_folder TEXT NOT NULL DEFAULT 'sent',sender_important INTEGER NOT NULL DEFAULT 0,event_id TEXT);
   CREATE TABLE IF NOT EXISTS recipients(mail_id TEXT REFERENCES mails(id) ON DELETE CASCADE,user_id TEXT REFERENCES users(id),status TEXT NOT NULL DEFAULT 'unread',folder TEXT NOT NULL DEFAULT 'inbox',important INTEGER NOT NULL DEFAULT 0,event_id TEXT,PRIMARY KEY(mail_id,user_id));
+  CREATE TABLE IF NOT EXISTS duty_exchanges(id TEXT PRIMARY KEY,payload TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS events(id TEXT PRIMARY KEY,owner TEXT REFERENCES users(id),payload TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS items(id TEXT PRIMARY KEY,owner TEXT REFERENCES users(id),kind TEXT NOT NULL,payload TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS bell_schedules(date TEXT PRIMARY KEY,periods TEXT NOT NULL);
@@ -161,6 +163,10 @@ async function startServer(options = {}) {
   }
   const dutyPeople=()=>db.prepare('SELECT * FROM users WHERE disabled=0').all().map(userPublic);
   const dutySettings=()=>parse(db.prepare("SELECT value FROM metadata WHERE key='dutySettings'").get()?.value||'null')||duties.defaults(dutyPeople());
+  const exchangeRequests=()=>db.prepare('SELECT payload FROM duty_exchanges ORDER BY rowid DESC').all().map(r=>parse(r.payload));
+  const exchangeEvents=()=>db.prepare('SELECT * FROM events').all().map(r=>({...parse(r.payload),id:r.id,owner:r.owner}));
+  const exchangeContext=()=>({people:dutyPeople(),config:dutySettings(),events:exchangeEvents(),requests:exchangeRequests(),today:dateKey(),now:Date.now()});
+  function reconcileExchanges(){const ctx=exchangeContext();for(const [i,r] of exchanges.reconcile(ctx.requests,ctx).entries())if(r!==ctx.requests[i])db.prepare('UPDATE duty_exchanges SET payload=? WHERE id=?').run(json(r),r.id);}
   function bootstrap(user){
     const me=value=>value===user.id?'me':value;
     const people=db.prepare('SELECT * FROM users WHERE disabled=0 ORDER BY department,name').all().map(userPublic);
@@ -172,7 +178,11 @@ async function startServer(options = {}) {
     const mails=mailRows.map(m=>{const recipients=db.prepare('SELECT * FROM recipients WHERE mail_id=?').all(m.id),mine=m.sender===user.id,r=recipients.find(r=>r.user_id===user.id);const payload=parse(m.payload);const inlineStored=/data:image\/(?:png|jpeg|webp|gif);base64,/.test(payload.html||'');const html=inlineStored?payload.html.replace(/data:image\/(?:png|jpeg|webp|gif);base64,[A-Za-z0-9+/]+={0,2}/g,''):payload.html;return {...payload,html,inlineStored,files:payload.files.map((file,index)=>({name:file.name,size:file.size,bytes:file.bytes,stored:true,sourceMail:m.id,index})),id:m.id,from:me(m.sender),to:recipients.map(r=>r.user_id),receipts:recipients.map(r=>r.status==='scheduled'?'unread':r.status),folder:mine?m.sender_folder:r.folder,important:!!(mine?m.sender_important:r.important),unread:!mine&&r.status==='unread',eventId:(mine?m.event_id:r.event_id)||null,previousFolder:mine?'sent':'inbox',canRecall:mine};}).sort((a,b)=>b.createdAt-a.createdAt);
     const events=db.prepare('SELECT * FROM events').all().filter(e=>{const p=parse(e.payload);return p.duty?p.targets.includes(user.id):e.owner===user.id||(['group','makeup','lessonChange'].includes(p.type)&&p.targets.includes(user.id)&&(!(p.noticeMail||p.deliveryMail)||db.prepare("SELECT 1 FROM recipients WHERE mail_id=? AND user_id=? AND status NOT IN('recalled','scheduled')").get(p.noticeMail||p.deliveryMail,user.id)));}).map(e=>({...parse(e.payload),id:e.id,owner:e.owner,readonly:!!parse(e.payload).duty||e.owner!==user.id,canReschedule:(!parse(e.payload).duty||user.admin||dutySettings().managers[parse(e.payload).duty.kind]?.includes(user.id))&&!parse(e.payload).noticeMail&&!['makeup','lessonChange'].includes(parse(e.payload).type)}));
     duties.normalizeTitles(events);
-    const items=db.prepare('SELECT * FROM items WHERE owner=?').all(user.id), data={today:dateKey(),schoolName:db.prepare("SELECT value FROM metadata WHERE key='schoolName'").get()?.value||'우리 학교',people,departments:[...new Set(people.map(p=>p.department))],rooms,mails,events,dutySettings:dutySettings(),classTeachers:parse(db.prepare("SELECT value FROM metadata WHERE key='classTeachers'").get()?.value||'[]'),defaultPeriods:defaultPeriods(),bellSchedules:db.prepare('SELECT * FROM bell_schedules ORDER BY date').all().map(row=>({date:row.date,title:row.title,periods:parse(row.periods)})),academic:[],deadlines:[],notes:[],tasks:[],shortcuts:[]};
+    reconcileExchanges();const exchangeCtx=exchangeContext(),actor={id:user.id,admin:!!user.admin};
+    const dutyExchanges=exchangeCtx.requests.filter(r=>exchanges.visible(r,actor,exchangeCtx));
+    const ownKinds=new Set(exchangeCtx.events.filter(e=>e.duty?.assigned.includes(user.id)).map(e=>e.duty.kind));
+    const dutyRoster=exchangeCtx.events.filter(e=>e.duty&&ownKinds.has(e.duty.kind)&&e.date>=dateKey()).map(e=>({id:e.id,title:e.title,date:e.date,start:e.start,end:e.end,duty:e.duty}));
+    const items=db.prepare('SELECT * FROM items WHERE owner=?').all(user.id), data={today:dateKey(),schoolName:db.prepare("SELECT value FROM metadata WHERE key='schoolName'").get()?.value||'우리 학교',people,departments:[...new Set(people.map(p=>p.department))],rooms,mails,events,dutyExchanges,dutyRoster,dutySettings:dutySettings(),classTeachers:parse(db.prepare("SELECT value FROM metadata WHERE key='classTeachers'").get()?.value||'[]'),defaultPeriods:defaultPeriods(),bellSchedules:db.prepare('SELECT * FROM bell_schedules ORDER BY date').all().map(row=>({date:row.date,title:row.title,periods:parse(row.periods)})),academic:[],deadlines:[],notes:[],tasks:[],shortcuts:[]};
     for(const item of items)data[item.kind].push({...parse(item.payload),id:item.id});
     return {user:userPublic(user),data};
   }
@@ -275,6 +285,17 @@ async function startServer(options = {}) {
       const payload={title:str(v.title,100),date:validDate(v.date),start,end,type:v.type,place:str(v.place||'',100,false),note:str(v.note||'',1000,false),targets,...(slot?{period:slot.period}: {}),...(existing&&parse(existing.payload).deliveryMail?{deliveryMail:parse(existing.payload).deliveryMail}:{}),...(existing&&parse(existing.payload).source?{source:parse(existing.payload).source,rule:parse(existing.payload).rule}: {})};
       db.prepare('INSERT INTO events VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload').run(opId,user.id,json(payload));break;}
     case 'event.delete':{const existing=db.prepare('SELECT owner,payload FROM events WHERE id=?').get(opId);if(!existing)return;if(parse(existing.payload).duty)fail(409,'업무 일정은 기타 업무에서 엑셀로 변경해 주세요.');if(existing.owner!==user.id)fail(403,'다른 선생님의 일정은 삭제할 수 없습니다.');db.prepare('DELETE FROM events WHERE id=?').run(opId);break;}
+    case 'duty.exchange.create':
+    case 'duty.exchange.act':{
+      reconcileExchanges();const ctx=exchangeContext(),actor={id:user.id,admin:!!user.admin};
+      if(op.type==='duty.exchange.create'){
+        const request=exchanges.create(v,actor,ctx);db.prepare('INSERT INTO duty_exchanges VALUES(?,?)').run(request.id,json(request));
+      }else{
+        const result=exchanges.act(ctx.requests.find(r=>r.id===opId),v.action,v.note,actor,ctx);
+        for(const event of result.events)db.prepare('UPDATE events SET payload=? WHERE id=?').run(json(event),event.id);
+        db.prepare('UPDATE duty_exchanges SET payload=? WHERE id=?').run(json(result.request),result.request.id);
+      }
+      break;}
     case 'duty.settings':{
       if(!user.admin)fail(403,'업무 담당자 설정은 관리자만 변경할 수 있습니다.');
       let config;try{config=duties.settings(v,dutyPeople());}catch(error){fail(400,error.message);}
@@ -406,7 +427,7 @@ async function startServer(options = {}) {
       }
       if(route==='/sync'&&req.method==='POST'){
         const payload=await body(req);if(!Array.isArray(payload.operations)||payload.operations.length>300)fail(400,'변경 요청은 300개까지 가능합니다.');
-        db.exec('BEGIN IMMEDIATE');try{for(const op of payload.operations)operation(user,op);db.exec('COMMIT');}catch(error){db.exec('ROLLBACK');throw error;}
+        db.exec('BEGIN IMMEDIATE');try{for(const op of payload.operations)operation(user,op);reconcileExchanges();db.exec('COMMIT');}catch(error){db.exec('ROLLBACK');throw error;}
         notify();send(res,200,{ok:true});return;
       }
       if(route==='/admin/staff-import'&&req.method==='POST'){

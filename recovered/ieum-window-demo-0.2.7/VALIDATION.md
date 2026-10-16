@@ -337,3 +337,10 @@ Linux Electron 실제 마우스 검사 tests/electron-calendar-edit.cjs: 일간/
 ## 0.2.75 — independent staff editor
 
 Staff information opens in a singleton, resizable native window, up to 1400×860 and clamped to the display work area. All nine staff headers and row actions fit at normal desktop sizes. Smaller windows retain a horizontal scroll fallback. The header supports native dragging; closing or saving leaves the messenger size unchanged. XLSX, manual rows, saved identity, LAN imports and credential download remain covered by active Electron tests.
+
+## 0.2.76 — duty exchange workflow
+
+- Shared state machine covers all three duty kinds, safety group preservation, teacher consent before approval, cancellation/decline/rejection, authorization, duplicate reservation prevention, changed snapshots, date expiry, and calendar conflicts.
+- Authenticated HTTPS tests verify isolated request visibility, server-derived actors, concurrent reply/approval rejection, rollback of both assignments plus history, manager targets, stale request invalidation and history after server restart.
+- Active Electron demo covers calendar entry, before/after comparison, reason, request/accept/approve, role-specific actions, unchanged preapproval calendars, both updated targets, audit trail, reload and cancellation.
+- Three separately authenticated Electron LAN clients exercise teacher request → recipient acceptance → manager approval, live SSE status changes on all three clients and each user's synchronized calendar. Installed clients have no demo role selector.

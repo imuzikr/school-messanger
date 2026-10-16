@@ -2968,3 +2968,19 @@ input[type="checkbox"] {
 .staff-editor-table th:nth-child(8),.staff-editor-table th:nth-child(9){width:11%}
 .staff-editor-table th:last-child{width:9%}
 .staff-editor-table th,.staff-editor-table td:last-child{white-space:nowrap}
+
+.exchange-list{display:grid;gap:10px;margin-top:16px}
+.exchange-card{display:grid;justify-items:start;gap:8px;padding:16px;background:var(--soft);border:1px solid var(--line);border-radius:10px;text-align:left;color:inherit;cursor:pointer}
+.exchange-card:hover{border-color:var(--green)}
+.exchange-comparison{overflow:auto;margin:18px 0;border:1px solid var(--line);border-radius:8px}
+.exchange-comparison table{width:100%;min-width:550px}
+.exchange-comparison td{white-space:nowrap}
+#exchange-request-form{display:grid;gap:16px}
+#exchange-request-form label,#exchange-detail label,.exchange-demo-role{display:grid;gap:8px}
+.exchange-reason{white-space:pre-wrap;overflow-wrap:anywhere;margin:16px 0}
+.exchange-history{margin-top:20px;border-top:1px solid var(--line);padding-top:14px}
+.exchange-history summary{cursor:pointer;font-weight:600}
+.exchange-history ol{padding-left:22px}
+.exchange-history li{padding:9px 0}
+.exchange-history small{display:block;color:var(--muted);margin-top:4px}
+.exchange-history p{white-space:pre-wrap;overflow-wrap:anywhere}
