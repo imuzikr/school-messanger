@@ -472,7 +472,7 @@ body.minimal-main>.memo-tab,.unified-main:has(.briefing-overlay)>.memo-tab{displ
 .duty-month-entry.own-assignment.exchange-pending::after{content:"";position:absolute;inset:3px;border:1px dashed #b84c53;border-radius:3px;pointer-events:none}
 .duty-border-key::before{content:"";display:inline-block;width:12px;height:9px;margin-right:5px;border:1px solid;vertical-align:middle;border-radius:2px}.duty-border-key.own::before{border-color:#b84c53}.duty-border-key.pending::before{border-color:#3978bd}
 .duty-month-entry:focus-visible{outline:2px solid var(--green);outline-offset:2px}
-.duty-color-safety{background:#edf2fa;color:#3b5f89;border-color:#7898bb}.duty-color-lunch{background:#eaf3e6;color:#466b3f;border-color:#83a36c}.duty-color-study{background:#f0f2f3;color:#56616a;border-color:#9aa4aa}
+.duty-color-safety{background:#e2edff;color:#28558a;border-color:#6890c4}.duty-color-lunch{background:#eaf3e6;color:#466b3f;border-color:#83a36c}.duty-color-study{background:#ededed;color:#555555;border-color:#999999}
 .duty-month-empty{color:var(--muted);font-size:10px;padding-top:8px}
 
 .duty-exchange-info{padding:12px;border:1px solid var(--line);border-radius:8px;background:var(--green-soft);font-size:12px;display:grid;gap:7px}.duty-exchange-info p{margin:0}.duty-exchange-info label{display:grid;gap:6px}.duty-exchange-info small{color:var(--muted);line-height:1.5}.duty-exchange-info [role=status]{line-height:1.6}
