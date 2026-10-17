@@ -1,7 +1,7 @@
 name: Verify and package duty demo
 on:
   push:
-    branches: [codex/duty-demo-0.2.81]
+    branches: [codex/duty-demo-0.2.82]
 permissions:
   contents: read
 defaults:
@@ -29,6 +29,7 @@ jobs:
           node --check desktop/main.cjs
           npm test
           xvfb-run -a node tests/electron-duty-manager-filter.cjs
+          xvfb-run -a node tests/electron-memo-formatting.cjs
           xvfb-run -a node tests/electron-wings.cjs
           xvfb-run -a node tests/electron-homeroom.cjs
           xvfb-run -a node tests/electron-homeroom-lan.cjs
@@ -80,7 +81,9 @@ jobs:
           npm install --no-save --package-lock=false playwright@1.56.1 pngjs@7.0.0
           python -m pip install openpyxl==3.1.5
           $env:IEUM_TEST_PYTHON="python"
-          $env:IEUM_TEST_EXECUTABLE=(Resolve-Path "release/Ieum-Deadline-Demo-0.2.81-win-x64/Ieum-Deadline-Demo.exe").Path
+          $env:IEUM_TEST_EXECUTABLE=(Resolve-Path "release/Ieum-Deadline-Demo-0.2.82-win-x64/Ieum-Deadline-Demo.exe").Path
+          node tests/electron-memo-formatting.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node tests/electron-wings.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node tests/electron-homeroom.cjs
@@ -109,14 +112,14 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node tests/electron-briefing.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -c "from zipfile import ZipFile; z=ZipFile('release/Ieum-Deadline-Demo-0.2.81-win-x64.zip'); assert z.testzip() is None; print('Windows ZIP CRC PASS')"
+          python -c "from zipfile import ZipFile; z=ZipFile('release/Ieum-Deadline-Demo-0.2.82-win-x64.zip'); assert z.testzip() is None; print('Windows ZIP CRC PASS')"
       - uses: actions/upload-artifact@v4
         with:
-          name: Ieum-Demo-0.2.81
-          path: recovered/ieum-window-demo-0.2.7/release/Ieum-Deadline-Demo-0.2.81-win-x64.zip
+          name: Ieum-Demo-0.2.82
+          path: recovered/ieum-window-demo-0.2.7/release/Ieum-Deadline-Demo-0.2.82-win-x64.zip
       - name: Publish tested portable demo
         env:
           GH_TOKEN: ${{ github.token }}
         shell: pwsh
         run: |
-          gh release create v0.2.81 release/Ieum-Deadline-Demo-0.2.81-win-x64.zip release/SHA256SUMS.txt --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "이음 Windows 데모 0.2.81" --notes "메모 손잡이를 서랍 바깥 끝에 붙여 열고 닫는 동안 서랍과 함께 이동하도록 변경했습니다. 손잡이의 테두리와 겹치는 본창 경계선을 제거했습니다. 양쪽 날개의 독립 동작과 슬라이딩을 유지합니다. 전체 압축 해제 후 Ieum-Deadline-Demo.exe를 실행하세요."
+          gh release create v0.2.82 release/Ieum-Deadline-Demo-0.2.82-win-x64.zip release/SHA256SUMS.txt --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "이음 Windows 데모 0.2.82" --notes "확대한 메모에 굵게·기울임·밑줄·글머리 기호·번호 목록 도구를 추가했습니다. Ctrl+B·I·U 단축키를 사용할 수 있으며 접힌 포스트잇에서도 서식을 보존해 편집할 수 있습니다. 기존 일반 텍스트 메모는 유지되고 서식 메모도 이 PC에만 저장됩니다. 전체 압축 해제 후 Ieum-Deadline-Demo.exe를 실행하세요."

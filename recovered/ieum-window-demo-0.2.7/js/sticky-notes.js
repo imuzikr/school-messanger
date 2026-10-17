@@ -6,9 +6,18 @@
   function validate(value){
     if(!value||value.version!==1||!['list','grid'].includes(value.view)||!Array.isArray(value.notes)||value.notes.length>200)throw Error('저장된 메모를 읽을 수 없습니다.');
     const seen=new Set();
-    for(const n of value.notes){if(!n||typeof n.id!=='string'||!/^[-\w]{1,100}$/.test(n.id)||seen.has(n.id)||typeof n.text!=='string'||n.text.length>4000||!colors.includes(n.color)||!Number.isFinite(n.createdAt)||!Number.isFinite(n.updatedAt))throw Error('저장된 메모를 읽을 수 없습니다.');seen.add(n.id);}
+    for(const n of value.notes){if(!n||typeof n.id!=='string'||!/^[-\w]{1,100}$/.test(n.id)||seen.has(n.id)||typeof n.text!=='string'||n.text.length>4000||(n.html!==undefined&&(typeof n.html!=='string'||n.html.length>64000))||!colors.includes(n.color)||!Number.isFinite(n.createdAt)||!Number.isFinite(n.updatedAt))throw Error('저장된 메모를 읽을 수 없습니다.');seen.add(n.id);}
     return value;
   }
+  const escape=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const plainMarkup=text=>escape(text).replace(/\n/g,'<br>');
+  function cleanHTML(html){
+    const template=document.createElement('template');template.innerHTML=String(html);
+    const allowed=new Set(['B','STRONG','I','EM','U','UL','OL','LI','P','DIV','BR']),blocked=new Set(['SCRIPT','STYLE','IFRAME','OBJECT','SVG','MATH','IMG','VIDEO','AUDIO','TEMPLATE']);
+    function clean(node,depth=0){if(node.nodeType===3)return escape(node.data);if(node.nodeType!==1||blocked.has(node.tagName))return '';if(depth>80)return escape(node.textContent);const body=[...node.childNodes].map(n=>clean(n,depth+1)).join('');return allowed.has(node.tagName)?'<'+node.tagName.toLowerCase()+'>'+body+(node.tagName==='BR'?'':'</'+node.tagName.toLowerCase()+'>'):body;}
+    return [...template.content.childNodes].map(n=>clean(n)).join('');
+  }
+  const markup=note=>note.html===undefined?plainMarkup(note.text):cleanHTML(note.html);
   class Store{
     constructor(storage,user){if(typeof user!=='string'||!user)throw Error('메모를 사용할 계정을 확인해 주세요.');this.storage=storage;this.key='ieum-sticky-v1:'+encodeURIComponent(user);}
     load(){const raw=this.storage.getItem(this.key);return raw===null?blank():validate(JSON.parse(raw));}
@@ -22,7 +31,7 @@
       this.root.innerHTML='<header class="memo-head"><div><span class="memo-eyebrow">나만의 작은 기록</span><h2>메모장 <small id="memo-count">0</small></h2></div><button type="button" class="icon-btn" data-memo-close aria-label="메모장 닫기">×</button></header><div class="memo-tools"><div class="memo-views" role="group" aria-label="메모 보기 방식"><button type="button" data-memo-view="list" aria-pressed="false" title="목록 보기">☰ <span>목록</span></button><button type="button" data-memo-view="grid" aria-pressed="true" title="그리드 보기">▦ <span>그리드</span></button></div><button type="button" class="btn memo-add" data-memo-add>＋ 새 메모</button></div><p class="memo-hint">점 손잡이를 잡아 이동하거나 아래에 놓아 삭제하세요.</p><div class="memo-cards" id="memo-cards"></div><div class="memo-trash" data-memo-trash hidden>여기에 놓아 삭제</div><footer class="memo-foot"><div class="memo-undo" hidden><span>메모를 삭제했습니다.</span><button type="button" data-memo-undo>되돌리기</button></div><div class="memo-save-line"><span id="memo-save-status" role="status" aria-live="polite">이 PC에 자동 저장됩니다.</span><button type="button" data-memo-retry hidden>다시 저장</button></div><span class="memo-announcement sr-only" aria-live="polite"></span></footer>';
       this.list=this.root.querySelector('.memo-cards');
       this.root.addEventListener('click',e=>this.click(e));
-      this.root.addEventListener('input',e=>{const input=e.target.closest('[data-memo-text]');if(!input)return;const note=this.data.notes.find(n=>n.id===input.dataset.memoText);if(!note)return;note.text=input.value;note.updatedAt=Date.now();if(this.expanded===note.id&&this.editor)this.editor.querySelector('textarea').value=note.text;this.fit(input);this.persist();});
+      document.addEventListener('selectionchange',()=>{const input=this.editor?.querySelector('.memo-rich'),selection=getSelection();if(input&&selection.rangeCount&&input.contains(selection.anchorNode)&&input.contains(selection.focusNode)){this.editorRange=selection.getRangeAt(0).cloneRange();this.updateFormat();}});
       this.root.addEventListener('pointerdown',e=>this.pointerDown(e));
       this.root.addEventListener('keydown',e=>this.key(e));
       this.root.addEventListener('contextmenu',e=>{if(e.target.closest('[data-memo-grip]'))e.preventDefault();});
@@ -40,19 +49,43 @@
     setOpen(open){
       const changed=this.open!==!!open;this.open=!!open;this.root.inert=!open;this.root.setAttribute('aria-hidden',String(!open));this.tab?.setAttribute('aria-expanded',String(!!open));
       if(!open){cancelAnimationFrame(this.openFrame);this.collapseEditor();this.cancelDrag();if(this.root.contains(document.activeElement))this.tab?.focus({preventScroll:true});this.root.classList.remove('open');this.tab?.classList.remove('open');}
-      else if(changed){this.root.getBoundingClientRect();this.openFrame=requestAnimationFrame(()=>{if(this.open){this.root.classList.add('open');this.tab?.classList.add('open');}this.root.querySelectorAll('textarea').forEach(el=>this.fit(el));});}
+      else if(changed){this.root.getBoundingClientRect();this.openFrame=requestAnimationFrame(()=>{if(this.open){this.root.classList.add('open');this.tab?.classList.add('open');}this.root.querySelectorAll('.memo-rich').forEach(el=>this.fit(el));});}
     }
     positionEditor(){if(!this.expanded||!this.editor)return;const width=Math.min(520,innerWidth-32),height=Math.min(560,innerHeight-64),r=this.root.getBoundingClientRect();Object.assign(this.editor.style,{width:width+'px',height:height+'px',left:Math.max(16,Math.min(innerWidth-width-16,r.left+r.width/2-width/2))+'px',top:Math.max(16,Math.min(innerHeight-height-16,80))+'px'});}
     openEditor(id){
       const note=this.data.notes.find(n=>n.id===id);if(!note||this.readError)return;this.cancelDrag();this.collapseEditor();this.expanded=id;
-      this.editor=document.createElement('section');this.editor.className='memo-editor '+note.color;this.editor.setAttribute('role','dialog');this.editor.setAttribute('aria-label','메모 크게 쓰기');this.editor.innerHTML='<header class="memo-editor-head"><span>나의 메모</span><button type="button" data-memo-collapse aria-label="메모 최소화" title="작게 보기">_</button></header><textarea aria-label="확대한 메모" maxlength="4000" placeholder="생각을 편하게 적어 두세요…" spellcheck="false"></textarea><footer class="memo-editor-foot"><span role="status">이 PC에 자동 저장됩니다.</span><button type="button" data-memo-retry hidden>다시 저장</button></footer>';
-      const input=this.editor.querySelector('textarea');input.value=note.text;input.oninput=()=>{note.text=input.value;note.updatedAt=Date.now();const small=this.list.querySelector(`[data-memo-text="${id}"]`);if(small){small.value=note.text;this.fit(small);}this.persist();};
+      this.editor=document.createElement('section');this.editor.className='memo-editor '+note.color;this.editor.setAttribute('role','dialog');this.editor.setAttribute('aria-label','메모 크게 쓰기');
+      this.editor.innerHTML='<header class="memo-editor-head"><span>나의 메모</span><button type="button" data-memo-collapse aria-label="메모 최소화" title="작게 보기">_</button></header><div class="memo-format" role="group" aria-label="메모 서식">'+[['bold','굵게 (Ctrl+B)','<b>B</b>'],['italic','기울임 (Ctrl+I)','<i>I</i>'],['underline','밑줄 (Ctrl+U)','<u>U</u>'],['insertUnorderedList','글머리 기호','• 목록'],['insertOrderedList','번호 목록','1. 목록']].map(([command,label,content])=>'<button type="button" data-memo-format="'+command+'" aria-label="'+label+'" title="'+label+'" aria-pressed="false">'+content+'</button>').join('')+'</div><div class="memo-rich" contenteditable="true" role="textbox" aria-label="확대한 메모" aria-multiline="true" data-placeholder="생각을 편하게 적어 두세요…" spellcheck="false"></div><footer class="memo-editor-foot"><span role="status">이 PC에 자동 저장됩니다.</span><button type="button" data-memo-retry hidden>다시 저장</button></footer>';
+      const input=this.editor.querySelector('.memo-rich');this.bindRich(input,note);
+      this.editor.querySelectorAll('[data-memo-format]').forEach(button=>{button.onpointerdown=e=>e.preventDefault();button.onclick=()=>this.format(button.dataset.memoFormat,input);});
       this.editor.querySelector('[data-memo-collapse]').onclick=()=>this.collapseEditor(true);this.editor.querySelector('[data-memo-retry]').onclick=()=>this.persist();this.editor.onkeydown=e=>{if(e.key==='Escape'&&!e.isComposing){e.preventDefault();e.stopPropagation();this.collapseEditor(true);}};
-      document.body.append(this.editor);this.positionEditor();input.focus();input.setSelectionRange(input.value.length,input.value.length);
+      document.body.append(this.editor);this.positionEditor();input.focus();const range=document.createRange();range.selectNodeContents(input);range.collapse(false);getSelection().removeAllRanges();getSelection().addRange(range);this.editorRange=range.cloneRange();this.updateFormat();
     }
-    collapseEditor(focus=false){if(!this.expanded)return;const id=this.expanded;this.expanded=null;this.editor?.remove();this.editor=null;if(focus)this.list.querySelector(`[data-memo-id="${id}"] [data-memo-expand]`)?.focus();}
-    focusState(){const el=document.activeElement;if(!this.root.contains(el))return null;return {el,id:el.dataset.memoText,start:el.selectionStart,end:el.selectionEnd,scroll:this.list.scrollTop};}
-    restoreFocus(s){if(s?.id&&!s.el.isConnected)s.el=this.list.querySelector(`[data-memo-text="${s.id}"]`);if(s?.el?.isConnected&&this.open){if(document.activeElement!==s.el)s.el.focus({preventScroll:true});if(s.start!=null&&s.el.setSelectionRange&&(s.el.selectionStart!==s.start||s.el.selectionEnd!==s.end))s.el.setSelectionRange(s.start,s.end);this.list.scrollTop=s.scroll;}}
+    bindRich(input,note){
+      input.dataset.memoText=note.id;input.innerHTML=markup(note);input.contentEditable=String(!this.readError);input.setAttribute('aria-readonly',String(this.readError));
+      input.oninput=e=>this.commitRich(input,e.isComposing);input.oncompositionend=()=>this.commitRich(input);
+      input.onpaste=e=>{e.preventDefault();const html=e.clipboardData.getData('text/html'),text=e.clipboardData.getData('text/plain');document.execCommand('insertHTML',false,html&&html.length<1000000?cleanHTML(html):plainMarkup(text));this.commitRich(input);};
+      input.ondrop=e=>e.preventDefault();
+      input.onkeydown=e=>{if((e.ctrlKey||e.metaKey)&&!e.altKey&&!e.isComposing&&['b','i','u'].includes(e.key.toLowerCase())){e.preventDefault();e.stopPropagation();this.format({b:'bold',i:'italic',u:'underline'}[e.key.toLowerCase()],input);}};
+    }
+    commitRich(input,composing=false){
+      const note=this.data.notes.find(n=>n.id===input.dataset.memoText);if(!note)return;
+      const text=input.innerText.replace(/\r\n?/g,'\n'),html=cleanHTML(input.innerHTML);
+      if(text.length>4000||html.length>64000){if(composing)return;input.innerHTML=markup(note);const range=document.createRange();range.selectNodeContents(input);range.collapse(false);getSelection().removeAllRanges();getSelection().addRange(range);this.status('메모는 4,000자까지 입력할 수 있습니다.',true);return;}
+      if(note.text===text&&note.html===html){this.updateFormat();return;}
+      note.text=text;note.html=html;note.updatedAt=Date.now();
+      const small=this.list.querySelector(`[data-memo-text="${note.id}"]`);if(small&&small!==input){small.innerHTML=html;this.fit(small);}if(this.root.contains(input))this.fit(input);this.persist();this.updateFormat();
+    }
+    format(command,input){
+      if(!input?.isConnected)return;const selection=getSelection(),range=selection.rangeCount&&input.contains(selection.anchorNode)&&input.contains(selection.focusNode)?selection.getRangeAt(0).cloneRange():this.editorRange;input.focus({preventScroll:true});
+      if(range&&input.contains(range.commonAncestorContainer)){selection.removeAllRanges();selection.addRange(range.cloneRange());}
+      document.execCommand('styleWithCSS',false,false);document.execCommand(command,false,null);this.commitRich(input);
+      if(this.editor?.contains(input)&&selection.rangeCount)this.editorRange=selection.getRangeAt(0).cloneRange();this.updateFormat();
+    }
+    updateFormat(){if(!this.editor)return;this.editor.querySelectorAll('[data-memo-format]').forEach(button=>button.setAttribute('aria-pressed',String(document.queryCommandState(button.dataset.memoFormat))));}
+    collapseEditor(focus=false){if(!this.expanded)return;const id=this.expanded;this.expanded=null;this.editorRange=null;this.editor?.remove();this.editor=null;if(focus)this.list.querySelector(`[data-memo-id="${id}"] [data-memo-expand]`)?.focus();}
+    focusState(){const el=document.activeElement;if(!this.root.contains(el))return null;const selection=getSelection(),range=selection.rangeCount?selection.getRangeAt(0).cloneRange():null;return {el,id:el.dataset.memoText,range,scroll:this.list.scrollTop};}
+    restoreFocus(s){if(s?.id&&!s.el.isConnected)s.el=this.list.querySelector(`[data-memo-text="${s.id}"]`);if(s?.el?.isConnected&&this.open){if(document.activeElement!==s.el)s.el.focus({preventScroll:true});if(s.range&&s.range.startContainer.isConnected&&(!getSelection().rangeCount||!getSelection().getRangeAt(0).isPointInRange(s.range.startContainer,s.range.startOffset))){getSelection().removeAllRanges();getSelection().addRange(s.range);}this.list.scrollTop=s.scroll;}}
     status(message,error=false){const el=this.root.querySelector('#memo-save-status');if(el.textContent!==message)el.textContent=message;if(this.editor){this.editor.querySelector('[role=status]').textContent=message;this.editor.querySelector('[data-memo-retry]').hidden=!this.failed;}el.classList.toggle('memo-error',error);this.root.querySelector('[data-memo-retry]').hidden=!this.failed||this.readError;}
     announce(message){this.root.querySelector('.memo-announcement').textContent=message;}
     persist(){try{this.store.save(this.data);this.failed=false;this.status('이 PC에 저장됨');return true;}catch{this.failed=true;this.status('저장하지 못했습니다. 현재 내용을 유지하고 다시 저장해 주세요.',true);return false;}}
@@ -61,9 +94,9 @@
       this.cancelDrag();this.list.dataset.view=this.data.view;this.list.replaceChildren();
       for(const [i,note] of this.data.notes.entries()){
         const card=document.createElement('article');card.className='sticky-note '+note.color;card.dataset.memoId=note.id;
-        card.innerHTML='<div class="sticky-note-tools"><button type="button" class="memo-grip" data-memo-grip aria-label="메모 순서 이동" title="잡아서 바로 이동 · Alt+방향키로 순서 이동">⠿</button><span class="memo-order"></span><button type="button" class="memo-expand" data-memo-expand aria-label="메모 확대" title="크게 쓰기">↗</button><button type="button" class="memo-delete" data-memo-delete aria-label="메모 삭제" title="메모 삭제">×</button></div><textarea data-memo-text spellcheck="false" maxlength="4000" placeholder="잊기 전에 적어 두세요…"></textarea>';
+        card.innerHTML='<div class="sticky-note-tools"><button type="button" class="memo-grip" data-memo-grip aria-label="메모 순서 이동" title="잡아서 바로 이동 · Alt+방향키로 순서 이동">⠿</button><span class="memo-order"></span><button type="button" class="memo-expand" data-memo-expand aria-label="메모 확대" title="크게 쓰기">↗</button><button type="button" class="memo-delete" data-memo-delete aria-label="메모 삭제" title="메모 삭제">×</button></div><div class="memo-rich" data-memo-text contenteditable="true" role="textbox" aria-multiline="true" spellcheck="false" data-placeholder="잊기 전에 적어 두세요…"></div>';
         card.querySelector('.memo-order').textContent=String(i+1).padStart(2,'0');
-        const input=card.querySelector('textarea');input.dataset.memoText=note.id;input.setAttribute('aria-label',(i+1)+'번째 메모');input.value=note.text;input.disabled=this.readError;
+        const input=card.querySelector('.memo-rich');input.setAttribute('aria-label',(i+1)+'번째 메모');this.bindRich(input,note);
         this.list.append(card);this.fit(input);
       }
       if(!this.data.notes.length){const empty=document.createElement('div');empty.className='memo-empty';empty.innerHTML='<span aria-hidden="true">✎</span><strong>생각이 떠오르면 가볍게</strong><p>새 메모를 눌러 첫 기록을 남겨 보세요.</p>';this.list.append(empty);}

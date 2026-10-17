@@ -379,3 +379,10 @@ Staff information opens in a singleton, resizable native window, up to 1400×860
 - The persistent handle is mounted above the frame seam and moves using the same transform duration/easing as the drawer. Native paint/hit regions include the handle at the outer drawer edge while opening/closing; display-edge fitting includes its full protrusion.
 - Electron samples the handle-to-drawer offset during both opening and closing, verifies no gap or drifting, and checks opaque yellow pixels across the main-frame boundary with zero handle border.
 - Existing sticky note interactions, account-local persistence, briefing transparency and minimal/restore flows pass locally. The complete source and packaged Windows suites run before publication.
+
+## 0.2.82 — rich sticky note formatting
+
+- Existing version-1 text-only notes remain readable. Optional bounded HTML stores basic formatting alongside plain text. New storage tests verify legacy records, rich round trips, invalid types and size bounds.
+- The Electron formatting flow verifies selection-preserving bold/italic/underline tools and keyboard shortcuts, two-item bullet and number lists, compact rich editing, collapse/reopen/reload persistence and absence from shared messenger data.
+- Clipboard HTML is reduced to supported semantic tags without attributes; script/media nodes are discarded. Paste and character-limit behavior are verified in the real editor.
+- Existing sticky note reorder/undo, save-failure retry, Korean input focus across external workspace updates and native wings remain covered. The authenticated account test verifies formatted notes stay isolated locally and absent from server bootstrap.
