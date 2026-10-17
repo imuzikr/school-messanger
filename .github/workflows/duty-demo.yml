@@ -1,7 +1,7 @@
 name: Verify and package duty demo
 on:
   push:
-    branches: [codex/duty-demo-0.2.90]
+    branches: [codex/duty-demo-0.2.91]
 permissions:
   contents: read
 defaults:
@@ -85,7 +85,7 @@ jobs:
           npm install --no-save --package-lock=false playwright@1.56.1 pngjs@7.0.0
           python -m pip install openpyxl==3.1.5
           $env:IEUM_TEST_PYTHON="python"
-          $env:IEUM_TEST_EXECUTABLE=(Resolve-Path "release/Ieum-Deadline-Demo-0.2.90-win-x64/Ieum-Deadline-Demo.exe").Path
+          $env:IEUM_TEST_EXECUTABLE=(Resolve-Path "release/Ieum-Deadline-Demo-0.2.91-win-x64/Ieum-Deadline-Demo.exe").Path
           node tests/electron-mail-receipts.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node tests/electron-settings-close.cjs
@@ -122,14 +122,14 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node tests/electron-briefing.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -c "from zipfile import ZipFile; z=ZipFile('release/Ieum-Deadline-Demo-0.2.90-win-x64.zip'); assert z.testzip() is None; print('Windows ZIP CRC PASS')"
+          python -c "from zipfile import ZipFile; z=ZipFile('release/Ieum-Deadline-Demo-0.2.91-win-x64.zip'); assert z.testzip() is None; print('Windows ZIP CRC PASS')"
       - uses: actions/upload-artifact@v4
         with:
-          name: Ieum-Demo-0.2.90
-          path: recovered/ieum-window-demo-0.2.7/release/Ieum-Deadline-Demo-0.2.90-win-x64.zip
+          name: Ieum-Demo-0.2.91
+          path: recovered/ieum-window-demo-0.2.7/release/Ieum-Deadline-Demo-0.2.91-win-x64.zip
       - name: Publish tested portable demo
         env:
           GH_TOKEN: ${{ github.token }}
         shell: pwsh
         run: |
-          gh release create v0.2.90 release/Ieum-Deadline-Demo-0.2.90-win-x64.zip release/SHA256SUMS.txt --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "이음 Windows 데모 0.2.90" --notes "브리핑과 모달 닫기 버튼에 자동으로 생기던 굵은 초록색 포커스 테두리를 제거했습니다. 모달을 열면 대화상자 자체로 포커스를 옮기고 사용자가 선택한 내부 입력 포커스는 유지합니다. 메신저 창과 모달의 닫기 아이콘은 테두리·모서리 모양을 통일했으며, 키보드 Tab 선택 시 동일한 얇은 내부 포커스 표시를 사용합니다. 닫기 클릭·Enter·Esc 및 브리핑 이동·투명 영역을 검증했습니다. 전체 압축 해제 후 Ieum-Deadline-Demo.exe를 실행하세요."
+          gh release create v0.2.91 release/Ieum-Deadline-Demo-0.2.91-win-x64.zip release/SHA256SUMS.txt --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "이음 Windows 데모 0.2.91" --notes "일정 상세에서 데모 요청자 선택 목록을 제거했습니다. 교환 요청은 현재 사용자로 진행하며 선택한 일정의 상대 교사가 한 명이면 이름을 고정 표시합니다. 여러 명이 함께 배정된 일정에서는 교환 가능한 해당 배정 교사만 선택합니다. 내 일정 자동 연결과 상대 수락·담당자 승인 흐름을 검증했습니다. 전체 압축 해제 후 Ieum-Deadline-Demo.exe를 실행하세요."
