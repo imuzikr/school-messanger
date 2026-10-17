@@ -3010,3 +3010,15 @@ input[type="checkbox"] {
 .homeroom-entry header>.btn{font-size:11px;padding:4px 7px;min-height:0}
 
 .homeroom-entry header>.homeroom-pin{flex-shrink:0;white-space:nowrap}.homeroom-pin[aria-pressed="true"]{background:var(--green);border-color:var(--green);color:white}
+
+.exchange-dashboard{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:12px 14px;margin:-5px 0 18px;border:1px solid var(--line);border-radius:10px;background:var(--soft)}
+.exchange-dashboard>strong{display:flex;align-items:center;gap:6px;margin-right:auto;font-size:13px}.exchange-dashboard .btn{padding:8px 11px;font-size:12px}.exchange-dashboard b{margin-left:5px}
+.exchange-needs-action{border-color:#3978bd;color:#285d98;background:#edf4ff}
+.exchange-list-item{border:1px solid var(--line);border-radius:10px;background:var(--soft);overflow:hidden}
+.exchange-list-item .exchange-card{width:100%;border:0;border-radius:0;background:transparent;gap:5px}
+.exchange-list-item .exchange-card small{color:var(--muted);font-size:11px}
+.exchange-list-actions{display:flex;gap:8px;justify-content:flex-end;padding:0 14px 12px}.exchange-list-actions:empty{display:none}
+.exchange-list-reason{margin:0 16px 12px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px}
+.exchange-filters{display:flex;gap:7px;flex-wrap:wrap;margin:14px 0}.exchange-filters .btn{padding:8px 12px;font-size:12px}
+.exchange-notice{cursor:pointer}.exchange-notice footer{margin-top:8px}.exchange-notice .btn{font-size:12px;padding:6px 10px}
+.exchange-inbox-button{position:relative}

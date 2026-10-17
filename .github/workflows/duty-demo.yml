@@ -1,7 +1,7 @@
 name: Verify and package duty demo
 on:
   push:
-    branches: [codex/duty-demo-0.2.96]
+    branches: [codex/duty-demo-0.2.97]
 permissions:
   contents: read
 defaults:
@@ -85,7 +85,7 @@ jobs:
           npm install --no-save --package-lock=false playwright@1.56.1 pngjs@7.0.0
           python -m pip install openpyxl==3.1.5
           $env:IEUM_TEST_PYTHON="python"
-          $env:IEUM_TEST_EXECUTABLE=(Resolve-Path "release/Ieum-Deadline-Demo-0.2.96-win-x64/Ieum-Deadline-Demo.exe").Path
+          $env:IEUM_TEST_EXECUTABLE=(Resolve-Path "release/Ieum-Deadline-Demo-0.2.97-win-x64/Ieum-Deadline-Demo.exe").Path
           node tests/electron-mail-receipts.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node tests/electron-settings-close.cjs
@@ -122,14 +122,14 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node tests/electron-briefing.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -c "from zipfile import ZipFile; z=ZipFile('release/Ieum-Deadline-Demo-0.2.96-win-x64.zip'); assert z.testzip() is None; print('Windows ZIP CRC PASS')"
+          python -c "from zipfile import ZipFile; z=ZipFile('release/Ieum-Deadline-Demo-0.2.97-win-x64.zip'); assert z.testzip() is None; print('Windows ZIP CRC PASS')"
       - uses: actions/upload-artifact@v4
         with:
-          name: Ieum-Demo-0.2.96
-          path: recovered/ieum-window-demo-0.2.7/release/Ieum-Deadline-Demo-0.2.96-win-x64.zip
+          name: Ieum-Demo-0.2.97
+          path: recovered/ieum-window-demo-0.2.7/release/Ieum-Deadline-Demo-0.2.97-win-x64.zip
       - name: Publish tested portable demo
         env:
           GH_TOKEN: ${{ github.token }}
         shell: pwsh
         run: |
-          gh release create v0.2.96 release/Ieum-Deadline-Demo-0.2.96-win-x64.zip release/SHA256SUMS.txt --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "이음 Windows 데모 0.2.96" --notes "업무 교환 비교를 미니 월간 달력과 교사별 이동 카드로 바꿨습니다. 교환 전 배정 날짜와 이름을 파란색·노란색으로 구분하고, 두 교사의 교환 전후 날짜와 시간을 화살표로 표시합니다. 요청 작성 미리보기와 수락·승인 상세 화면에 함께 적용되며 좁은 화면에서는 세로로 배치됩니다. 전체 압축 해제 후 Ieum-Deadline-Demo.exe를 실행하세요."
+          gh release create v0.2.97 release/Ieum-Deadline-Demo-0.2.97-win-x64.zip release/SHA256SUMS.txt --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "이음 Windows 데모 0.2.97" --notes "본창과 캘린더에 업무 교환 요청함을 추가하고 받은 요청·승인 대기·보낸 요청을 구분합니다. 요청함에서 수락·거절·승인·반려·취소를 바로 처리할 수 있습니다. 상대가 수락하면 요청자에게 수락 알림, 담당자에게 승인 요청 알림을 보내며 앱과 Windows 알림을 클릭해 해당 요청을 바로 엽니다. 업무 달력의 진행 중은 파란색, 내 배정은 붉은색의 얇은 테두리로 표시하고 두 상태가 겹치면 파란 실선과 붉은 내부 점선을 함께 표시합니다. 전체 압축 해제 후 Ieum-Deadline-Demo.exe를 실행하세요."

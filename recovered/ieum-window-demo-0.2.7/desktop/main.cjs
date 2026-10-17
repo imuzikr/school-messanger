@@ -149,7 +149,7 @@ expose('ieum:briefing-shape',(event,bounds)=>{
 });
 function sourceTarget(target){
  if(target==null)return null;
- if(!target||!['mail','message','event','deadline','task'].includes(target.kind)||typeof target.id!=='string'||!target.id||target.id.length>100)throw new Error('연결된 항목이 올바르지 않습니다.');
+ if(!target||!['mail','message','event','deadline','task','exchange'].includes(target.kind)||typeof target.id!=='string'||!target.id||target.id.length>100)throw new Error('연결된 항목이 올바르지 않습니다.');
  return {kind:target.kind,id:target.id};
 }
 function targetQuery(target){return target?'&source='+encodeURIComponent(target.kind)+'&item='+encodeURIComponent(target.id):'';}
@@ -203,6 +203,6 @@ expose('ieum:start-server',async(event,config)=>{if(role!=='server')throw new Er
 expose('ieum:export',async()=>{if(role!=='server'||!localServer)throw new Error('서버를 먼저 실행해 주세요.');const result=await dialog.showSaveDialog(mainWindow,{title:'교직원에게 전달할 서버 연결 파일',defaultPath:'ieum-server.json',filters:[{name:'이음 연결 파일',extensions:['json']}]});if(result.canceled)return null;fs.writeFileSync(result.filePath,JSON.stringify(localServer.connection,null,2));return {ok:true};});
 expose('ieum:backup',async()=>{if(role!=='server'||!localServer)throw new Error('서버를 먼저 실행해 주세요.');const result=await dialog.showSaveDialog(mainWindow,{title:'교내 메신저 데이터 백업',defaultPath:'ieum-backup-'+new Date().toISOString().slice(0,10)+'.sqlite',filters:[{name:'이음 데이터베이스',extensions:['sqlite']}]});if(result.canceled)return null;localServer.backup(result.filePath);return {ok:true};});
 expose('ieum:auto-start',(event,enabled)=>{app.setLoginItemSettings({openAtLogin:enabled});return {ok:true};});
-expose('ieum:notify',(event,value)=>{const title=String(value?.title||'이음').slice(0,100),body=String(value?.body||'새 소식이 도착했습니다.').slice(0,250);if(Notification.isSupported())new Notification({title,body,silent:false}).show();});
+expose('ieum:notify',(event,value)=>{const title=String(value?.title||'이음').slice(0,100),body=String(value?.body||'새 소식이 도착했습니다.').slice(0,250),target=sourceTarget(value?.target);if(Notification.isSupported()){const notice=new Notification({title,body,silent:false});if(target)notice.on('click',()=>{const previous=[...windows].find(w=>!w.isDestroyed()&&w.ieumPage==='calendar');if(previous){previous.show();previous.focus();previous.webContents.send('ieum:update',{kind:'briefing-target',target});}else{const w=createWindow('ieum://app/index.html?workspace=calendar'+targetQuery(target),{width:1180,height:800,minWidth:700});w.ieumPage='calendar';}});notice.show();}});
 app.on('before-quit',e=>{if(localServer){e.preventDefault();const running=localServer;localServer=null;quitting=true;stopStream();running.close().finally(()=>app.quit());}else{quitting=true;stopStream();}});
 app.on('window-all-closed',()=>{});

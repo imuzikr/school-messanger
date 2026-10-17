@@ -29,3 +29,14 @@ test('remaining-month candidates exclude past days and next month including year
  for(const [today,accepted,rejected] of [['2030-10-15',['2030-10-15','2030-10-31'],['2030-10-14','2030-11-01','2031-10-16']],['2029-12-31',['2029-12-31'],['2029-12-30','2030-01-01']],['2028-02-28',['2028-02-28','2028-02-29'],['2028-02-27','2028-03-01']]]){for(const day of accepted)assert.equal(x.remainingMonth(day,today),true);for(const day of rejected)assert.equal(x.remainingMonth(day,today),false);}
  const c=fixture();c.events[1].date='2030-11-01';assert.throws(()=>create(c),/이번 달 말일/);
 });
+
+
+test('recipient acceptance notifies requester and manager with their next step',()=>{
+ const c=fixture(),r=create(c),accepted=x.act(r,'accept','',{id:'b'},c).request;
+ assert.match(x.notification(r,{id:'b'},c).title,/교환 요청 도착/);
+ assert.match(x.notification(accepted,{id:'a'},c).title,/상대 교사 수락/);
+ assert.match(x.notification(accepted,{id:'a'},c).body,/이교사 선생님이 수락/);
+ assert.match(x.notification(accepted,{id:'m'},c).title,/승인 요청 도착/);
+ assert.match(x.notification(accepted,{id:'m'},c).body,/최종 승인 또는 반려/);
+ const cancelled=x.act(accepted,'cancel','',{id:'a'},c);assert.equal(cancelled.request.status,'cancelled');assert.equal(cancelled.events.length,0);
+});

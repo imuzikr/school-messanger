@@ -71,7 +71,12 @@
   });}
   const visible=(r,actor,ctx)=>r.requester===actor.id||r.partner===actor.id||(r.observers||[]).includes(actor.id)||[r.from.id,r.to.id].some(id=>ctx.events.find(e=>e.id===id)?.owner===actor.id)||manager(actor,r.kind,ctx);
   const version=r=>r.status+':'+r.history.length;
-  function notification(r){return {title:duties.types[r.kind].label+' · '+labels[r.status],body:`${r.requesterName} ↔ ${r.partnerName} · ${r.from.date} ↔ ${r.to.date}${r.status==='approved'?' · 두 교사의 배정과 업무 담당자 캘린더에 반영되었습니다.':''} 캘린더에서 해당 일정을 클릭해 확인하세요.`};}
+  function notification(r,actor,ctx){
+    const kind=duties.types[r.kind].label,isManager=actor&&ctx&&manager(actor,r.kind,ctx);
+    const status=r.status==='pending'&&actor?.id===r.partner?'교환 요청 도착':r.status==='approval'?(isManager?'승인 요청 도착':'상대 교사 수락'):labels[r.status];
+    const update=r.status==='approval'?`${r.partnerName} 선생님이 수락했습니다. ${isManager?'최종 승인 또는 반려해 주세요.':'업무 담당자의 최종 승인을 기다립니다.'}`:r.status==='pending'&&actor?.id===r.partner?`${r.requesterName} 선생님의 요청을 수락하거나 거절해 주세요.`:r.status==='approved'?'두 교사의 배정과 업무 담당자 캘린더에 반영되었습니다.':'';
+    return {title:kind+' · '+status,body:`${r.requesterName} ↔ ${r.partnerName} · ${r.from.date} ↔ ${r.to.date} ${update} 요청함에서 바로 확인하세요.`};
+  }
   const api={labels,active,manager,snapshot,current,pair,create,act,reconcile,visible,version,notification,remainingMonth};
   if(typeof module==='object'&&module.exports)module.exports=api;else root.IeumDutyExchanges=api;
 })(typeof window==='object'?window:globalThis);

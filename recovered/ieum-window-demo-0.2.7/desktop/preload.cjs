@@ -27,5 +27,5 @@ contextBridge.exposeInMainWorld('ieumDesktop',Object.freeze({
   exportConnection: ()=>ipcRenderer.invoke('ieum:export'),
   backupServer: ()=>ipcRenderer.invoke('ieum:backup'),
   autoStart: enabled=>ipcRenderer.invoke('ieum:auto-start',!!enabled),
-  notify: (title,body)=>ipcRenderer.invoke('ieum:notify',{title,body})
+  notify: (title,body,target)=>ipcRenderer.invoke('ieum:notify',{title,body,target})
 }));
