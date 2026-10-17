@@ -107,7 +107,9 @@
       if(this.readError)this.status('저장된 메모를 읽지 못했습니다. 기존 기록을 보호하기 위해 편집을 멈췄습니다.',true);
     }
     click(e){
-      const button=e.target.closest('button');if(!button||!this.root.contains(button))return;
+      const button=e.target.closest('button');
+      if(!button){const card=e.target.closest('[data-memo-id]');if(card&&this.list.contains(card)&&!this.readError&&!this.drag)this.openEditor(card.dataset.memoId);return;}
+      if(!this.root.contains(button))return;
       if(button.hasAttribute('data-memo-close')){this.onClose();return;}
       if(this.readError)return;
       if(button.hasAttribute('data-memo-add')){
