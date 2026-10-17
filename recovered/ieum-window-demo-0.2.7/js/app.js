@@ -496,7 +496,7 @@
         )
         .join(
           "",
-        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.89</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
+        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.90</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
     );
   }
   const groupLabel=p=>String(p[state.group]||"").trim()||({grade:"학년 미지정",otherGroup:"기타 미지정"}[state.group]||"미지정");
@@ -952,7 +952,7 @@
     if (!$("#modal-root").firstChild)
       modalPreviousFocus = document.activeElement;
     $("#modal-root").innerHTML =
-      `<div class="overlay${cls==="briefing-modal"?" briefing-overlay":""}"><section class="modal ${cls}" role="dialog" aria-modal="true" aria-labelledby="modal-title"><header class="modal-head"><h2 id="modal-title">${esc(title)}</h2>${ib("close-modal", "닫기", "x")}</header><div class="modal-body">${body}</div>${footer ? `<footer class="modal-foot">${footer}</footer>` : ""}</section></div>`;
+      `<div class="overlay${cls==="briefing-modal"?" briefing-overlay":""}"><section class="modal ${cls}" role="dialog" tabindex="-1" aria-modal="true" aria-labelledby="modal-title"><header class="modal-head"><h2 id="modal-title">${esc(title)}</h2>${ib("close-modal", "닫기", "x")}</header><div class="modal-body">${body}</div>${footer ? `<footer class="modal-foot">${footer}</footer>` : ""}</section></div>`;
     const closeButton=$(".modal-head [data-action=close-modal]");
     closeButton.onclick=event=>{event.preventDefault();event.stopPropagation();closeModal();};
     if(cls==="briefing-modal"&&windowApi?.mainHost&&windowApi.briefingShape){
@@ -961,11 +961,11 @@
       const observer=new ResizeObserver(fit);observer.observe(modal);window.addEventListener("resize",fit);updateBriefingShape=fit;fit();
       modalCleanup=()=>{active=false;cancelAnimationFrame(frame);observer.disconnect();window.removeEventListener("resize",fit);updateBriefingShape=null;windowApi.briefingShape(null);};
     }
-    requestAnimationFrame(() => {
-      const el = $(
-        ".modal input:not([type=checkbox]),.modal textarea,.modal button",
-      );
-      el?.focus();
+    const dialog=$('#modal-root .modal');
+    requestAnimationFrame(()=>{
+      // Focus the dialog without drawing an automatic ring around its close icon.
+      // Preserve an explicit focus choice made inside it before this frame.
+      if(dialog?.isConnected&&!dialog.contains(document.activeElement))dialog.focus({preventScroll:true});
     });
   }
   function closeModal(keepStaffWindow=false) {

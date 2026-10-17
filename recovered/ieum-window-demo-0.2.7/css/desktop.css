@@ -471,3 +471,8 @@ body.minimal-main>.memo-tab,.unified-main:has(.briefing-overlay)>.memo-tab{displ
 .duty-month-empty{color:var(--muted);font-size:10px;padding-top:8px}
 
 .duty-exchange-info{padding:12px;border:1px solid var(--line);border-radius:8px;background:var(--green-soft);font-size:12px;display:grid;gap:7px}.duty-exchange-info p{margin:0}.duty-exchange-info label{display:grid;gap:6px}.duty-exchange-info small{color:var(--muted);line-height:1.5}.duty-exchange-info [role=status]{line-height:1.6}
+
+/* Close icons share the same border and keyboard focus in dialogs and messenger windows. */
+.modal:focus{outline:none}
+.icon-btn:is([data-action=close-modal],[data-action=window-close]){border:0;border-radius:6px;box-shadow:none;outline:none}
+.icon-btn:is([data-action=close-modal],[data-action=window-close]):focus-visible{outline:1px solid var(--green);outline-offset:-3px}

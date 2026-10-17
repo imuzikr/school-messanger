@@ -31,6 +31,12 @@ try{
   assert.equal(sample(Math.max(0,state.rect.x-3),state.rect.y+Math.floor(state.rect.height/2)),0,'no painted panel beside briefing');
  };
  await assertSurface();
+ await p.waitForFunction(()=>document.activeElement?.matches('.briefing-modal'));
+ const closeStyle=selector=>p.locator(selector).evaluate(el=>{const s=getComputedStyle(el);return {border:s.borderWidth,radius:s.borderRadius,outline:s.outlineWidth,outlineStyle:s.outlineStyle,offset:s.outlineOffset};});
+ const closeSelector='.briefing-modal .modal-head [data-action=close-modal]';
+ assert.equal((await closeStyle(closeSelector)).border,'0px');assert.equal((await closeStyle(closeSelector)).outlineStyle,'none','opening dialog does not auto-outline close icon');
+ await p.keyboard.press('Tab');assert.equal(await p.locator(closeSelector).evaluate(el=>el===document.activeElement),true);const focusedClose=await closeStyle(closeSelector);assert.equal(focusedClose.outline,'1px');assert.equal(focusedClose.offset,'-3px');assert.equal(focusedClose.radius,'6px');await p.keyboard.press('Enter');await p.locator('.briefing-modal').waitFor({state:'detached'});
+ const hostClose='.compact-window-controls [data-action=window-close]';await p.locator(hostClose).focus();assert.deepEqual(await closeStyle(hostClose),focusedClose,'messenger and modal close icon borders and keyboard rings match');await reopen();await assertSurface();
  const dragRegions=await p.evaluate(()=>({header:getComputedStyle(document.querySelector('.briefing-modal .modal-head')).webkitAppRegion,close:getComputedStyle(document.querySelector('.briefing-modal .modal-head button')).webkitAppRegion,entry:getComputedStyle(document.querySelector('.briefing-entry')).webkitAppRegion}));
  assert.deepEqual(dragRegions,{header:'drag',close:'no-drag',entry:'no-drag'});
  await app.evaluate(({BrowserWindow})=>{const w=BrowserWindow.getAllWindows()[0],b=w.getBounds();w.setPosition(b.x+30,b.y+20);});
