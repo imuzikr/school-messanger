@@ -3024,3 +3024,7 @@ input[type="checkbox"] {
 #exchange-preview>.exchange-comparison{margin:0}
 
 .exchange-schedule-info{margin:12px 0}.exchange-schedule-info summary{cursor:pointer;color:var(--muted);font-size:12px}.exchange-schedule-info .btn{margin-top:8px}
+
+.exchange-detail-status{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.exchange-request-nav{display:flex;align-items:center;gap:5px}.exchange-request-position{min-width:76px;text-align:center;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.exchange-request-nav .icon-btn{width:30px;height:30px}.exchange-request-nav .icon-btn:disabled{opacity:.3;cursor:default}#exchange-request-nav:empty{display:none}
