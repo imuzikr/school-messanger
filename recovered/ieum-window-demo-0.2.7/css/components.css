@@ -2972,9 +2972,28 @@ input[type="checkbox"] {
 .exchange-list{display:grid;gap:10px;margin-top:16px}
 .exchange-card{display:grid;justify-items:start;gap:8px;padding:16px;background:var(--soft);border:1px solid var(--line);border-radius:10px;text-align:left;color:inherit;cursor:pointer}
 .exchange-card:hover{border-color:var(--green)}
-.exchange-comparison{overflow:auto;margin:18px 0;border:1px solid var(--line);border-radius:8px}
-.exchange-comparison table{width:100%;min-width:550px}
-.exchange-comparison td{white-space:nowrap}
+.exchange-comparison{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:22px;margin:18px 0;padding:18px;border:1px solid var(--line);border-radius:12px;background:var(--panel,#fff)}
+.exchange-comparison h3{margin:0 0 12px;font-size:13px;font-weight:700}
+.exchange-mini-month+.exchange-mini-month{margin-top:16px}
+.exchange-mini-month h4{margin:0 0 10px;text-align:center;font-size:14px}
+.exchange-mini-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px}
+.exchange-mini-weekday{text-align:center;font-size:10px;color:var(--muted);padding-bottom:5px}
+.exchange-mini-day{min-width:0;min-height:35px;padding:4px 2px;border:1px solid transparent;border-radius:6px;text-align:center;font-size:11px}
+.exchange-mini-day strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:9px;margin-top:3px}
+.exchange-person-0{--exchange-color:#315e96;--exchange-bg:#eaf1fb;--exchange-border:#b8cce7}
+.exchange-person-1{--exchange-color:#835619;--exchange-bg:#fff3d9;--exchange-border:#dfc48b}
+.exchange-mini-day[class*=exchange-person-]{background:var(--exchange-bg);color:var(--exchange-color);border-color:var(--exchange-border);font-weight:700}
+.exchange-flow{padding:12px;border:1px solid var(--exchange-border);border-radius:9px;background:var(--exchange-bg);color:var(--exchange-color)}
+.exchange-flow+.exchange-flow{margin-top:12px}
+.exchange-flow-name{display:flex;align-items:center;gap:7px;font-size:13px;overflow-wrap:anywhere}
+.exchange-person-dot{width:8px;height:8px;border-radius:50%;background:var(--exchange-color);flex:none}
+.exchange-flow-dates{display:grid;grid-template-columns:minmax(0,1fr) 26px minmax(0,1fr);align-items:center;gap:3px;margin-top:9px}
+.exchange-flow-dates>div{display:grid;gap:3px;min-width:0}
+.exchange-flow-label{font-size:10px;opacity:.85}
+.exchange-flow-dates time{font-size:12px;font-weight:700;white-space:nowrap}
+.exchange-flow-dates small{font-size:10px;white-space:nowrap}
+.exchange-flow-arrow{text-align:center;font-size:24px;font-weight:600}
+@media(max-width:680px){.exchange-comparison{grid-template-columns:minmax(0,1fr);gap:18px;padding:14px}.exchange-mini-day{min-height:38px}.exchange-mini-day strong{font-size:10px}}
 #exchange-request-form{display:grid;gap:16px}
 #exchange-request-form label,#exchange-detail label,.exchange-demo-role{display:grid;gap:8px}
 .exchange-reason{white-space:pre-wrap;overflow-wrap:anywhere;margin:16px 0}

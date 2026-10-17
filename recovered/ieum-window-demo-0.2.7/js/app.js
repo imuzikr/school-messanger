@@ -496,7 +496,7 @@
         )
         .join(
           "",
-        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.95</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
+        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.96</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
     );
   }
   const groupLabel=p=>String(p[state.group]||"").trim()||({grade:"학년 미지정",otherGroup:"기타 미지정"}[state.group]||"미지정");
@@ -1817,8 +1817,20 @@
   function exchangeCount(){return exchangeVisible().filter(r=>IeumDutyExchanges.active(r)||(state.settings.exchangeRead||{})[exchangeReadKey(r)]!==exchangeVersion(r)).length;}
   function markExchangeRead(requests){state.settings.exchangeRead={...(state.settings.exchangeRead||{})};for(const r of requests)state.settings.exchangeRead[exchangeReadKey(r)]=exchangeVersion(r);if(native){try{localStorage.setItem('ieum-preferences',JSON.stringify({settings:state.settings}));}catch{}}else save();}
   const exchangeName=id=>id==='system'?'자동 확인':person(id).name;
-  const exchangeSlot=s=>`${s.date} ${s.start}–${s.end}`;
-  function exchangeComparison(r){return `<div class="exchange-comparison"><table class="duty-table"><thead><tr><th>교사</th><th>교환 전</th><th>교환 후</th></tr></thead><tbody><tr><th scope="row">${esc(r.requesterName||exchangeName(r.requester))}</th><td>${esc(exchangeSlot(r.from))}</td><td>${esc(exchangeSlot(r.to))}</td></tr><tr><th scope="row">${esc(r.partnerName||exchangeName(r.partner))}</th><td>${esc(exchangeSlot(r.to))}</td><td>${esc(exchangeSlot(r.from))}</td></tr></tbody></table></div>`;}
+  function exchangeComparison(r){
+    const names=[r.requesterName||exchangeName(r.requester),r.partnerName||exchangeName(r.partner)],slots=[r.from,r.to];
+    const months=[...new Set(slots.map(slot=>slot.date.slice(0,7)))].sort();
+    const calendars=months.map(month=>{
+      const [year,number]=month.split('-').map(Number),first=new Date(year,number-1,1).getDay(),count=new Date(year,number,0).getDate();
+      const cells=Array.from({length:Math.ceil((first+count)/7)*7},(_,index)=>{
+        const day=index-first+1;if(day<1||day>count)return '<span class="exchange-mini-empty" aria-hidden="true"></span>';
+        const date=month+'-'+String(day).padStart(2,'0'),selected=slots.findIndex(slot=>slot.date===date);
+        return `<div class="exchange-mini-day ${selected>=0?'exchange-person-'+selected:''}" ${selected>=0?`data-exchange-date="${esc(date)}" aria-label="${esc(date+' 교환 전 배정: '+names[selected])}"`:''}><span>${day}</span>${selected>=0?`<strong title="${esc(names[selected])}">${esc(names[selected])}</strong>`:''}</div>`;
+      }).join('');
+      return `<section class="exchange-mini-month" aria-label="${year}년 ${number}월 교환 날짜"><h4>${year}년 ${number}월</h4><div class="exchange-mini-grid">${['일','월','화','수','목','금','토'].map(day=>`<span class="exchange-mini-weekday">${day}</span>`).join('')}${cells}</div></section>`;
+    }).join('');
+    return `<section class="exchange-comparison" aria-label="업무 교환 전후 비교"><div class="exchange-mini-calendars"><h3>교환 전 배정</h3>${calendars}</div><div class="exchange-flows"><h3>교환 전 <span aria-hidden="true">→</span> 교환 후</h3>${slots.map((from,index)=>{const to=slots[1-index];return `<section class="exchange-flow exchange-person-${index}" aria-label="${esc(names[index]+'의 교환 전후 일정')}"><strong class="exchange-flow-name"><span class="exchange-person-dot" aria-hidden="true"></span>${esc(names[index])}</strong><div class="exchange-flow-dates"><div><span class="exchange-flow-label">교환 전</span><time datetime="${esc(from.date)}">${esc(from.date)}</time><small>${esc(from.start)}–${esc(from.end)}</small></div><span class="exchange-flow-arrow" aria-label="변경 후">→</span><div><span class="exchange-flow-label">교환 후</span><time datetime="${esc(to.date)}">${esc(to.date)}</time><small>${esc(to.start)}–${esc(to.end)}</small></div></div></section>`;}).join('')}</div></section>`;
+  }
   async function exchangeOperation(type,value){
     await dutyOperation(type,value,()=>{const ctx=exchangeContext();ctx.requests=IeumDutyExchanges.reconcile(ctx.requests,ctx);if(type==='duty.exchange.create')ctx.requests.unshift(IeumDutyExchanges.create(value,exchangeActor(),ctx));else {const result=IeumDutyExchanges.act(ctx.requests.find(r=>r.id===value.id),value.action,value.note,exchangeActor(),ctx);ctx.requests=ctx.requests.map(r=>r.id===result.request.id?result.request:r);for(const event of result.events)Object.assign(state.data.events.find(e=>e.id===event.id),event);}state.data.dutyExchanges=IeumDutyExchanges.reconcile(ctx.requests,exchangeContext());});
   }
