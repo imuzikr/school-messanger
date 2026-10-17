@@ -31,7 +31,7 @@
     const from=ctx.events.find(e=>e.id===value.fromEvent),to=ctx.events.find(e=>e.id===value.toEvent);
     const kind=pair(from,to,actor.id,value.partner,ctx);
     if(ctx.requests.some(r=>active(r)&&[r.from.id,r.to.id].some(id=>id===from.id||id===to.id)))fail('이 일정에는 진행 중인 교환 요청이 있습니다. 먼저 완료하거나 취소해 주세요.',409);
-    return history({id:value.id,kind,requester:actor.id,requesterName:person(actor.id,ctx).name,partner:value.partner,partnerName:person(value.partner,ctx).name,reason:text(value.reason||''),from:snapshot(from),to:snapshot(to),createdAt:ctx.now,history:[]},'pending',actor,'교환 요청',ctx);
+    return history({id:value.id,kind,requester:actor.id,requesterName:person(actor.id,ctx).name,partner:value.partner,partnerName:person(value.partner,ctx).name,reason:text(value.reason||''),from:snapshot(from),to:snapshot(to),observers:[...new Set([from.owner,to.owner].filter(Boolean))],createdAt:ctx.now,history:[]},'pending',actor,'교환 요청',ctx);
   }
   function conflict(id,event,ctx,excluded){return ctx.events.some(e=>!excluded.includes(e.id)&&e.date===event.date&&e.start<event.end&&e.end>event.start&&(e.duty?e.duty.assigned.includes(id):e.owner===id||e.targets?.includes(id)));}
   function act(request,action,note,actor,ctx){
@@ -67,7 +67,9 @@
     else {try{pair(ctx.events.find(e=>e.id===r.from.id),ctx.events.find(e=>e.id===r.to.id),r.requester,r.partner,ctx);}catch{status='invalidated';}}
     return status?history(r,status,{id:'system'},status==='expired'?'업무 날짜가 지났습니다.':'배정·시간 또는 담당자 정보가 변경되었습니다.',ctx):r;
   });}
-  const visible=(r,actor,ctx)=>r.requester===actor.id||r.partner===actor.id||manager(actor,r.kind,ctx);
-  const api={labels,active,manager,snapshot,current,pair,create,act,reconcile,visible};
+  const visible=(r,actor,ctx)=>r.requester===actor.id||r.partner===actor.id||(r.observers||[]).includes(actor.id)||[r.from.id,r.to.id].some(id=>ctx.events.find(e=>e.id===id)?.owner===actor.id)||manager(actor,r.kind,ctx);
+  const version=r=>r.status+':'+r.history.length;
+  function notification(r){return {title:duties.types[r.kind].label+' · '+labels[r.status],body:`${r.requesterName} ↔ ${r.partnerName} · ${r.from.date} ↔ ${r.to.date}${r.status==='approved'?' · 두 교사의 배정과 업무 담당자 캘린더에 반영되었습니다.':''} 캘린더의 업무 교환에서 확인하세요.`};}
+  const api={labels,active,manager,snapshot,current,pair,create,act,reconcile,visible,version,notification};
   if(typeof module==='object'&&module.exports)module.exports=api;else root.IeumDutyExchanges=api;
 })(typeof window==='object'?window:globalThis);

@@ -1,7 +1,7 @@
 name: Verify and package duty demo
 on:
   push:
-    branches: [codex/duty-demo-0.2.84]
+    branches: [codex/duty-demo-0.2.85]
 permissions:
   contents: read
 defaults:
@@ -84,7 +84,7 @@ jobs:
           npm install --no-save --package-lock=false playwright@1.56.1 pngjs@7.0.0
           python -m pip install openpyxl==3.1.5
           $env:IEUM_TEST_PYTHON="python"
-          $env:IEUM_TEST_EXECUTABLE=(Resolve-Path "release/Ieum-Deadline-Demo-0.2.84-win-x64/Ieum-Deadline-Demo.exe").Path
+          $env:IEUM_TEST_EXECUTABLE=(Resolve-Path "release/Ieum-Deadline-Demo-0.2.85-win-x64/Ieum-Deadline-Demo.exe").Path
           node tests/electron-mail-receipts.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node tests/electron-settings-close.cjs
@@ -119,14 +119,14 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node tests/electron-briefing.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -c "from zipfile import ZipFile; z=ZipFile('release/Ieum-Deadline-Demo-0.2.84-win-x64.zip'); assert z.testzip() is None; print('Windows ZIP CRC PASS')"
+          python -c "from zipfile import ZipFile; z=ZipFile('release/Ieum-Deadline-Demo-0.2.85-win-x64.zip'); assert z.testzip() is None; print('Windows ZIP CRC PASS')"
       - uses: actions/upload-artifact@v4
         with:
-          name: Ieum-Demo-0.2.84
-          path: recovered/ieum-window-demo-0.2.7/release/Ieum-Deadline-Demo-0.2.84-win-x64.zip
+          name: Ieum-Demo-0.2.85
+          path: recovered/ieum-window-demo-0.2.7/release/Ieum-Deadline-Demo-0.2.85-win-x64.zip
       - name: Publish tested portable demo
         env:
           GH_TOKEN: ${{ github.token }}
         shell: pwsh
         run: |
-          gh release create v0.2.84 release/Ieum-Deadline-Demo-0.2.84-win-x64.zip release/SHA256SUMS.txt --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "이음 Windows 데모 0.2.84" --notes "수신자가 메시지를 열어 확인하면 발신자에게 실제 수신자 이름과 메시지 제목을 포함한 수신 확인 알림을 표시합니다. 수신자별 최초 확인에 한 번 알리고, 발신자가 부재중이면 다음 접속 때 표시합니다. 반복 열람·재접속·다중 창 중복 알림을 방지하고 캘린더와 메모를 닫아도 알림이 본창 안에 표시되도록 수정했습니다. 전체 압축 해제 후 Ieum-Deadline-Demo.exe를 실행하세요."
+          gh release create v0.2.85 release/Ieum-Deadline-Demo-0.2.85-win-x64.zip release/SHA256SUMS.txt --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "이음 Windows 데모 0.2.85" --notes "캘린더에서 내 안전 지도·중식 지도·자율학습 지도 일정을 클릭해 교환을 요청합니다. 기타 업무의 교환 버튼과 목록의 새 요청 버튼을 제거했습니다. 상대 교사 수락 후 담당자가 최종 승인하면 두 교사와 일정 등록자·업무 담당자의 캘린더를 함께 갱신합니다. 각 진행 상태와 완료 결과를 본창·OS 알림으로 전달하고, 부재중 알림과 중복 방지 상태를 서버에 보관합니다. 전체 압축 해제 후 Ieum-Deadline-Demo.exe를 실행하세요."

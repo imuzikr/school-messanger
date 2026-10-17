@@ -401,3 +401,10 @@ Staff information opens in a singleton, resizable native window, up to 1400×860
 - Authenticated tests cover sender/recipient/outsider isolation, CC, forged status/ack requests, repeated acknowledgment, atomic rollback, recalled/reserved messages, deferred delivery, server restart and legacy read rows. No reply mails or calendar items are generated for receipt notifications.
 - Two authenticated Electron clients verify real composer delivery and recipient opening, a single sender-main toast/native notification while minimized, no workspace duplication, read retries, logout/offline reading, briefing-first login catch-up, acknowledgment and reload without replay.
 - The packaged-demo flow verifies recipient-state transitions from a second window, actual reader names and subject, the native notification bridge, deduplication, and notification geometry inside the painted organization region with both wings closed.
+
+## 0.2.85 캘린더 교환 및 알림 검증
+
+- 공유 상태 테스트: 원래 일정 등록자의 열람 권한과 갱신 대상 보존, 승인 권한 분리, 교사 이름·교환 날짜·완료 상태 알림 문구.
+- 인증 서버 테스트: 등록자(현재 담당자가 아닌 관리자)·현재 담당자·두 당사자별 알림, 무관한 사용자 격리, 타인 ACK 거부, 지연 ACK의 후속 상태 보존, ACK 재시작 지속, 충돌·취소·동시 승인·트랜잭션 롤백.
+- Electron 데모: 캘린더 블록 클릭 → 교환 요청, 클릭한 내 일정 고정, 목록 새 요청 제거, 수락/승인/취소 및 변경 이력.
+- 세 인증 LAN 클라이언트: 기타 업무 교환 메뉴 제거, 실제 캘린더 상세에서 요청·수락·승인, 두 개인 캘린더와 담당자 전체 일정 동기화, 세 본창 모두 완료 토스트 및 OS IPC 알림, 작업창 중복 없음, ACK 이후 재접속 재알림 없음.

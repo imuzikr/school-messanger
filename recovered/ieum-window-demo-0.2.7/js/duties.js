@@ -49,7 +49,7 @@
     if(selected.some(p=>!p))throw Error('등록된 교사만 배정할 수 있습니다.');
     const safety=selected.filter(p=>norm(p.department)===norm(config.safetyDepartment)).map(p=>p.id),general=assigned.filter(id=>!safety.includes(id));
     if(kind==='safety'&&(!safety.length||!general.length))throw Error(config.safetyDepartment+' 교사와 그 외 교사를 각각 한 명 이상 선택해 주세요.');
-    return {...event,title:types[kind].label,targets:[...new Set([...config.managers[kind],...assigned])],note:'배정 교사: '+selected.map(p=>p.name).join(', '),duty:{kind,assigned,safety:kind==='safety'?safety:assigned,general:kind==='safety'?general:[]},readonly:true,canReschedule:false};
+    return {...event,title:types[kind].label,targets:[...new Set([...config.managers[kind],...assigned,...(event.owner?[event.owner]:[])])],note:'배정 교사: '+selected.map(p=>p.name).join(', '),duty:{kind,assigned,safety:kind==='safety'?safety:assigned,general:kind==='safety'?general:[]},readonly:true,canReschedule:false};
   }
   function imports(existing,incoming){
     const all=[...existing],result=[];

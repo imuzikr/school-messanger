@@ -20,3 +20,7 @@ test('approval blocks time conflicts, stale assignments, past dates and cross-gr
 test('visibility and roster safeguards reject spoofing, no manager, duplicate assignments and changed people',()=>{
  const c=fixture(),r=create(c);assert.equal(x.visible(r,{id:'s'},c),false);assert.equal(x.visible(r,{id:'m'},c),true);assert.equal(x.visible(r,{id:'admin',admin:true},c),true);assert.throws(()=>x.create({id:'r2',fromEvent:r.from.id,toEvent:r.to.id,partner:'b',reason:''},{id:'s'},c),/본인/);c.people.find(p=>p.id==='b').disabled=true;assert.equal(x.reconcile([r],c)[0].status,'invalidated');
 });
+
+test('calendar origin observer is preserved and notification names both teachers and dates',()=>{
+ const c=fixture();c.events.forEach(e=>e.owner='origin');const r=create(c);assert.equal(x.visible(r,{id:'origin'},c),true);assert.equal(x.manager({id:'origin'},r.kind,c),false,'origin viewing does not grant approval authority');const accepted=x.act(r,'accept','',{id:'b'},c).request,result=x.act(accepted,'approve','',{id:'m'},c);assert.ok(result.events.every(e=>e.targets.includes('origin')));const n=x.notification(result.request);assert.match(n.title,/교환 완료/);assert.match(n.body,/김교사 ↔ 이교사/);assert.match(n.body,/2030-10-16 ↔ 2030-10-17/);assert.equal(x.version(result.request),'approved:3');
+});

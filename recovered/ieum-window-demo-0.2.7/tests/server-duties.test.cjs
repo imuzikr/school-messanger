@@ -54,7 +54,7 @@ test('duty imports validate atomically, isolate calendars, enforce manager permi
   assert.equal((await sync(admin,[update('2026-10-15',[safety.id,bob.id],[safety.id,bob.id])])).status,200);
   const changed={...config,managers:{...config.managers,safety:[alice.id]}};
   assert.equal((await sync(admin,[{type:'duty.settings',value:changed}])).status,200);
-  assert.equal((await boot(manager.token)).data.events.length,0);assert.equal((await boot(alice.token)).data.events.length,2);
+  assert.equal((await boot(manager.token)).data.events.length,2,'original importer retains the updated calendar after manager replacement');assert.equal((await boot(manager.token)).data.events[0].canReschedule,false);assert.equal((await boot(alice.token)).data.events.length,2);
   assert.equal((await sync(manager.token,upload(rows))).status,403);
   assert.deepEqual((await boot(alice.token)).data.dutySettings,{...changed,managers:{...changed.managers,timetable:[],lessons:[]}});
   for(const [kind,start,end] of [['lunch','12:00','13:00'],['study','18:00','22:00']]){
