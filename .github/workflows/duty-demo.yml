@@ -1,7 +1,7 @@
 name: Verify and package duty demo
 on:
   push:
-    branches: [codex/duty-demo-0.2.87]
+    branches: [codex/duty-demo-0.2.88]
 permissions:
   contents: read
 defaults:
@@ -85,7 +85,7 @@ jobs:
           npm install --no-save --package-lock=false playwright@1.56.1 pngjs@7.0.0
           python -m pip install openpyxl==3.1.5
           $env:IEUM_TEST_PYTHON="python"
-          $env:IEUM_TEST_EXECUTABLE=(Resolve-Path "release/Ieum-Deadline-Demo-0.2.87-win-x64/Ieum-Deadline-Demo.exe").Path
+          $env:IEUM_TEST_EXECUTABLE=(Resolve-Path "release/Ieum-Deadline-Demo-0.2.88-win-x64/Ieum-Deadline-Demo.exe").Path
           node tests/electron-mail-receipts.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node tests/electron-settings-close.cjs
@@ -122,14 +122,14 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node tests/electron-briefing.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -c "from zipfile import ZipFile; z=ZipFile('release/Ieum-Deadline-Demo-0.2.87-win-x64.zip'); assert z.testzip() is None; print('Windows ZIP CRC PASS')"
+          python -c "from zipfile import ZipFile; z=ZipFile('release/Ieum-Deadline-Demo-0.2.88-win-x64.zip'); assert z.testzip() is None; print('Windows ZIP CRC PASS')"
       - uses: actions/upload-artifact@v4
         with:
-          name: Ieum-Demo-0.2.87
-          path: recovered/ieum-window-demo-0.2.7/release/Ieum-Deadline-Demo-0.2.87-win-x64.zip
+          name: Ieum-Demo-0.2.88
+          path: recovered/ieum-window-demo-0.2.7/release/Ieum-Deadline-Demo-0.2.88-win-x64.zip
       - name: Publish tested portable demo
         env:
           GH_TOKEN: ${{ github.token }}
         shell: pwsh
         run: |
-          gh release create v0.2.87 release/Ieum-Deadline-Demo-0.2.87-win-x64.zip release/SHA256SUMS.txt --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "이음 Windows 데모 0.2.87" --notes "캘린더 상단의 업무 교환 버튼을 제거했습니다. 본인 일정 클릭으로 열린 상세 모달에서 교환을 요청하며, 대상 목록은 오늘부터 이번 달 말일까지 배정된 같은 업무의 교사로 제한합니다. 지난 날짜와 다음 달 배정을 제외하고 서버에서도 다음 달 대상 요청을 차단합니다. 업무 달력 카드의 시간 표시를 생략해 업무명과 교사 이름을 더 간결하게 표시합니다. 전체 압축 해제 후 Ieum-Deadline-Demo.exe를 실행하세요."
+          gh release create v0.2.88 release/Ieum-Deadline-Demo-0.2.88-win-x64.zip release/SHA256SUMS.txt --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "이음 Windows 데모 0.2.88" --notes "업무 일정 상세에 현재 사용자와 배정 교사를 표시합니다. 교환 요청 버튼을 숨기는 대신 다른 교사 배정·지난 날짜·진행 중인 교환 등 비활성 사유를 안내합니다. 데모에서는 상세 모달의 데모 교환 요청자에서 배정 교사를 골라 교환을 체험할 수 있습니다. 모달을 닫거나 일정을 다시 열면 현재 사용자로 복귀하고, 업무 달력의 내 배정은 실제 현재 사용자 기준을 유지합니다. 실제 서버 연결에서는 로그인 본인만 요청할 수 있습니다. 전체 압축 해제 후 Ieum-Deadline-Demo.exe를 실행하세요."

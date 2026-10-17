@@ -496,7 +496,7 @@
         )
         .join(
           "",
-        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.87</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
+        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.88</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
     );
   }
   const groupLabel=p=>String(p[state.group]||"").trim()||({grade:"학년 미지정",otherGroup:"기타 미지정"}[state.group]||"미지정");
@@ -977,6 +977,7 @@
       modalCleanup = null;
     }
     $("#modal-root").innerHTML = "";
+    if(!native)state.exchangeDemoActor=null;
     modalPreviousFocus?.focus();
     composeDraft = null;
     eventDraft = null;
@@ -1393,7 +1394,7 @@
   }
   const calendarEvent=id=>state.data.events.find(e=>e.id===id)||dutyCalendarEvents().find(e=>e.id===id);
   function dutyMonthlyBody(){
-    const month=parseDate(monthAnchor).getMonth(),events=dutyCalendarEvents(),actor=exchangeActor(),order=['safety','lunch','study'];
+    const month=parseDate(monthAnchor).getMonth(),events=dutyCalendarEvents(),actor=calendarActor(),order=['safety','lunch','study'];
     return `<div class="calendar-toolbar duty-month-toolbar">${ib('month-prev','이전 달','left')}<h2>${fmtDate(monthAnchor,{year:'numeric',month:'long'})}</h2>${ib('month-next','다음 달','right')}${button('duty-month-reset','이번 달')}</div><div class="duty-calendar-legend">${order.map(kind=>`<span class="duty-color-${kind}">${esc(IeumDuties.types[kind].label)}</span>`).join('')}</div><div class="month-grid duty-month-grid">${['일','월','화','수','목','금','토'].map(day=>`<div class="day-label">${day}</div>`).join('')}${monthDates(monthAnchor).map((day,i)=>{
       const entries=events.filter(e=>e.date===day).sort((a,b)=>order.indexOf(a.duty.kind)-order.indexOf(b.duty.kind)||a.start.localeCompare(b.start));
       return `<article class="month-cell duty-month-cell ${i%7===0?'sunday':i%7===6?'saturday':''} ${parseDate(day).getMonth()!==month?'other':''} ${day===Mock.today?'current':''}" data-duty-date="${day}" aria-label="${fmtDate(day)} 업무"><b>${parseDate(day).getDate()}</b>${entries.map(e=>{
@@ -1699,16 +1700,18 @@
     const event=calendarEvent(id);
     if(!event){closeModal();return;}
     const version=JSON.stringify([event.date,event.start,event.end,event.duty,exchangeVisible().filter(r=>[r.from.id,r.to.id].includes(id)).map(r=>[r.id,exchangeVersion(r)])]);
-    if(modal.dataset.dutyVersion!==version)viewEvent(id);
+    if(modal.dataset.dutyVersion!==version)viewEvent(id,true);
   }
-  function viewEvent(id) {
+  function viewEvent(id,keepDemoActor=false) {
+    if(!native&&!keepDemoActor)state.exchangeDemoActor=null;
     const e = calendarEvent(id);
     if (!e) return;
+    const exchange=e.duty?dutyExchangeAvailability(e):null;
     openScheduleDetail(e,
       calendarTitle(e),
-      `<div class="chip ${e.type === "personal" ? "" : e.type === "repeat" ? "orange" : "blue"}">${esc(e.duty?IeumDuties.types[e.duty.kind]?.tag||typeLabel(e.type):typeLabel(e.type))}</div><div style="margin-top:22px;display:grid;gap:16px;font-size:13px"><p>${icon("calendar", 16)} ${fmtDate(e.date)}</p><p>${icon("clock", 16)} ${e.start} – ${e.end}</p><p>${icon("school", 16)} ${esc(e.place || "장소 미정")}</p>${e.targets?.length ? `<p>${icon("users", 16)} ${e.targets.map((id) => esc(person(id).name)).join(", ")}</p>` : ""}<p class="muted" style="white-space:pre-wrap">${e.source&&e.note?`<small style="display:block">원문 안내</small>`:""}${esc(e.note || (e.duty?"배정 교사: "+e.duty.assigned.map(id=>person(id).name).join(", "):"등록된 메모가 없습니다."))}</p>${canMoveEvent(e)?`<p class="muted">블록을 드래그해 이동하고 위·아래 가장자리로 시간을 조절하세요.${e.source||e.targets?.length?" 함께 등록된 사람들의 일정 시간도 같이 바뀝니다.":""}</p>`:""}</div>`,
+      `<div class="chip ${e.type === "personal" ? "" : e.type === "repeat" ? "orange" : "blue"}">${esc(e.duty?IeumDuties.types[e.duty.kind]?.tag||typeLabel(e.type):typeLabel(e.type))}</div><div style="margin-top:22px;display:grid;gap:16px;font-size:13px"><p>${icon("calendar", 16)} ${fmtDate(e.date)}</p><p>${icon("clock", 16)} ${e.start} – ${e.end}</p><p>${icon("school", 16)} ${esc(e.place || "장소 미정")}</p>${e.targets?.length ? `<p>${icon("users", 16)} ${e.targets.map((id) => esc(person(id).name)).join(", ")}</p>` : ""}<p class="muted" style="white-space:pre-wrap">${e.source&&e.note?`<small style="display:block">원문 안내</small>`:""}${esc(e.note || (e.duty?"배정 교사: "+e.duty.assigned.map(id=>person(id).name).join(", "):"등록된 메모가 없습니다."))}</p>${e.duty?dutyExchangeInfo(e,exchange):''}${canMoveEvent(e)?`<p class="muted">블록을 드래그해 이동하고 위·아래 가장자리로 시간을 조절하세요.${e.source||e.targets?.length?" 함께 등록된 사람들의 일정 시간도 같이 바뀝니다.":""}</p>`:""}</div>`,
       button("close-modal", "닫기") +
-        (e.duty?.assigned.includes(exchangeActor().id)&&e.date>=Mock.today&&!exchangeVisible().some(r=>IeumDutyExchanges.active(r)&&[r.from.id,r.to.id].includes(id))?button("exchange-new","업무 교환 요청","reply","",`data-event="${esc(id)}"`):"")+
+        (e.duty?button("exchange-new","업무 교환 요청","reply",exchange.allowed?"btn-primary":"",`data-event="${esc(id)}" aria-describedby="duty-exchange-info" ${exchange.allowed?'':'disabled'}`):"")+
         (e.duty&&exchangeVisible().some(r=>[r.from.id,r.to.id].includes(id))?button("exchanges","교환 요청 확인","reply","",`data-event="${esc(id)}"`):"")+
         (canEditDuty(e)?button("edit-duty","편집","note","btn-primary",`data-event="${esc(id)}"`):"") +
         (e.readonly||e.noticeMail ? "" : button(
@@ -1719,7 +1722,7 @@
           `data-event="${id}"`,
         )),
     );
-    if(e.duty){const modal=$('.schedule-detail-modal');modal.dataset.dutyDetail='true';modal.dataset.dutyVersion=JSON.stringify([e.date,e.start,e.end,e.duty,exchangeVisible().filter(r=>[r.from.id,r.to.id].includes(id)).map(r=>[r.id,exchangeVersion(r)])]);}
+    if(e.duty){const demoSelect=$('#duty-demo-assignee');if(demoSelect)demoSelect.onchange=()=>{state.exchangeDemoActor=demoSelect.value;viewEvent(id,true);};const modal=$('.schedule-detail-modal');modal.dataset.dutyDetail='true';modal.dataset.dutyVersion=JSON.stringify([e.date,e.start,e.end,e.duty,exchangeVisible().filter(r=>[r.from.id,r.to.id].includes(id)).map(r=>[r.id,exchangeVersion(r)])]);}
   }
   function announcementsPage() {
     const mails=state.data.mails.filter(m=>m.announcement&&m.folder!=="trash"&&(!m.scheduled||native&&new Date(m.scheduled)<=new Date()));
@@ -1771,7 +1774,17 @@
     if(native){await network.queue;const result=await native.request('/sync',{operations:[{type,value}]});if(result.error){await network.refresh();throw Error(result.error);}await network.refresh();}
     else{const previous=JSON.parse(JSON.stringify(state.data));apply();if(!(await save())){state.data=previous;throw Error('저장하지 못했습니다.');}}
   }
+  function calendarActor(){return native?{id:state.profile?.id,admin:!!state.profile?.admin}:state.data.people.find(p=>p.name===state.user)||{id:'me',name:state.user};}
   function exchangeActor(){return native?{id:state.profile?.id,admin:!!state.profile?.admin}:{...(state.data.people.find(p=>p.id===state.exchangeDemoActor)||state.data.people.find(p=>p.name===state.user)||{id:'me'}),admin:false};}
+  function dutyExchangeAvailability(event){
+    const actor=exchangeActor(),own=event.duty.assigned.includes(actor.id),pending=exchangeVisible().some(r=>IeumDutyExchanges.active(r)&&[r.from.id,r.to.id].includes(event.id));
+    const reason=!own?'이 일정은 현재 요청자의 배정이 아닙니다. 배정 교사 본인만 교환을 요청할 수 있습니다.':event.date<Mock.today?'지난 날짜의 업무는 교환할 수 없습니다.':pending?'이 일정에 진행 중인 교환 요청이 있습니다. 교환 요청 확인에서 처리해 주세요.':'아래 업무 교환 요청 버튼에서 상대 교사를 선택하세요.';
+    return {allowed:own&&event.date>=Mock.today&&!pending,reason};
+  }
+  function dutyExchangeInfo(event,availability){
+    const actual=calendarActor(),actor=exchangeActor(),assigned=event.duty.assigned.map(id=>person(id).name).join(', '),options=[...new Set([actual.id,...event.duty.assigned])].filter(id=>state.data.people.some(p=>p.id===id&&!p.disabled));
+    return `<section class="duty-exchange-info" id="duty-exchange-info" aria-label="업무 교환 안내"><p><strong>현재 사용자: ${esc(actual.name||state.user)}</strong></p><p>배정 교사: ${esc(assigned)}</p>${!native?`<label>데모 교환 요청자<select class="input" id="duty-demo-assignee">${options.map(id=>`<option value="${esc(id)}" ${actor.id===id?'selected':''}>${esc(person(id).name)}${id===actual.id?' · 현재 사용자':''}</option>`).join('')}</select><small>배정 교사를 선택해 교환을 체험합니다. 실제 서버 연결에서는 로그인한 본인만 요청할 수 있습니다.</small></label>`:''}<p role="status">${esc(availability.reason)}</p></section>`;
+  }
   function exchangeContext(){return {people:state.data.people,events:state.data.events,requests:state.data.dutyExchanges||[],config:dutyConfig(),today:Mock.today,now:Date.now()};}
   function exchangeVisible(){const ctx=exchangeContext();return ctx.requests.filter(r=>IeumDutyExchanges.visible(r,exchangeActor(),ctx));}
   const exchangeVersion=r=>IeumDutyExchanges.version(r);
