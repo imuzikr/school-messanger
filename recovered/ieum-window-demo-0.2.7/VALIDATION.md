@@ -386,3 +386,10 @@ Staff information opens in a singleton, resizable native window, up to 1400×860
 - The Electron formatting flow verifies selection-preserving bold/italic/underline tools and keyboard shortcuts, two-item bullet and number lists, compact rich editing, collapse/reopen/reload persistence and absence from shared messenger data.
 - Clipboard HTML is reduced to supported semantic tags without attributes; script/media nodes are discarded. Paste and character-limit behavior are verified in the real editor.
 - Existing sticky note reorder/undo, save-failure retry, Korean input focus across external workspace updates and native wings remain covered. The authenticated account test verifies formatted notes stay isolated locally and absent from server bootstrap.
+
+## 0.2.83 — reliable settings dismissal
+
+- Modal header close buttons invoke dismissal directly, without relying on document-level click delegation. Context menus are cleared consistently on dismissal.
+- The settings header/footer cannot shrink into the scrolling body. The X has a 40px hit area, no native drag region and non-interactive SVG children.
+- A packaged-Windows-ready Electron flow tests X at 125% display scaling after font, theme and calendar changes, after scrolling, with each wing combination, repeated reopening, footer completion, Enter/Escape and preference persistence after reload.
+- Existing briefing and homeroom flows verify shared modal close behavior. Source and Windows regression suites run before release publication.

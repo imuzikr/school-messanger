@@ -487,7 +487,7 @@
         )
         .join(
           "",
-        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.82</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
+        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.83</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
     );
   }
   const groupLabel=p=>String(p[state.group]||"").trim()||({grade:"학년 미지정",otherGroup:"기타 미지정"}[state.group]||"미지정");
@@ -944,6 +944,8 @@
       modalPreviousFocus = document.activeElement;
     $("#modal-root").innerHTML =
       `<div class="overlay${cls==="briefing-modal"?" briefing-overlay":""}"><section class="modal ${cls}" role="dialog" aria-modal="true" aria-labelledby="modal-title"><header class="modal-head"><h2 id="modal-title">${esc(title)}</h2>${ib("close-modal", "닫기", "x")}</header><div class="modal-body">${body}</div>${footer ? `<footer class="modal-foot">${footer}</footer>` : ""}</section></div>`;
+    const closeButton=$(".modal-head [data-action=close-modal]");
+    closeButton.onclick=event=>{event.preventDefault();event.stopPropagation();closeModal();};
     if(cls==="briefing-modal"&&windowApi?.mainHost&&windowApi.briefingShape){
       const modal=$(".briefing-modal");let frame=0,active=true;
       const fit=()=>{cancelAnimationFrame(frame);frame=requestAnimationFrame(()=>{if(!active||!modal.isConnected)return;const r=modal.getBoundingClientRect();windowApi.briefingShape({x:r.x,y:r.y,width:r.width,height:r.height});});};
@@ -958,6 +960,7 @@
     });
   }
   function closeModal(keepStaffWindow=false) {
+    $("#context-root").innerHTML = "";
     if(requestedStaff&&!keepStaffWindow&&windowApi){windowApi.windowAction("close");return;}
     if(requestedCompose&&composeDraft&&!mailSending&&windowApi){windowApi?.windowAction("close");return;}
     if (modalCleanup) {
@@ -1865,6 +1868,7 @@
         )}<div class="setting-row"><div>캘린더 어두운 화면<small>내 캘린더에만 적용됩니다.</small></div><label class="switch"><input type="checkbox" id="dark-mode" aria-label="캘린더 어두운 화면" ${state.settings.dark ? "checked" : ""}><span></span></label></div><div class="setting-row"><div>비밀번호 변경<small>${native ? "현재 비밀번호를 확인하고 변경합니다." : "계정 서버가 연결되면 제공할 기능입니다."}</small></div>${button("password-info", "안내", "lock")}</div><div style="margin-top:18px;padding:15px;background:var(--soft);border-radius:8px;font-size:11px;line-height:1.9"><strong>이음 사용 안내</strong><br>이름을 더블클릭하면 메시지 작성, 우클릭하면 대화를 선택할 수 있어요.<br>일정의 빈 공간을 두 번 클릭하면 새 일정을 추가할 수 있어요.<br>${native ? "대화와 메시지는 교내 서버 PC에 저장됩니다." : "모든 데이터는 예시이며 이 브라우저에만 저장됩니다."}</div>`,
       button("notification-test", "알림 테스트", "bell") +
         button("close-modal", "완료", "", "btn-primary"),
+      "settings-modal",
     );
     $("#calendar-position").onchange = (e) => {
       state.settings.calendarPosition=e.target.value;
