@@ -1,7 +1,7 @@
 name: Verify and package duty demo
 on:
   push:
-    branches: [codex/duty-demo-0.2.97]
+    branches: [codex/duty-demo-0.2.98]
 permissions:
   contents: read
 defaults:
@@ -85,7 +85,7 @@ jobs:
           npm install --no-save --package-lock=false playwright@1.56.1 pngjs@7.0.0
           python -m pip install openpyxl==3.1.5
           $env:IEUM_TEST_PYTHON="python"
-          $env:IEUM_TEST_EXECUTABLE=(Resolve-Path "release/Ieum-Deadline-Demo-0.2.97-win-x64/Ieum-Deadline-Demo.exe").Path
+          $env:IEUM_TEST_EXECUTABLE=(Resolve-Path "release/Ieum-Deadline-Demo-0.2.98-win-x64/Ieum-Deadline-Demo.exe").Path
           node tests/electron-mail-receipts.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node tests/electron-settings-close.cjs
@@ -122,14 +122,14 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node tests/electron-briefing.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -c "from zipfile import ZipFile; z=ZipFile('release/Ieum-Deadline-Demo-0.2.97-win-x64.zip'); assert z.testzip() is None; print('Windows ZIP CRC PASS')"
+          python -c "from zipfile import ZipFile; z=ZipFile('release/Ieum-Deadline-Demo-0.2.98-win-x64.zip'); assert z.testzip() is None; print('Windows ZIP CRC PASS')"
       - uses: actions/upload-artifact@v4
         with:
-          name: Ieum-Demo-0.2.97
-          path: recovered/ieum-window-demo-0.2.7/release/Ieum-Deadline-Demo-0.2.97-win-x64.zip
+          name: Ieum-Demo-0.2.98
+          path: recovered/ieum-window-demo-0.2.7/release/Ieum-Deadline-Demo-0.2.98-win-x64.zip
       - name: Publish tested portable demo
         env:
           GH_TOKEN: ${{ github.token }}
         shell: pwsh
         run: |
-          gh release create v0.2.97 release/Ieum-Deadline-Demo-0.2.97-win-x64.zip release/SHA256SUMS.txt --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "이음 Windows 데모 0.2.97" --notes "본창과 캘린더에 업무 교환 요청함을 추가하고 받은 요청·승인 대기·보낸 요청을 구분합니다. 요청함에서 수락·거절·승인·반려·취소를 바로 처리할 수 있습니다. 상대가 수락하면 요청자에게 수락 알림, 담당자에게 승인 요청 알림을 보내며 앱과 Windows 알림을 클릭해 해당 요청을 바로 엽니다. 업무 달력의 진행 중은 파란색, 내 배정은 붉은색의 얇은 테두리로 표시하고 두 상태가 겹치면 파란 실선과 붉은 내부 점선을 함께 표시합니다. 전체 압축 해제 후 Ieum-Deadline-Demo.exe를 실행하세요."
+          gh release create v0.2.98 release/Ieum-Deadline-Demo-0.2.98-win-x64.zip release/SHA256SUMS.txt --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "이음 Windows 데모 0.2.98" --notes "업무 달력에서 상대 일정을 클릭하면 미니 달력부터 열어 교환을 요청합니다. 상대가 수락하면 별도 담당자 승인 없이 두 교사와 업무 담당자의 개인 캘린더에 즉시 반영합니다. 수락 전에는 요청자가 취소할 수 있습니다. 요청 분류 탭과 승인 단계를 제거하고 날짜 사이 화살표를 중앙 정렬했습니다. 서버 연결 환경에서는 서버 프로그램과 클라이언트를 함께 업데이트하세요. 전체 압축 해제 후 Ieum-Deadline-Demo.exe를 실행하세요."

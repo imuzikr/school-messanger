@@ -3,7 +3,7 @@
   'use strict';
   const duties=typeof module==='object'&&module.exports?require('./duties.js'):root.IeumDuties;
   const teachers=typeof module==='object'&&module.exports?require('./announcements.js'):root.IeumAnnouncements;
-  const labels={pending:'상대 교사 확인 중',approval:'담당자 승인 대기',approved:'교환 완료',declined:'상대 교사 거절',rejected:'담당자 반려',cancelled:'요청 취소',invalidated:'배정 변경으로 종료',expired:'일정 경과로 종료'};
+  const labels={pending:'상대 교사 확인 중',approval:'수락 재확인 필요',approved:'교환 완료',declined:'상대 교사 거절',rejected:'담당자 반려',cancelled:'요청 취소',invalidated:'배정 변경으로 종료',expired:'일정 경과로 종료'};
   const active=r=>['pending','approval'].includes(r.status);
   function fail(message,status=400){const e=Error(message);e.status=status;throw e;}
   const manager=(actor,kind,ctx)=>!!actor.admin||!!ctx.config.managers[kind]?.includes(actor.id);
@@ -44,20 +44,17 @@
       if(actor.id!==request.requester)fail('요청한 교사만 취소할 수 있습니다.',403);status='cancelled';
     }else if(action==='accept'||action==='decline'){
       if(actor.id!==request.partner)fail('요청을 받은 교사만 응답할 수 있습니다.',403);
-      if(request.status!=='pending')fail('이미 응답한 요청입니다.',409);status=action==='accept'?'approval':'declined';
-    }else if(action==='approve'||action==='reject'){
-      if(!manager(actor,request.kind,ctx))fail('이 업무의 담당자 또는 관리자만 승인할 수 있습니다.',403);
-      if(request.status!=='approval')fail('상대 교사의 수락 후 승인할 수 있습니다.',409);status=action==='approve'?'approved':'rejected';
-    }else fail('지원하지 않는 처리입니다.');
-    if(['approval','approved'].includes(status)){
+      // Legacy approval requests have not changed either assignment: the recipient can reconfirm.
+      if(!['pending','approval'].includes(request.status))fail('이미 응답한 요청입니다.',409);
+      status=action==='accept'?'approved':'declined';
+    }else fail('상대 교사의 수락 또는 거절로 처리해 주세요.');
+    if(status==='approved'){
       const from=ctx.events.find(e=>e.id===request.from.id),to=ctx.events.find(e=>e.id===request.to.id);
       if(!current(request.from,from)||!current(request.to,to))fail('배정이나 시간이 변경되었습니다. 새로 요청해 주세요.',409);
       pair(from,to,request.requester,request.partner,ctx);
-      if(status==='approved'){
-        const excluded=[from.id,to.id];
-        if(conflict(request.requester,to,ctx,excluded)||conflict(request.partner,from,ctx,excluded))fail('교환 후 시간에 다른 일정이 겹칩니다. 일정을 조정한 후 다시 승인해 주세요.',409);
-        events=[duties.reassign(from,from.duty.assigned.map(id=>id===request.requester?request.partner:id),ctx.config,ctx.people),duties.reassign(to,to.duty.assigned.map(id=>id===request.partner?request.requester:id),ctx.config,ctx.people)];
-      }
+      const excluded=[from.id,to.id];
+      if(conflict(request.requester,to,ctx,excluded)||conflict(request.partner,from,ctx,excluded))fail('교환 후 시간에 다른 일정이 겹칩니다. 일정을 조정한 후 다시 수락해 주세요.',409);
+      events=[duties.reassign(from,from.duty.assigned.map(id=>id===request.requester?request.partner:id),ctx.config,ctx.people),duties.reassign(to,to.duty.assigned.map(id=>id===request.partner?request.requester:id),ctx.config,ctx.people)];
     }
     return {request:history(request,status,actor,note,ctx),events};
   }
@@ -71,11 +68,10 @@
   });}
   const visible=(r,actor,ctx)=>r.requester===actor.id||r.partner===actor.id||(r.observers||[]).includes(actor.id)||[r.from.id,r.to.id].some(id=>ctx.events.find(e=>e.id===id)?.owner===actor.id)||manager(actor,r.kind,ctx);
   const version=r=>r.status+':'+r.history.length;
-  function notification(r,actor,ctx){
-    const kind=duties.types[r.kind].label,isManager=actor&&ctx&&manager(actor,r.kind,ctx);
-    const status=r.status==='pending'&&actor?.id===r.partner?'교환 요청 도착':r.status==='approval'?(isManager?'승인 요청 도착':'상대 교사 수락'):labels[r.status];
-    const update=r.status==='approval'?`${r.partnerName} 선생님이 수락했습니다. ${isManager?'최종 승인 또는 반려해 주세요.':'업무 담당자의 최종 승인을 기다립니다.'}`:r.status==='pending'&&actor?.id===r.partner?`${r.requesterName} 선생님의 요청을 수락하거나 거절해 주세요.`:r.status==='approved'?'두 교사의 배정과 업무 담당자 캘린더에 반영되었습니다.':'';
-    return {title:kind+' · '+status,body:`${r.requesterName} ↔ ${r.partnerName} · ${r.from.date} ↔ ${r.to.date} ${update} 요청함에서 바로 확인하세요.`};
+  function notification(r,actor){
+    const kind=duties.types[r.kind].label,status=r.status==='pending'&&actor?.id===r.partner?'교환 요청 도착':labels[r.status];
+    const update=r.status==='pending'&&actor?.id===r.partner?`${r.requesterName} 선생님의 요청을 수락하거나 거절해 주세요.`:r.status==='approved'?`${r.partnerName} 선생님이 수락하여 요청자·수락자·업무 담당자의 캘린더에 반영되었습니다.`:r.status==='approval'?'이전 버전의 요청입니다. 상대 교사가 수락을 다시 확인하면 교환이 완료됩니다.':'';
+    return {title:kind+' · '+status,body:`${r.requesterName} ↔ ${r.partnerName} · ${r.from.date} ↔ ${r.to.date} ${update}`};
   }
   const api={labels,active,manager,snapshot,current,pair,create,act,reconcile,visible,version,notification,remainingMonth};
   if(typeof module==='object'&&module.exports)module.exports=api;else root.IeumDutyExchanges=api;
