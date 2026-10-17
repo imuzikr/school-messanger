@@ -25,11 +25,13 @@
   }
   function text(v){if(typeof v!=='string'||v.length>500)fail('사유는 500자 이내로 입력해 주세요.');return v.trim();}
   function history(r,status,actor,note,ctx){return {...r,status,updatedAt:ctx.now,history:[...(r.history||[]),{status,actor:actor.id,actorName:actor.id==='system'?'자동 확인':ctx.people.find(p=>p.id===actor.id)?.name||actor.id,at:ctx.now,note}]};}
+  const remainingMonth=(date,today)=>typeof date==='string'&&date>=today&&date.slice(0,7)===today.slice(0,7);
   function create(value,actor,ctx){
     if(typeof value.id!=='string'||!/^[-\w]{1,100}$/.test(value.id))fail('요청 번호가 올바르지 않습니다.');
     if(ctx.requests.some(r=>r.id===value.id))fail('이미 등록된 요청입니다.',409);
     const from=ctx.events.find(e=>e.id===value.fromEvent),to=ctx.events.find(e=>e.id===value.toEvent);
     const kind=pair(from,to,actor.id,value.partner,ctx);
+    if(!remainingMonth(to.date,ctx.today))fail('교환 대상은 오늘부터 이번 달 말일까지의 배정에서 선택해 주세요.',409);
     if(ctx.requests.some(r=>active(r)&&[r.from.id,r.to.id].some(id=>id===from.id||id===to.id)))fail('이 일정에는 진행 중인 교환 요청이 있습니다. 먼저 완료하거나 취소해 주세요.',409);
     return history({id:value.id,kind,requester:actor.id,requesterName:person(actor.id,ctx).name,partner:value.partner,partnerName:person(value.partner,ctx).name,reason:text(value.reason||''),from:snapshot(from),to:snapshot(to),observers:[...new Set([from.owner,to.owner].filter(Boolean))],createdAt:ctx.now,history:[]},'pending',actor,'교환 요청',ctx);
   }
@@ -69,7 +71,7 @@
   });}
   const visible=(r,actor,ctx)=>r.requester===actor.id||r.partner===actor.id||(r.observers||[]).includes(actor.id)||[r.from.id,r.to.id].some(id=>ctx.events.find(e=>e.id===id)?.owner===actor.id)||manager(actor,r.kind,ctx);
   const version=r=>r.status+':'+r.history.length;
-  function notification(r){return {title:duties.types[r.kind].label+' · '+labels[r.status],body:`${r.requesterName} ↔ ${r.partnerName} · ${r.from.date} ↔ ${r.to.date}${r.status==='approved'?' · 두 교사의 배정과 업무 담당자 캘린더에 반영되었습니다.':''} 캘린더의 업무 교환에서 확인하세요.`};}
-  const api={labels,active,manager,snapshot,current,pair,create,act,reconcile,visible,version,notification};
+  function notification(r){return {title:duties.types[r.kind].label+' · '+labels[r.status],body:`${r.requesterName} ↔ ${r.partnerName} · ${r.from.date} ↔ ${r.to.date}${r.status==='approved'?' · 두 교사의 배정과 업무 담당자 캘린더에 반영되었습니다.':''} 캘린더에서 해당 일정을 클릭해 확인하세요.`};}
+  const api={labels,active,manager,snapshot,current,pair,create,act,reconcile,visible,version,notification,remainingMonth};
   if(typeof module==='object'&&module.exports)module.exports=api;else root.IeumDutyExchanges=api;
 })(typeof window==='object'?window:globalThis);

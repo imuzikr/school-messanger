@@ -24,3 +24,8 @@ test('visibility and roster safeguards reject spoofing, no manager, duplicate as
 test('calendar origin observer is preserved and notification names both teachers and dates',()=>{
  const c=fixture();c.events.forEach(e=>e.owner='origin');const r=create(c);assert.equal(x.visible(r,{id:'origin'},c),true);assert.equal(x.manager({id:'origin'},r.kind,c),false,'origin viewing does not grant approval authority');const accepted=x.act(r,'accept','',{id:'b'},c).request,result=x.act(accepted,'approve','',{id:'m'},c);assert.ok(result.events.every(e=>e.targets.includes('origin')));const n=x.notification(result.request);assert.match(n.title,/교환 완료/);assert.match(n.body,/김교사 ↔ 이교사/);assert.match(n.body,/2030-10-16 ↔ 2030-10-17/);assert.equal(x.version(result.request),'approved:3');
 });
+
+test('remaining-month candidates exclude past days and next month including year and leap boundaries',()=>{
+ for(const [today,accepted,rejected] of [['2030-10-15',['2030-10-15','2030-10-31'],['2030-10-14','2030-11-01','2031-10-16']],['2029-12-31',['2029-12-31'],['2029-12-30','2030-01-01']],['2028-02-28',['2028-02-28','2028-02-29'],['2028-02-27','2028-03-01']]]){for(const day of accepted)assert.equal(x.remainingMonth(day,today),true);for(const day of rejected)assert.equal(x.remainingMonth(day,today),false);}
+ const c=fixture();c.events[1].date='2030-11-01';assert.throws(()=>create(c),/이번 달 말일/);
+});
