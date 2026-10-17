@@ -1,7 +1,7 @@
 name: Verify and package duty demo
 on:
   push:
-    branches: [codex/duty-demo-0.2.94]
+    branches: [codex/duty-demo-0.2.95]
 permissions:
   contents: read
 defaults:
@@ -85,7 +85,7 @@ jobs:
           npm install --no-save --package-lock=false playwright@1.56.1 pngjs@7.0.0
           python -m pip install openpyxl==3.1.5
           $env:IEUM_TEST_PYTHON="python"
-          $env:IEUM_TEST_EXECUTABLE=(Resolve-Path "release/Ieum-Deadline-Demo-0.2.94-win-x64/Ieum-Deadline-Demo.exe").Path
+          $env:IEUM_TEST_EXECUTABLE=(Resolve-Path "release/Ieum-Deadline-Demo-0.2.95-win-x64/Ieum-Deadline-Demo.exe").Path
           node tests/electron-mail-receipts.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node tests/electron-settings-close.cjs
@@ -122,14 +122,14 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node tests/electron-briefing.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -c "from zipfile import ZipFile; z=ZipFile('release/Ieum-Deadline-Demo-0.2.94-win-x64.zip'); assert z.testzip() is None; print('Windows ZIP CRC PASS')"
+          python -c "from zipfile import ZipFile; z=ZipFile('release/Ieum-Deadline-Demo-0.2.95-win-x64.zip'); assert z.testzip() is None; print('Windows ZIP CRC PASS')"
       - uses: actions/upload-artifact@v4
         with:
-          name: Ieum-Demo-0.2.94
-          path: recovered/ieum-window-demo-0.2.7/release/Ieum-Deadline-Demo-0.2.94-win-x64.zip
+          name: Ieum-Demo-0.2.95
+          path: recovered/ieum-window-demo-0.2.7/release/Ieum-Deadline-Demo-0.2.95-win-x64.zip
       - name: Publish tested portable demo
         env:
           GH_TOKEN: ${{ github.token }}
         shell: pwsh
         run: |
-          gh release create v0.2.94 release/Ieum-Deadline-Demo-0.2.94-win-x64.zip release/SHA256SUMS.txt --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "이음 Windows 데모 0.2.94" --notes "작은 메모의 본문과 빈 공간을 클릭하면 큰 포스트잇으로 확대됩니다. 그리드와 목록 모두 적용되며 기존 확대 버튼, 최소화와 바깥 클릭, 이동 손잡이, 삭제 및 되돌리기는 유지됩니다. 전체 압축 해제 후 Ieum-Deadline-Demo.exe를 실행하세요."
+          gh release create v0.2.95 release/Ieum-Deadline-Demo-0.2.95-win-x64.zip release/SHA256SUMS.txt --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "이음 Windows 데모 0.2.95" --notes "데모에서 현재 사용자 교사A와 교직원 이름 교사 A의 공백 차이 때문에 본인 업무 배정을 찾지 못하던 문제를 수정했습니다. 이름이 정확히 일치하는 교직원을 우선 사용하고, 없으면 공백을 제외한 이름이 유일할 때만 연결합니다. 중복 이름은 임의 연결하지 않으며 사용자 확인 실패와 업무 담당자 미지정을 각각 안내합니다. 서버 로그인은 기존 계정 ID 인증을 유지합니다. 전체 압축 해제 후 Ieum-Deadline-Demo.exe를 실행하세요."

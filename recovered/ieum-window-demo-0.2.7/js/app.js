@@ -496,7 +496,7 @@
         )
         .join(
           "",
-        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.94</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
+        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.95</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
     );
   }
   const groupLabel=p=>String(p[state.group]||"").trim()||({grade:"학년 미지정",otherGroup:"기타 미지정"}[state.group]||"미지정");
@@ -1774,8 +1774,14 @@
     if(native){await network.queue;const result=await native.request('/sync',{operations:[{type,value}]});if(result.error){await network.refresh();throw Error(result.error);}await network.refresh();}
     else{const previous=JSON.parse(JSON.stringify(state.data));apply();if(!(await save())){state.data=previous;throw Error('저장하지 못했습니다.');}}
   }
-  function calendarActor(){return native?{id:state.profile?.id,admin:!!state.profile?.admin}:state.data.people.find(p=>p.name===state.user)||{id:'me',name:state.user};}
-  function exchangeActor(){return native?{id:state.profile?.id,admin:!!state.profile?.admin}:{...(state.data.people.find(p=>p.id===state.exchangeDemoActor)||state.data.people.find(p=>p.name===state.user)||{id:'me'}),admin:false};}
+  function demoCalendarPerson(){
+    const people=state.data.people.filter(p=>!p.disabled),exact=people.filter(p=>p.name===state.user);
+    if(exact.length)return exact.length===1?exact[0]:null;
+    const key=String(state.user||'').replace(/\s/g,''),matches=key?people.filter(p=>String(p.name||'').replace(/\s/g,'')===key):[];
+    return matches.length===1?matches[0]:null;
+  }
+  function calendarActor(){return native?{id:state.profile?.id,admin:!!state.profile?.admin}:demoCalendarPerson()||{id:'me',name:state.user};}
+  function exchangeActor(){return native?{id:state.profile?.id,admin:!!state.profile?.admin}:{...(state.data.people.find(p=>p.id===state.exchangeDemoActor&&!p.disabled)||demoCalendarPerson()||{id:'me',name:state.user}),admin:false};}
   function exchangeChoicesForTarget(target,actor=exchangeActor()){
     if(!target?.duty||target.duty.assigned.includes(actor.id)||!IeumDutyExchanges.remainingMonth(target.date,Mock.today))return [];
     const roster=native?(state.data.dutyRoster||[]):state.data.events,ctx=exchangeContext(),choices=[];
@@ -1787,7 +1793,7 @@
   function dutyExchangeAvailability(event){
     const actor=exchangeActor(),own=event.duty.assigned.includes(actor.id),pending=exchangeVisible().some(r=>IeumDutyExchanges.active(r)&&[r.from.id,r.to.id].includes(event.id));
     const choices=exchangeChoicesForTarget(event,actor);
-    const reason=own?'본인 일정입니다. 교환할 상대 교사의 일정을 클릭해 요청하세요.':event.date<Mock.today?'지난 날짜의 업무는 교환할 수 없습니다.':!IeumDutyExchanges.remainingMonth(event.date,Mock.today)?'상대 일정은 오늘부터 이번 달 말일까지 선택할 수 있습니다.':pending?'이 일정에 진행 중인 교환 요청이 있습니다. 교환 요청 확인에서 처리해 주세요.':!choices.length?'이 상대와 교환 가능한 내 배정이 이번 달에 없습니다.':'교환 요청하기를 누르면 내 배정을 자동으로 연결합니다. 여러 날짜가 있으면 내 날짜만 선택하세요.';
+    const reason=!state.data.people.some(p=>p.id===actor.id&&!p.disabled)?'현재 사용자와 일치하는 교직원을 하나로 확인할 수 없습니다. 교직원 이름의 중복·등록 여부를 확인해 주세요.':own?'본인 일정입니다. 교환할 상대 교사의 일정을 클릭해 요청하세요.':event.date<Mock.today?'지난 날짜의 업무는 교환할 수 없습니다.':!IeumDutyExchanges.remainingMonth(event.date,Mock.today)?'상대 일정은 오늘부터 이번 달 말일까지 선택할 수 있습니다.':pending?'이 일정에 진행 중인 교환 요청이 있습니다. 교환 요청 확인에서 처리해 주세요.':!dutyConfig().managers[event.duty.kind]?.length?'이 업무의 담당자가 등록되어 있지 않습니다. 설정에서 담당자를 지정해 주세요.':!choices.length?'이 상대와 교환 가능한 내 배정이 이번 달에 없습니다.':'교환 요청하기를 누르면 내 배정을 자동으로 연결합니다. 여러 날짜가 있으면 내 날짜만 선택하세요.';
     return {allowed:!own&&choices.length>0&&!pending,reason};
   }
   function dutyExchangeInfo(event,availability){
