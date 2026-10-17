@@ -93,6 +93,10 @@ async function startServer(options = {}) {
   CREATE INDEX IF NOT EXISTS idx_recipient_user ON recipients(user_id);
   CREATE INDEX IF NOT EXISTS idx_members_user ON room_members(user_id);`);
   if(!db.prepare('PRAGMA table_info(bell_schedules)').all().some(c=>c.name==='title'))db.exec("ALTER TABLE bell_schedules ADD COLUMN title TEXT NOT NULL DEFAULT ''");
+  const recipientColumns=new Set(db.prepare('PRAGMA table_info(recipients)').all().map(column=>column.name));
+  if(!recipientColumns.has('read_at'))db.exec('ALTER TABLE recipients ADD COLUMN read_at INTEGER');
+  if(!recipientColumns.has('receipt_notified'))db.exec('ALTER TABLE recipients ADD COLUMN receipt_notified INTEGER NOT NULL DEFAULT 0');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_pending_receipts ON recipients(receipt_notified,read_at) WHERE read_at IS NOT NULL');
   const columns=new Set(db.prepare('PRAGMA table_info(users)').all().map(column=>column.name));
   if(!columns.has('grade'))db.exec("ALTER TABLE users ADD COLUMN grade TEXT NOT NULL DEFAULT ''");
   if(!columns.has('other_group'))db.exec("ALTER TABLE users ADD COLUMN other_group TEXT NOT NULL DEFAULT ''");
@@ -183,7 +187,8 @@ async function startServer(options = {}) {
     const dutyExchanges=exchangeCtx.requests.filter(r=>exchanges.visible(r,actor,exchangeCtx));
     const ownKinds=new Set(exchangeCtx.events.filter(e=>e.duty?.assigned.includes(user.id)).map(e=>e.duty.kind));
     const dutyRoster=exchangeCtx.events.filter(e=>e.duty&&ownKinds.has(e.duty.kind)&&e.date>=dateKey()).map(e=>({id:e.id,title:e.title,date:e.date,start:e.start,end:e.end,duty:e.duty}));
-    const items=db.prepare('SELECT * FROM items WHERE owner=?').all(user.id), data={today:dateKey(),schoolName:db.prepare("SELECT value FROM metadata WHERE key='schoolName'").get()?.value||'우리 학교',people,departments:[...new Set(people.map(p=>p.department))],rooms,mails,events,dutyExchanges,dutyRoster,dutySettings:dutySettings(),classTeachers:parse(db.prepare("SELECT value FROM metadata WHERE key='classTeachers'").get()?.value||'[]'),defaultPeriods:defaultPeriods(),bellSchedules:db.prepare('SELECT * FROM bell_schedules ORDER BY date').all().map(row=>({date:row.date,title:row.title,periods:parse(row.periods)})),academic:[],deadlines:[],notes:[],tasks:[],shortcuts:[]};
+    const readReceipts=db.prepare("SELECT r.mail_id AS mail,r.user_id AS recipient,r.read_at AS readAt,u.name,m.payload FROM recipients r JOIN mails m ON m.id=r.mail_id JOIN users u ON u.id=r.user_id WHERE m.sender=? AND r.user_id<>m.sender AND r.status='read' AND r.read_at IS NOT NULL AND r.receipt_notified=0 ORDER BY r.read_at,r.mail_id,r.user_id LIMIT 50").all(user.id).map(({payload,...receipt})=>({...receipt,subject:parse(payload).title||'기타'}));
+    const items=db.prepare('SELECT * FROM items WHERE owner=?').all(user.id), data={readReceipts,today:dateKey(),schoolName:db.prepare("SELECT value FROM metadata WHERE key='schoolName'").get()?.value||'우리 학교',people,departments:[...new Set(people.map(p=>p.department))],rooms,mails,events,dutyExchanges,dutyRoster,dutySettings:dutySettings(),classTeachers:parse(db.prepare("SELECT value FROM metadata WHERE key='classTeachers'").get()?.value||'[]'),defaultPeriods:defaultPeriods(),bellSchedules:db.prepare('SELECT * FROM bell_schedules ORDER BY date').all().map(row=>({date:row.date,title:row.title,periods:parse(row.periods)})),academic:[],deadlines:[],notes:[],tasks:[],shortcuts:[]};
     for(const item of items)data[item.kind].push({...parse(item.payload),id:item.id});
     return {user:userPublic(user),data};
   }
@@ -256,7 +261,13 @@ async function startServer(options = {}) {
       if(op.eventId){const event=db.prepare('SELECT owner FROM events WHERE id=?').get(op.eventId)||db.prepare("SELECT owner FROM items WHERE id=? AND kind IN('deadlines','notes')").get(op.eventId);if(!event||event.owner!==user.id)fail(403,'본인의 일정만 연동할 수 있습니다.');}
       const folder=op.folder||(mine?mail.sender_folder:r.folder);if(!(mine?['sent','trash']:['inbox','trash']).includes(folder))fail(400,'메시지 폴더가 올바르지 않습니다.');
       if(mine)db.prepare('UPDATE mails SET sender_folder=?,sender_important=?,event_id=coalesce(?,event_id) WHERE id=?').run(folder,op.important?1:0,op.eventId||null,opId);
-      else db.prepare("UPDATE recipients SET folder=?,important=?,status=CASE WHEN ? AND status='unread' THEN 'read' ELSE status END,event_id=coalesce(?,event_id) WHERE mail_id=? AND user_id=?").run(folder,op.important?1:0,op.read?1:0,op.eventId||null,opId,user.id);break;}
+      else db.prepare("UPDATE recipients SET folder=?,important=?,status=CASE WHEN ? AND status='unread' THEN 'read' ELSE status END,read_at=CASE WHEN ? AND status='unread' THEN ? ELSE read_at END,event_id=coalesce(?,event_id) WHERE mail_id=? AND user_id=?").run(folder,op.important?1:0,op.read?1:0,op.read?1:0,Date.now(),op.eventId||null,opId,user.id);break;}
+    case 'mail.receipt.ack':{
+      const recipient=str(v.recipient,100),row=db.prepare('SELECT m.sender,r.status,r.read_at FROM recipients r JOIN mails m ON m.id=r.mail_id WHERE r.mail_id=? AND r.user_id=?').get(opId,recipient);
+      if(!row||row.sender!==user.id)fail(403,'본인이 보낸 메시지의 수신 알림만 확인할 수 있습니다.');
+      if(row.status!=='read'||row.read_at===null)fail(409,'아직 수신 확인된 메시지가 아닙니다.');
+      db.prepare('UPDATE recipients SET receipt_notified=1 WHERE mail_id=? AND user_id=?').run(opId,recipient);break;
+    }
     case 'event.reschedule':{
       const row=db.prepare('SELECT * FROM events WHERE id=?').get(opId);if(!row)fail(404,'일정을 찾을 수 없습니다.');const existing=parse(row.payload);
       if(existing.duty){

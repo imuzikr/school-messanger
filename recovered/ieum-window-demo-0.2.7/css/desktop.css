@@ -451,3 +451,6 @@ body.minimal-main>.memo-tab,.unified-main:has(.briefing-overlay)>.memo-tab{displ
 .settings-modal .modal-body{flex:1 1 auto;min-height:0}
 .settings-modal .modal-head [data-action=close-modal]{width:40px;height:40px;min-width:40px;flex-shrink:0;cursor:pointer;pointer-events:auto;-webkit-app-region:no-drag}
 .settings-modal .modal-head [data-action=close-modal] svg{pointer-events:none}
+
+/* Toasts stay in the painted organization region when side wings are closed. */
+.unified-main #notifications{right:calc(var(--wing-width) + 24px);max-width:calc(var(--organization-width) - 24px)}

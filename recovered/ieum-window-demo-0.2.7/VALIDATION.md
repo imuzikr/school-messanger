@@ -393,3 +393,11 @@ Staff information opens in a singleton, resizable native window, up to 1400×860
 - The settings header/footer cannot shrink into the scrolling body. The X has a 40px hit area, no native drag region and non-interactive SVG children.
 - A packaged-Windows-ready Electron flow tests X at 125% display scaling after font, theme and calendar changes, after scrolling, with each wing combination, repeated reopening, footer completion, Enter/Escape and preference persistence after reload.
 - Existing briefing and homeroom flows verify shared modal close behavior. Source and Windows regression suites run before release publication.
+
+## 0.2.84 — actual sender read-receipt notifications
+
+- All 75 Node tests pass locally. Receipt transitions match recipient IDs rather than array positions; notifications include the actual name and subject and are scoped to the sender.
+- Server first-read timestamps and acknowledgment flags persist with the existing recipient rows. Repeated reads do not reset acknowledgments. Existing historical read rows are not replayed on upgrade.
+- Authenticated tests cover sender/recipient/outsider isolation, CC, forged status/ack requests, repeated acknowledgment, atomic rollback, recalled/reserved messages, deferred delivery, server restart and legacy read rows. No reply mails or calendar items are generated for receipt notifications.
+- Two authenticated Electron clients verify real composer delivery and recipient opening, a single sender-main toast/native notification while minimized, no workspace duplication, read retries, logout/offline reading, briefing-first login catch-up, acknowledgment and reload without replay.
+- The packaged-demo flow verifies recipient-state transitions from a second window, actual reader names and subject, the native notification bridge, deduplication, and notification geometry inside the painted organization region with both wings closed.

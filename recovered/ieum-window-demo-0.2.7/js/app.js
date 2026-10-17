@@ -219,7 +219,7 @@
       for(const mail of incoming){toast("새 메시지 · "+mailSubject(mail),mailSenderName(mail),"message");native.notify("새 메시지가 도착했습니다",mailSubject(mail));}
       for(const room of state.data.rooms){const before=previous.rooms.find(r=>r.id===room.id),oldIds=new Set((before?.messages||[]).map(m=>m.id));const fresh=room.messages.filter(m=>m.sender!=="me"&&!oldIds.has(m.id));if(fresh.length&&!room.muted){toast(room.name,fresh.at(-1).text,"message");native.notify(room.name,fresh.at(-1).text);}}
     }
-    render();refreshHomeroom();
+    render();refreshHomeroom();notifyPendingReceipts();
     if($("#exchange-list"))exchangeListForm();
     else if($("#exchange-detail")){const el=$("#exchange-detail"),latest=(state.data.dutyExchanges||[]).find(r=>r.id===el.dataset.exchange);if(latest&&latest.status!==el.dataset.status)exchangeDetailForm(latest.id);}
     for(const draft of drafts)$$(`[data-chat-input="${draft.room}"]`).forEach(el=>{el.value=draft.value;el.closest("form").querySelector("button[type=submit]").disabled=!draft.value.trim();});
@@ -330,6 +330,17 @@
     `<span class="avatar ${["", "blue", "peach", "purple"][i % 4]} ${size}" aria-hidden="true">${esc(p.name.slice(0, 1))}<i class="status ${p.status || "online"}"></i></span>`;
   const toast = (title, body = "", type = "message") =>
     Notify.create({ title, bodyHtml: esc(body), type });
+  const shownReceipts=new Set();let receiptAckBusy=false;
+  function showReceiptNotifications(receipts,owner){
+    if(windowApi&&!windowApi.mainHost)return;
+    for(const receipt of receipts){const key=IeumMailReceipts.key(receipt,owner);if(shownReceipts.has(key))continue;shownReceipts.add(key);const text=IeumMailReceipts.message({...receipt,name:receipt.name||person(receipt.recipient).name});toast(text.title,text.body,'readreceipt');windowApi?.notify(text.title,text.body);}
+  }
+  function notifyPendingReceipts(){
+    if(!native||!windowApi.mainHost||!state.profile||briefingQueued||$('.briefing-overlay'))return;
+    const owner=state.profile.id,receipts=state.data.readReceipts||[];showReceiptNotifications(receipts,owner);if(!receipts.length||receiptAckBusy)return;
+    receiptAckBusy=true;let acknowledged=false;
+    Promise.resolve(network.queue).then(async()=>{if(state.profile?.id!==owner)return;const result=await native.request('/sync',{operations:receipts.map(r=>({type:'mail.receipt.ack',id:r.mail,value:{recipient:r.recipient}}))});acknowledged=!result.error;}).catch(()=>{}).finally(()=>{receiptAckBusy=false;if(state.profile&&(acknowledged||state.profile.id!==owner))network.refresh();});
+  }
   const unreadMails = () =>
     state.data.mails.filter((m) => m.folder === "inbox" && m.unread).length;
   const unreadChats = () => state.data.rooms.reduce((n, r) => n + r.unread, 0);
@@ -487,7 +498,7 @@
         )
         .join(
           "",
-        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.83</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
+        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.84</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
     );
   }
   const groupLabel=p=>String(p[state.group]||"").trim()||({grade:"학년 미지정",otherGroup:"기타 미지정"}[state.group]||"미지정");
@@ -972,7 +983,7 @@
     composeDraft = null;
     eventDraft = null;
     if(demoRefreshPending){demoRefreshPending=false;render();}
-    maybeShowBriefing();
+    maybeShowBriefing();notifyPendingReceipts();
   }
   function composeMail({
     to = [],
@@ -2734,8 +2745,8 @@
           ],
           [
             "readreceipt",
-            "메시지를 읽었어요",
-            "교사A 선생님이 예시 메시지를 확인했습니다.",
+            "메시지 수신 확인",
+            "교사A님이 예시 메시지를 수신했습니다.",
           ],
         ].forEach(([type, title, body], i) =>
           setTimeout(() => toast(title, body, type), i * 130),
@@ -3148,7 +3159,7 @@
   if(!native)window.addEventListener("storage",event=>{
     if(event.key!=="ieum-v1"||!event.newValue)return;
     try{const saved=JSON.parse(event.newValue);if(!saved.data)return;
-      state.data=saved.data;Object.assign(state.settings,saved.settings);
+      const oldMails=state.data.mails;state.data=saved.data;Object.assign(state.settings,saved.settings);showReceiptNotifications(IeumMailReceipts.changes(oldMails,state.data.mails),state.user||'demo');
       if($("#homeroom-feed")){refreshHomeroom();return;}
       if($("#modal-root").firstChild){demoRefreshPending=true;return;}
       demoRefreshPending=false;
