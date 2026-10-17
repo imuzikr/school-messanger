@@ -1,7 +1,7 @@
 name: Verify and package duty demo
 on:
   push:
-    branches: [codex/duty-demo-0.2.91]
+    branches: [codex/duty-demo-0.2.92]
 permissions:
   contents: read
 defaults:
@@ -85,7 +85,7 @@ jobs:
           npm install --no-save --package-lock=false playwright@1.56.1 pngjs@7.0.0
           python -m pip install openpyxl==3.1.5
           $env:IEUM_TEST_PYTHON="python"
-          $env:IEUM_TEST_EXECUTABLE=(Resolve-Path "release/Ieum-Deadline-Demo-0.2.91-win-x64/Ieum-Deadline-Demo.exe").Path
+          $env:IEUM_TEST_EXECUTABLE=(Resolve-Path "release/Ieum-Deadline-Demo-0.2.92-win-x64/Ieum-Deadline-Demo.exe").Path
           node tests/electron-mail-receipts.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node tests/electron-settings-close.cjs
@@ -122,14 +122,14 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node tests/electron-briefing.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -c "from zipfile import ZipFile; z=ZipFile('release/Ieum-Deadline-Demo-0.2.91-win-x64.zip'); assert z.testzip() is None; print('Windows ZIP CRC PASS')"
+          python -c "from zipfile import ZipFile; z=ZipFile('release/Ieum-Deadline-Demo-0.2.92-win-x64.zip'); assert z.testzip() is None; print('Windows ZIP CRC PASS')"
       - uses: actions/upload-artifact@v4
         with:
-          name: Ieum-Demo-0.2.91
-          path: recovered/ieum-window-demo-0.2.7/release/Ieum-Deadline-Demo-0.2.91-win-x64.zip
+          name: Ieum-Demo-0.2.92
+          path: recovered/ieum-window-demo-0.2.7/release/Ieum-Deadline-Demo-0.2.92-win-x64.zip
       - name: Publish tested portable demo
         env:
           GH_TOKEN: ${{ github.token }}
         shell: pwsh
         run: |
-          gh release create v0.2.91 release/Ieum-Deadline-Demo-0.2.91-win-x64.zip release/SHA256SUMS.txt --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "이음 Windows 데모 0.2.91" --notes "일정 상세에서 데모 요청자 선택 목록을 제거했습니다. 교환 요청은 현재 사용자로 진행하며 선택한 일정의 상대 교사가 한 명이면 이름을 고정 표시합니다. 여러 명이 함께 배정된 일정에서는 교환 가능한 해당 배정 교사만 선택합니다. 내 일정 자동 연결과 상대 수락·담당자 승인 흐름을 검증했습니다. 전체 압축 해제 후 Ieum-Deadline-Demo.exe를 실행하세요."
+          gh release create v0.2.92 release/Ieum-Deadline-Demo-0.2.92-win-x64.zip release/SHA256SUMS.txt --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "이음 Windows 데모 0.2.92" --notes "업무 교환 요청 카드에서 업무명과 교사 이름을 서로 다른 행으로 분리했습니다. 상태, 업무명, 요청자와 상대 교사 이름, 교환 날짜를 순서대로 표시하여 담당자가 승인할 대상을 쉽게 확인할 수 있습니다. 전체 압축 해제 후 Ieum-Deadline-Demo.exe를 실행하세요."
