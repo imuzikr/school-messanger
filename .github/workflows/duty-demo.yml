@@ -1,7 +1,7 @@
 name: Verify and package duty demo
 on:
   push:
-    branches: [codex/duty-demo-0.2.99]
+    branches: [codex/duty-demo-0.2.100]
 permissions:
   contents: read
 defaults:
@@ -85,7 +85,7 @@ jobs:
           npm install --no-save --package-lock=false playwright@1.56.1 pngjs@7.0.0
           python -m pip install openpyxl==3.1.5
           $env:IEUM_TEST_PYTHON="python"
-          $env:IEUM_TEST_EXECUTABLE=(Resolve-Path "release/Ieum-Deadline-Demo-0.2.99-win-x64/Ieum-Deadline-Demo.exe").Path
+          $env:IEUM_TEST_EXECUTABLE=(Resolve-Path "release/Ieum-Deadline-Demo-0.2.100-win-x64/Ieum-Deadline-Demo.exe").Path
           node tests/electron-mail-receipts.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node tests/electron-settings-close.cjs
@@ -122,14 +122,14 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node tests/electron-briefing.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -c "from zipfile import ZipFile; z=ZipFile('release/Ieum-Deadline-Demo-0.2.99-win-x64.zip'); assert z.testzip() is None; print('Windows ZIP CRC PASS')"
+          python -c "from zipfile import ZipFile; z=ZipFile('release/Ieum-Deadline-Demo-0.2.100-win-x64.zip'); assert z.testzip() is None; print('Windows ZIP CRC PASS')"
       - uses: actions/upload-artifact@v4
         with:
-          name: Ieum-Demo-0.2.99
-          path: recovered/ieum-window-demo-0.2.7/release/Ieum-Deadline-Demo-0.2.99-win-x64.zip
+          name: Ieum-Demo-0.2.100
+          path: recovered/ieum-window-demo-0.2.7/release/Ieum-Deadline-Demo-0.2.100-win-x64.zip
       - name: Publish tested portable demo
         env:
           GH_TOKEN: ${{ github.token }}
         shell: pwsh
         run: |
-          gh release create v0.2.99 release/Ieum-Deadline-Demo-0.2.99-win-x64.zip release/SHA256SUMS.txt --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "이음 Windows 데모 0.2.99" --notes "업무 교환 아이콘을 두 화살표가 원형으로 순환하는 모양으로 통일했습니다. 요청함에 여러 건이 있어도 카드 목록 대신 미니 달력을 바로 열고, 이전·다음 버튼과 요청 번호로 다른 건을 확인합니다. 수락·거절·취소와 알림 바로가기는 유지하며 선택한 요청의 처리 상태와 탐색 건수는 실시간 갱신됩니다. 전체 압축 해제 후 Ieum-Deadline-Demo.exe를 실행하세요."
+          gh release create v0.2.100 release/Ieum-Deadline-Demo-0.2.100-win-x64.zip release/SHA256SUMS.txt --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "이음 Windows 데모 0.2.100" --notes "교환 요청 사유를 접지 않은 텍스트 입력 박스로 표시합니다. 업무 달력에서 자율학습 지도는 연한 회색으로 바꾸고, 내 배정인 안전·중식·자율학습 지도는 모두 연한 살구색 배경으로 강조합니다. 기존 진행 중·내 배정 테두리와 교환 흐름은 유지합니다. 전체 압축 해제 후 Ieum-Deadline-Demo.exe를 실행하세요."
