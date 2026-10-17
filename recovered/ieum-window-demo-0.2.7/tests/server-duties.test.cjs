@@ -61,6 +61,7 @@ test('duty imports validate atomically, isolate calendars, enforce manager permi
    assert.equal((await sync(manager.token,[{type:'duty.import',value:{kind,rows:[['2026-10-18','alice']]}}])).status,200);
    const appointment=(await boot(alice.token)).data.events.find(e=>e.duty.kind===kind);assert.equal(appointment.start,start);assert.equal(appointment.end,end);
   }
+  assert.deepEqual([...new Set((await boot(bob.token)).data.dutyCalendar.map(e=>e.duty.kind))].sort(),['lunch','safety','study'],'school-wide duty month exposes precisely the three duty types');
   await server.close();server=await startServer({host:'127.0.0.1',port:0,address:'https://127.0.0.1:0',dataDir});
   const relogin=await request('/login',{username:'alice',password:password+'x'});
   assert.equal((await boot(relogin.token)).data.events.filter(e=>e.duty).length,4,'assignments persist through server restart');

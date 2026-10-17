@@ -363,9 +363,9 @@
   }
 
     
-  function render() {
+  function render({persist=true}={}) {
     const memoFocus=memoBoard?.focusState();
-    if (!native) save();
+    if (!native&&persist) save();
     applySettings();
     document.body.classList.toggle("installed",!!windowApi);
     if(windowApi?.mainHost){
@@ -496,7 +496,7 @@
         )
         .join(
           "",
-        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.85</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
+        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.86</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
     );
   }
   const groupLabel=p=>String(p[state.group]||"").trim()||({grade:"학년 미지정",otherGroup:"기타 미지정"}[state.group]||"미지정");
@@ -1296,9 +1296,11 @@
         button("exchanges", "업무 교환"+(exchangeCount()?" · "+exchangeCount():""), "reply")+
         button("weekly", "주간 달력", "calendar",state.calendarView==="week"?"btn-primary":"",`aria-pressed="${state.calendarView==="week"}"`) +
         button("monthly", "월간 달력", "calendar",state.calendarView==="month"?"btn-primary":"",`aria-pressed="${state.calendarView==="month"}"`) +
+        button("duty-calendar", "업무 달력", "calendar",state.calendarView==="duty"?"btn-primary":"",`aria-pressed="${state.calendarView==="duty"}"`) +
           button("add-event", "일정 등록", "plus", "btn-primary"),
       );}
   function calendarPage() {
+    if(state.calendarView==="duty")return calendarHeading()+`<section class="panel calendar-month-panel duty-calendar-panel" aria-label="업무 달력">${dutyMonthlyBody()}</section>`;
     if(state.calendarView==="month")return calendarHeading()+`<div class="calendar-layout"><section class="panel calendar-month-panel">${monthlyBody()}</section><aside class="calendar-aside">${checklistPanel()}</aside></div>`;
     const weekDays=Array.from({length:7},(_,i)=>addDays(state.week,i)),datedItems=[...state.data.events,...state.data.deadlines,...state.data.academic];
     const showDay=date=>state.today===date||datedItems.some(item=>item.date===date);
@@ -1384,6 +1386,23 @@
             .join("")}</button>`,
       )
       .join("")}</div>`;
+  }
+  function dutyCalendarEvents(){
+    const events=new Map();
+    for(const event of [...(state.data.dutyCalendar||[]),...state.data.events])if(Object.hasOwn(IeumDuties.types,event.duty?.kind))events.set(event.id,event);
+    return [...events.values()];
+  }
+  const calendarEvent=id=>state.data.events.find(e=>e.id===id)||dutyCalendarEvents().find(e=>e.id===id);
+  function dutyMonthlyBody(){
+    const month=parseDate(monthAnchor).getMonth(),events=dutyCalendarEvents(),actor=exchangeActor(),order=['safety','lunch','study'];
+    return `<div class="calendar-toolbar duty-month-toolbar">${ib('month-prev','이전 달','left')}<h2>${fmtDate(monthAnchor,{year:'numeric',month:'long'})}</h2>${ib('month-next','다음 달','right')}${button('duty-month-reset','이번 달')}</div><div class="duty-calendar-legend">${order.map(kind=>`<span class="duty-color-${kind}">${esc(IeumDuties.types[kind].label)}</span>`).join('')}</div><div class="month-grid duty-month-grid">${['일','월','화','수','목','금','토'].map(day=>`<div class="day-label">${day}</div>`).join('')}${monthDates(monthAnchor).map((day,i)=>{
+      const entries=events.filter(e=>e.date===day).sort((a,b)=>order.indexOf(a.duty.kind)-order.indexOf(b.duty.kind)||a.start.localeCompare(b.start));
+      return `<article class="month-cell duty-month-cell ${i%7===0?'sunday':i%7===6?'saturday':''} ${parseDate(day).getMonth()!==month?'other':''} ${day===Mock.today?'current':''}" data-duty-date="${day}" aria-label="${fmtDate(day)} 업무"><b>${parseDate(day).getDate()}</b>${entries.map(e=>{
+        const own=e.duty.assigned.includes(actor.id),pending=exchangeVisible().some(r=>IeumDutyExchanges.active(r)&&[r.from.id,r.to.id].includes(e.id));
+        const names=e.duty.assigned.map(id=>person(id).name).join(', ');
+        return `<button type="button" class="duty-month-entry duty-color-${e.duty.kind} ${own?'own-assignment':''}" data-action="view-event" data-event="${esc(e.id)}" aria-label="${esc(IeumDuties.types[e.duty.kind].label+' · '+day+' · '+names)}"><strong>${esc(IeumDuties.types[e.duty.kind].label)}</strong><span>${esc(e.start)}–${esc(e.end)}</span><span class="duty-month-teachers">${esc(names)}</span>${own?'<em>내 배정</em>':''}${pending?'<em>교환 진행 중</em>':''}</button>`;
+      }).join('')}${!entries.length?'<span class="duty-month-empty">배정 없음</span>':''}</article>`;
+    }).join('')}</div>`;
   }
   const periodsForDate=date=>state.data.bellSchedules?.find(s=>s.date===date)?.periods||state.data.defaultPeriods||Mock.defaultPeriods;
   function classTeachersForm(){
@@ -1678,17 +1697,17 @@
   function refreshDutyDetail(){
     const modal=$('.schedule-detail-modal'),id=modal?.querySelector('[data-action="schedule-summary"]')?.dataset.schedule;
     if(!id||modal.dataset.dutyDetail!=='true')return;
-    const event=state.data.events.find(e=>e.id===id);
+    const event=calendarEvent(id);
     if(!event){closeModal();return;}
     const version=JSON.stringify([event.date,event.start,event.end,event.duty,exchangeVisible().filter(r=>[r.from.id,r.to.id].includes(id)).map(r=>[r.id,exchangeVersion(r)])]);
     if(modal.dataset.dutyVersion!==version)viewEvent(id);
   }
   function viewEvent(id) {
-    const e = state.data.events.find((e) => e.id === id);
+    const e = calendarEvent(id);
     if (!e) return;
     openScheduleDetail(e,
       calendarTitle(e),
-      `<div class="chip ${e.type === "personal" ? "" : e.type === "repeat" ? "orange" : "blue"}">${esc(e.duty?IeumDuties.types[e.duty.kind]?.tag||typeLabel(e.type):typeLabel(e.type))}</div><div style="margin-top:22px;display:grid;gap:16px;font-size:13px"><p>${icon("calendar", 16)} ${fmtDate(e.date)}</p><p>${icon("clock", 16)} ${e.start} – ${e.end}</p><p>${icon("school", 16)} ${esc(e.place || "장소 미정")}</p>${e.targets?.length ? `<p>${icon("users", 16)} ${e.targets.map((id) => esc(person(id).name)).join(", ")}</p>` : ""}<p class="muted" style="white-space:pre-wrap">${e.source&&e.note?`<small style="display:block">원문 안내</small>`:""}${esc(e.note || "등록된 메모가 없습니다.")}</p>${canMoveEvent(e)?`<p class="muted">블록을 드래그해 이동하고 위·아래 가장자리로 시간을 조절하세요.${e.source||e.targets?.length?" 함께 등록된 사람들의 일정 시간도 같이 바뀝니다.":""}</p>`:""}</div>`,
+      `<div class="chip ${e.type === "personal" ? "" : e.type === "repeat" ? "orange" : "blue"}">${esc(e.duty?IeumDuties.types[e.duty.kind]?.tag||typeLabel(e.type):typeLabel(e.type))}</div><div style="margin-top:22px;display:grid;gap:16px;font-size:13px"><p>${icon("calendar", 16)} ${fmtDate(e.date)}</p><p>${icon("clock", 16)} ${e.start} – ${e.end}</p><p>${icon("school", 16)} ${esc(e.place || "장소 미정")}</p>${e.targets?.length ? `<p>${icon("users", 16)} ${e.targets.map((id) => esc(person(id).name)).join(", ")}</p>` : ""}<p class="muted" style="white-space:pre-wrap">${e.source&&e.note?`<small style="display:block">원문 안내</small>`:""}${esc(e.note || (e.duty?"배정 교사: "+e.duty.assigned.map(id=>person(id).name).join(", "):"등록된 메모가 없습니다."))}</p>${canMoveEvent(e)?`<p class="muted">블록을 드래그해 이동하고 위·아래 가장자리로 시간을 조절하세요.${e.source||e.targets?.length?" 함께 등록된 사람들의 일정 시간도 같이 바뀝니다.":""}</p>`:""}</div>`,
       button("close-modal", "닫기") +
         (e.duty?.assigned.includes(exchangeActor().id)&&e.date>=Mock.today&&!exchangeVisible().some(r=>IeumDutyExchanges.active(r)&&[r.from.id,r.to.id].includes(id))?button("exchange-new","업무 교환 요청","reply","",`data-event="${esc(id)}"`):"")+
         (e.duty&&exchangeVisible().some(r=>[r.from.id,r.to.id].includes(id))?button("exchanges","교환 요청 확인","reply","",`data-event="${esc(id)}"`):"")+
@@ -1807,7 +1826,7 @@
   }
   function canEditDuty(event){return !!event?.duty&&(!native||state.profile?.admin||dutyConfig().managers[event.duty.kind]?.includes(state.profile?.id));}
   function dutyAssignmentForm(id){
-    const event=state.data.events.find(e=>e.id===id);if(!canEditDuty(event))return;
+    const event=calendarEvent(id);if(!canEditDuty(event))return;
     const config=dutyConfig(),kind=event.duty.kind,type=IeumDuties.types[kind],teachers=state.data.people.filter(p=>!p.disabled&&IeumAnnouncements.isTeacher(p));
     const expectedAssigned=[...event.duty.assigned];
     const group=(label,list)=>`<fieldset class="duty-manager-group"><legend>${esc(label)}</legend><div class="duty-manager-list">${list.map(p=>`<label><input type="checkbox" data-duty-assignee value="${esc(p.id)}" ${expectedAssigned.includes(p.id)?'checked':''}> ${esc(p.name)} <small>${esc(p.department)}</small></label>`).join('')}</div></fieldset>`;
@@ -2551,6 +2570,12 @@
       case "weekly":
         state.calendarView="week";renderPage();
         break;
+      case "duty-calendar":
+        monthAnchor=state.today;state.calendarView="duty";renderPage();
+        break;
+      case "duty-month-reset":
+        monthAnchor=Mock.today;renderPage();
+        break;
       case "monthly":
         monthAnchor = state.today;
         monthly();
@@ -3183,7 +3208,7 @@
       if($("#modal-root").firstChild){demoRefreshPending=true;return;}
       demoRefreshPending=false;
       const drafts=$$("[data-chat-input]").map(el=>[el.dataset.chatInput,el.value]);
-      render();drafts.forEach(([id,value])=>{const el=$(`[data-chat-input="${id}"]`);if(el)el.value=value;});
+      render({persist:false});drafts.forEach(([id,value])=>{const el=$(`[data-chat-input="${id}"]`);if(el)el.value=value;});
     }catch{}
   });
   IeumDuties.normalizeTitles(state.data.events);
