@@ -7,6 +7,7 @@
     if(!value||value.version!==1||!['list','grid'].includes(value.view)||!Array.isArray(value.notes)||value.notes.length>200)throw Error('저장된 메모를 읽을 수 없습니다.');
     const seen=new Set();
     for(const n of value.notes){if(!n||typeof n.id!=='string'||!/^[-\w]{1,100}$/.test(n.id)||seen.has(n.id)||typeof n.text!=='string'||n.text.length>4000||(n.html!==undefined&&(typeof n.html!=='string'||n.html.length>64000))||!colors.includes(n.color)||!Number.isFinite(n.createdAt)||!Number.isFinite(n.updatedAt))throw Error('저장된 메모를 읽을 수 없습니다.');seen.add(n.id);}
+    for(const n of value.notes)if(n.schedule!==undefined){const s=n.schedule;if(!s||typeof s.id!=='string'||!/^[-\w]{1,160}$/.test(s.id)||typeof s.title!=='string'||s.title.length>200||!/^\d{4}-\d{2}-\d{2}$/.test(s.date)||!/^\d{2}:\d{2}$/.test(s.start)||!/^\d{2}:\d{2}$/.test(s.end))throw Error('일정 메모 정보를 읽을 수 없습니다.');}
     return value;
   }
   const escape=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -21,7 +22,15 @@
   class Store{
     constructor(storage,user){if(typeof user!=='string'||!user)throw Error('메모를 사용할 계정을 확인해 주세요.');this.storage=storage;this.key='ieum-sticky-v1:'+encodeURIComponent(user);}
     load(){const raw=this.storage.getItem(this.key);return raw===null?blank():validate(JSON.parse(raw));}
-    save(value){this.storage.setItem(this.key,JSON.stringify(validate(value)));}
+    save(value){this.storage.setItem(this.key,JSON.stringify(validate(value)));if(root.dispatchEvent&&root.CustomEvent)root.dispatchEvent(new CustomEvent('ieum-sticky-change',{detail:{key:this.key,store:this}}));}
+    setSchedule(schedule,text){
+      const data=this.load(),existing=data.notes.find(n=>n.schedule?.id===schedule.id);
+      if(!text.trim()){data.notes=data.notes.filter(n=>n!==existing);this.save(data);return;}
+      if(text.length>4000)throw Error('메모는 4,000자까지 입력할 수 있습니다.');
+      if(existing){existing.text=text;delete existing.html;existing.schedule=schedule;existing.updatedAt=Date.now();}
+      else{if(data.notes.length>=200)throw Error('메모장이 가득 찼습니다. 메모를 정리한 후 다시 저장해 주세요.');const now=Date.now();data.notes.unshift({id:crypto.randomUUID(),text,schedule,color:'yellow',createdAt:now,updatedAt:now});}
+      this.save(data);
+    }
   }
   class Board{
     constructor({onClose,onSchedule,tabHTML}){
@@ -36,6 +45,7 @@
       this.root.addEventListener('keydown',e=>this.key(e));
       this.root.addEventListener('contextmenu',e=>{if(e.target.closest('[data-memo-grip]'))e.preventDefault();});
       window.addEventListener('storage',e=>{if(!this.store||e.key!==this.store.key)return;if(this.failed){this.status('다른 창에서 메모가 변경되었습니다. 현재 내용을 먼저 저장해 주세요.',true);return;}try{const focus=this.focusState();this.data=this.store.load();this.render();this.restoreFocus(focus);}catch{this.status('변경된 메모를 읽지 못했습니다. 현재 메모는 유지됩니다.',true);}});
+      window.addEventListener('ieum-sticky-change',e=>{if(!this.store||e.detail.key!==this.store.key||e.detail.store===this.store)return;try{if(this.failed)return;const focus=this.focusState();this.data=this.store.load();this.render();this.restoreFocus(focus);}catch{this.status('변경된 메모를 읽지 못했습니다.',true);}});
       window.addEventListener('blur',()=>{this.cancelDrag();this.collapseEditor();});
       document.addEventListener('pointerdown',e=>{if(this.expanded&&!this.editor.contains(e.target))this.collapseEditor();},true);
       window.addEventListener('resize',()=>this.position());
@@ -57,7 +67,9 @@
       this.editor=document.createElement('section');this.editor.className='memo-editor '+note.color;this.editor.setAttribute('role','dialog');this.editor.setAttribute('aria-label','메모 크게 쓰기');
       this.editor.innerHTML='<header class="memo-editor-head"><span>나의 메모</span><button type="button" data-memo-collapse aria-label="메모 최소화" title="작게 보기">_</button></header><div class="memo-format" role="group" aria-label="메모 서식">'+[['bold','굵게 (Ctrl+B)','<b>B</b>'],['italic','기울임 (Ctrl+I)','<i>I</i>'],['underline','밑줄 (Ctrl+U)','<u>U</u>'],['insertUnorderedList','글머리 기호','• 목록'],['insertOrderedList','번호 목록','1. 목록']].map(([command,label,content])=>'<button type="button" data-memo-format="'+command+'" aria-label="'+label+'" title="'+label+'" aria-pressed="false">'+content+'</button>').join('')+'</div><div class="memo-rich" contenteditable="true" role="textbox" aria-label="확대한 메모" aria-multiline="true" data-placeholder="생각을 편하게 적어 두세요…" spellcheck="false"></div><footer class="memo-editor-foot"><span role="status">이 PC에 자동 저장됩니다.</span><button type="button" data-memo-retry hidden>다시 저장</button></footer>';
       const input=this.editor.querySelector('.memo-rich');this.bindRich(input,note);
+      if(note.schedule)this.editor.querySelector('.memo-format').insertAdjacentHTML('afterend',this.scheduleHeader(note));
       this.editor.querySelector('.memo-format').insertAdjacentHTML('beforeend','<button type="button" class="memo-schedule" data-memo-schedule>일정 등록</button>');
+      if(note.schedule)this.editor.querySelector('[data-memo-schedule]').textContent='일정 보기';
       this.editor.querySelector('[data-memo-schedule]').onclick=()=>{this.commitRich(input);this.schedule(note.id);};
       this.editor.querySelectorAll('[data-memo-format]').forEach(button=>{button.onpointerdown=e=>e.preventDefault();button.onclick=()=>this.format(button.dataset.memoFormat,input);});
       this.editor.querySelector('[data-memo-collapse]').onclick=()=>this.collapseEditor(true);this.editor.querySelector('[data-memo-retry]').onclick=()=>this.persist();this.editor.onkeydown=e=>{if(e.key==='Escape'&&!e.isComposing){e.preventDefault();e.stopPropagation();this.collapseEditor(true);}};
@@ -89,8 +101,9 @@
     async schedule(id){
       const note=this.data.notes.find(n=>n.id===id);if(!note||this.readError)return;
       if(this.expanded===id)this.collapseEditor();
-      try{await this.onSchedule?.({id:note.id,text:note.text});}catch(error){this.status('일정 입력창을 열지 못했습니다. '+error.message,true);}
+      try{await this.onSchedule?.({id:note.id,text:note.text,...(note.schedule?{eventId:note.schedule.id}:{})});}catch(error){this.status('일정 입력창을 열지 못했습니다. '+error.message,true);}
     }
+    scheduleHeader(note){const s=note.schedule;return '<div class="memo-schedule-header"><strong>'+escape(s.title)+'</strong><small>'+escape(s.date+' · '+s.start+'–'+s.end)+'</small></div>';}
     focusState(){const el=document.activeElement;if(!this.root.contains(el))return null;const selection=getSelection(),range=selection.rangeCount?selection.getRangeAt(0).cloneRange():null;return {el,id:el.dataset.memoText,range,scroll:this.list.scrollTop};}
     restoreFocus(s){if(s?.id&&!s.el.isConnected)s.el=this.list.querySelector(`[data-memo-text="${s.id}"]`);if(s?.el?.isConnected&&this.open){if(document.activeElement!==s.el)s.el.focus({preventScroll:true});if(s.range&&s.range.startContainer.isConnected&&(!getSelection().rangeCount||!getSelection().getRangeAt(0).isPointInRange(s.range.startContainer,s.range.startOffset))){getSelection().removeAllRanges();getSelection().addRange(s.range);}this.list.scrollTop=s.scroll;}}
     status(message,error=false){const el=this.root.querySelector('#memo-save-status');if(el.textContent!==message)el.textContent=message;if(this.editor){this.editor.querySelector('[role=status]').textContent=message;this.editor.querySelector('[data-memo-retry]').hidden=!this.failed;}el.classList.toggle('memo-error',error);this.root.querySelector('[data-memo-retry]').hidden=!this.failed||this.readError;}
@@ -104,7 +117,8 @@
         card.innerHTML='<div class="sticky-note-tools"><button type="button" class="memo-grip" data-memo-grip aria-label="메모 순서 이동" title="잡아서 바로 이동 · Alt+방향키로 순서 이동">⠿</button><span class="memo-order"></span><button type="button" class="memo-expand" data-memo-expand aria-label="메모 확대" title="크게 쓰기">↗</button><button type="button" class="memo-delete" data-memo-delete aria-label="메모 삭제" title="메모 삭제">×</button></div><div class="memo-rich" data-memo-text contenteditable="true" role="textbox" aria-multiline="true" spellcheck="false" data-placeholder="잊기 전에 적어 두세요…"></div>';
         card.querySelector('.memo-order').textContent=String(i+1).padStart(2,'0');
         const input=card.querySelector('.memo-rich');input.setAttribute('aria-label',(i+1)+'번째 메모');this.bindRich(input,note);
-        card.insertAdjacentHTML('beforeend','<button type="button" class="memo-schedule" data-memo-schedule>일정 등록</button>');
+        if(note.schedule)input.insertAdjacentHTML('beforebegin',this.scheduleHeader(note));
+        card.insertAdjacentHTML('beforeend','<button type="button" class="memo-schedule" data-memo-schedule>'+(note.schedule?'일정 보기':'일정 등록')+'</button>');
         this.list.append(card);this.fit(input);
       }
       if(!this.data.notes.length){const empty=document.createElement('div');empty.className='memo-empty';empty.innerHTML='<span aria-hidden="true">✎</span><strong>생각이 떠오르면 가볍게</strong><p>새 메모를 눌러 첫 기록을 남겨 보세요.</p>';this.list.append(empty);}

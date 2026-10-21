@@ -146,8 +146,6 @@ body.unified-main{--wing-width:330px;--organization-left:var(--wing-width);--org
 /* Personal calendar entries use color and a text badge, so color is not the only cue. */
 .event.private-schedule,.timeline-card.private-schedule{background:#fff3cf;border-left:4px solid #d39a26;color:#604814}
 .event.private-schedule:hover{background:#ffedb4}
-.private-badge{display:inline-flex;align-items:center;gap:2px;padding:1px 4px;margin-right:4px;border-radius:4px;background:#f4d785;color:#59400e;font-size:9px;line-height:12px;vertical-align:middle;white-space:nowrap}
-.event.short .private-badge{padding:0 3px;line-height:12px}
 .agenda-footer{display:flex;gap:6px}.agenda-footer>.btn{flex:1}
 
 .calendar-month-panel{padding:16px;min-width:0;height:calc(100dvh - 235px);overflow:auto}
@@ -453,6 +451,16 @@ body.minimal-main>.memo-tab,.unified-main:has(.briefing-overlay)>.memo-tab{displ
 .sticky-note>.memo-schedule{display:block;margin:2px 10px 9px auto;padding:4px 7px;border:1px solid #8b98745c;border-radius:5px;background:#ffffff50;color:#48654f;font:inherit;font-size:10px;cursor:pointer}
 .memo-schedule:focus-visible{outline:2px solid var(--green);outline-offset:2px}
 .memo-schedule-hint{margin:0;font-size:12px;line-height:1.6}
+.calendar-note-mark{display:inline-flex;vertical-align:middle;margin-right:4px;color:inherit;pointer-events:none}
+.calendar-note-mark[hidden]{display:none!important}
+.memo-schedule-header{padding:8px 12px 0;display:grid;gap:4px;overflow-wrap:anywhere}
+.memo-schedule-header strong{font-size:12px}.memo-schedule-header small{font-size:10px;color:#6c715d}
+.memo-editor .memo-schedule-header{padding:12px 20px 0}.memo-editor .memo-schedule-header strong{font-size:14px}
+.schedule-personal-memo{margin-top:20px;padding:16px;background:var(--green-light,#edf4ee);border:1px solid var(--line);border-radius:8px}
+.schedule-personal-memo[hidden]{display:none!important}
+.schedule-personal-memo h3{font-size:13px;margin:0 0 8px}.schedule-memo-content{white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;line-height:1.7}
+#schedule-memo-form label{display:grid;gap:8px;font-size:13px}#schedule-memo-text{width:100%;resize:vertical;min-height:120px}
+.schedule-memo-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
 
 /* Keep settings dismissal reachable above long, scrollable content. */
 .settings-modal .modal-head,.settings-modal .modal-foot{flex-shrink:0}

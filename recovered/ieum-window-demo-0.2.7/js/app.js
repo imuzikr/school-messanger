@@ -242,7 +242,7 @@
     const deadlines=state.data.deadlines.filter(d=>d.date===date&&!d.done).sort((a,b)=>(a.dueTime||"24:00").localeCompare(b.dueTime||"24:00"));
     const tasks=state.data.tasks.filter(t=>!t.done);
     const list=(items,emptyText)=>items.length?'<ul>'+items.join("")+'</ul>':'<p class="muted">'+emptyText+'</p>';
-    const rows=events.map(event=>{const summary=window.IeumScheduleSummary.summarize(event,sourceText(event));return briefingRow("event",event,privateBadge(event)+'<strong>'+esc(event.start)+'–'+esc(event.end)+' · '+esc(summary.task)+'</strong><small>'+esc(summary.place)+(summary.preparation!=="별도 안내 없음"?' · '+esc(summary.preparation):'')+'</small>');});
+    const rows=events.map(event=>{const summary=window.IeumScheduleSummary.summarize(event,sourceText(event));return briefingRow("event",event,eventMemoIcon(event)+'<strong>'+esc(event.start)+'–'+esc(event.end)+' · '+esc(summary.task)+'</strong><small>'+esc(summary.place)+(summary.preparation!=="별도 안내 없음"?' · '+esc(summary.preparation):'')+'</small>');});
     const body='<article class="today-briefing"><p class="briefing-date">'+esc(fmtDate(date))+'</p><p>오늘의 약속과 해야 할 일을 확인하세요.</p><div class="briefing-counts">일정 '+events.length+' · 마감 '+deadlines.length+' · 할 일 '+tasks.length+'</div><h3>오늘의 일정</h3>'+list(rows,"오늘 등록된 일정이 없습니다.")+'<h3>오늘의 마감</h3>'+list(deadlines.map(d=>briefingRow("deadline",d,'<strong>'+esc(d.dueTime||"오늘까지")+' · '+esc(calendarTitle(d))+'</strong>')),"오늘 남은 마감이 없습니다.")+'<h3>나의 할 일</h3>'+list(tasks.map(t=>briefingRow("task",t,esc(t.title))),"남은 할 일이 없습니다.")+'</article>';
     openModal("오늘의 브리핑",body,button("close-modal","하루 시작하기","check","btn-primary"),"briefing-modal");
   }
@@ -373,6 +373,8 @@
     const memoFocus=memoBoard?.focusState();
     if (!native&&persist) save();
     applySettings();
+    loadScheduleMemos();
+    syncScheduleMemoMetadata();
     document.body.classList.toggle("installed",!!windowApi);
     if(windowApi?.mainHost){
       document.body.classList.add("unified-main","compact-mode");
@@ -429,8 +431,7 @@
   function compactAgendaList() {
     const events=state.data.events.filter(e=>e.date===state.today).sort((a,b)=>a.start.localeCompare(b.start));
     const deadlines=state.data.deadlines.filter(d=>d.date===state.today).sort((a,b)=>(a.dueTime||"24:00").localeCompare(b.dueTime||"24:00"));
-    const notes=state.data.notes.filter(n=>n.date===state.today).sort((a,b)=>a.time.localeCompare(b.time));
-    return `<aside class="compact-today agenda-list-panel" aria-label="오늘 일정 목록"><header class="agenda-header"><div><h2>${ib("today-prev","이전 날짜","left")}${fmtDate(state.today,{month:"long",day:"numeric",weekday:"short"})}${ib("today-next","다음 날짜","right")}</h2><small>오늘의 일정 · 목록</small></div>${button("add-event","일정 추가","plus")}</header><div class="agenda-list" role="list">${deadlines.map(d=>`<div class="agenda-list-row ${d.done?"done":""}" role="listitem"><input type="checkbox" data-deadline="${d.id}" aria-label="${esc(calendarTitle(d))} 완료" ${d.done?"checked":""}><button data-action="deadline-source" data-deadline="${d.id}"><span class="agenda-list-time">${d.dueTime?esc(d.dueTime)+"까지":"오늘 마감"}</span><strong>${esc(calendarTitle(d))}</strong><small>완료 확인${d.done?" · 완료":""}</small></button></div>`).join("")}${events.map(e=>`<div class="agenda-list-row" role="listitem"><button data-action="view-event" data-event="${e.id}"><span class="agenda-list-time">${esc(e.start)}–${esc(e.end)}</span><strong>${privateBadge(e)}${esc(calendarTitle(e))}</strong><small>${esc(e.place || typeLabel(e.type))}</small></button></div>`).join("")}${notes.map(n=>`<div class="agenda-list-row" role="listitem"><button data-action="view-note" data-note="${n.id}"><span class="agenda-list-time">${esc(n.time)}</span><strong>${esc(n.text)}</strong><small>메모</small></button></div>`).join("")}${!events.length&&!deadlines.length&&!notes.length?'<p class="agenda-list-empty">이날 등록된 일정이 없어요.</p>':""}</div></aside>`;
+    return `<aside class="compact-today agenda-list-panel" aria-label="오늘 일정 목록"><header class="agenda-header"><div><h2>${ib("today-prev","이전 날짜","left")}${fmtDate(state.today,{month:"long",day:"numeric",weekday:"short"})}${ib("today-next","다음 날짜","right")}</h2><small>오늘의 일정 · 목록</small></div>${button("add-event","일정 추가","plus")}</header><div class="agenda-list" role="list">${deadlines.map(d=>`<div class="agenda-list-row ${d.done?"done":""}" role="listitem"><input type="checkbox" data-deadline="${d.id}" aria-label="${esc(calendarTitle(d))} 완료" ${d.done?"checked":""}><button data-action="deadline-source" data-deadline="${d.id}"><span class="agenda-list-time">${d.dueTime?esc(d.dueTime)+"까지":"오늘 마감"}</span><strong>${esc(calendarTitle(d))}</strong><small>완료 확인${d.done?" · 완료":""}</small></button></div>`).join("")}${events.map(e=>`<div class="agenda-list-row" role="listitem"><button data-action="view-event" data-event="${e.id}"><span class="agenda-list-time">${esc(e.start)}–${esc(e.end)}</span><strong>${eventMemoIcon(e)}${esc(calendarTitle(e))}</strong><small>${esc(e.place || typeLabel(e.type))}</small></button></div>`).join("")}${!events.length&&!deadlines.length?'<p class="agenda-list-empty">이날 등록된 일정이 없어요.</p>':""}</div></aside>`;
   }
   let timelineResizeTarget=null;
   function syncTimelineResizeTarget(){
@@ -465,7 +466,7 @@
     const listedDeadlines=state.data.deadlines.filter(d=>state.settings.showCompletedDeadlines||!d.done).sort((a,b)=>a.date.localeCompare(b.date)||(a.dueTime||"24:00").localeCompare(b.dueTime||"24:00")),extracted=state.data.deadlines.filter(d=>d.source&&d.date===state.today);
     const academic=state.data.academic.filter(item=>item.date===state.today),layouts=timelineSlots(state.today,56/60);
     const range=timelineRange([state.today]),position=(minutes(new Date().toLocaleTimeString("en-GB",{timeZone:"Asia/Seoul",hour:"2-digit",minute:"2-digit"}))-range.start)*56/60;
-    return `<aside class="compact-today"><header class="agenda-header"><div><h2>${ib("today-prev","이전 날짜","left")}${fmtDate(state.today,{month:"long",day:"numeric",weekday:"short"})}${state.today!==Mock.today?button("today-reset","오늘로","","agenda-today-reset"):""}${ib("today-next","다음 날짜","right")}</h2><small>오늘의 일정</small></div>${ib("toggle-today","오늘 일정 닫기","x")}</header><section class="agenda-deadlines"><div class="deadline-section-head"><h3>완료 확인</h3><label class="completed-option"><input type="checkbox" data-show-completed-deadlines ${state.settings.showCompletedDeadlines?"checked":""}> 완료한 일 표시</label></div>${listedDeadlines.length?listedDeadlines.map(d=>{const diff=Math.round((parseDate(d.date)-parseDate(Mock.today))/86400000);return `<div class="task-row"><input type="checkbox" data-deadline="${d.id}" aria-label="${esc(calendarTitle(d))} 완료" ${d.done?'checked':''}><button class="deadline-content ${d.done?'done':''}" data-action="deadline-source" data-deadline="${d.id}" title="관련 메시지 보기">${esc(calendarTitle(d))}<small> · ${esc(fmtDate(d.date,{month:"numeric",day:"numeric"}))}${d.dueTime?` · ${esc(d.dueTime)}까지`:""}</small></button><span class="due">${d.done?'완료':diff<0?'기한 지남':diff===0?'D-Day':'D-'+diff}</span></div>`}).join(""):`<p class="muted">${state.settings.showCompletedDeadlines?'등록된':'미완료'} 완료 확인이 없어요.</p>`}</section><section class="agenda-academic" aria-label="학사일정"><h3>학사일정</h3>${academic.length?academic.map(item=>`<p>${esc(item.title)}</p>`).join(""):'<p class="muted">등록된 학사일정이 없습니다.</p>'}</section><section class="agenda-body"><h3>내 일정 ${events.length+extracted.length?'· '+(events.length+extracted.length):''}</h3><div class="agenda-timeline"><div class="agenda-hours">${Array.from({length:range.hours},(_,i)=>`<div class="agenda-hour">${String(i+range.start/60).padStart(2,'0')}</div>`).join("")}</div><div class="agenda-grid" style="height:${range.hours*56}px" data-timeline-start="${range.start}" data-timeline-end="${range.end}" data-calendar-timeline="${state.today}" aria-label="오늘 일정 시간대 드래그 선택">${events.map((e,i)=>{const {count:n,slot}=layouts.get('event:'+e.id);return `<button class="event ${e.type} ${slot<n-1?"timeline-divider":""} ${isPrivateEvent(e)?"private-schedule":""} ${canMoveEvent(e)?"movable":""} ${minutes(e.end)-minutes(e.start)<30?"short":""}" data-action="view-event" data-event="${e.id}" title="${esc(calendarTitle(e))} · ${esc(fmtDate(e.date))} · ${e.start}–${e.end}" style="top:${(minutes(e.start)-range.start)*56/60}px;height:${Math.max(14,(minutes(e.end)-minutes(e.start))*56/60)}px;left:calc(${slot*100/n}% + 4px);width:calc(${100/n}% - 8px);right:auto"><strong>${privateBadge(e)}${esc(calendarTitle(e))}</strong><small>${e.start}–${e.end}</small><small>${esc(e.place)}</small>${eventHandles(e)}</button>`}).join("")}${timelinePoints(state.today,range.start,56/60)}${state.today===Mock.today&&position>=0&&position<=range.hours*56?`<div class="now-line" style="top:${position}px"></div>`:""}</div></div>${state.data.notes.filter(n=>n.date===state.today).map(n=>`<button class="agenda-note" data-action="view-note" data-note="${n.id}">${esc(n.time)} · ${esc(n.text)}</button>`).join("")}</section><footer class="agenda-footer">${button("add-personal-event","내 일정 등록","calendar")+button("homeroom-work","담임 업무","users")}</footer></aside>`;
+    return `<aside class="compact-today"><header class="agenda-header"><div><h2>${ib("today-prev","이전 날짜","left")}${fmtDate(state.today,{month:"long",day:"numeric",weekday:"short"})}${state.today!==Mock.today?button("today-reset","오늘로","","agenda-today-reset"):""}${ib("today-next","다음 날짜","right")}</h2><small>오늘의 일정</small></div>${ib("toggle-today","오늘 일정 닫기","x")}</header><section class="agenda-deadlines"><div class="deadline-section-head"><h3>완료 확인</h3><label class="completed-option"><input type="checkbox" data-show-completed-deadlines ${state.settings.showCompletedDeadlines?"checked":""}> 완료한 일 표시</label></div>${listedDeadlines.length?listedDeadlines.map(d=>{const diff=Math.round((parseDate(d.date)-parseDate(Mock.today))/86400000);return `<div class="task-row"><input type="checkbox" data-deadline="${d.id}" aria-label="${esc(calendarTitle(d))} 완료" ${d.done?'checked':''}><button class="deadline-content ${d.done?'done':''}" data-action="deadline-source" data-deadline="${d.id}" title="관련 메시지 보기">${esc(calendarTitle(d))}<small> · ${esc(fmtDate(d.date,{month:"numeric",day:"numeric"}))}${d.dueTime?` · ${esc(d.dueTime)}까지`:""}</small></button><span class="due">${d.done?'완료':diff<0?'기한 지남':diff===0?'D-Day':'D-'+diff}</span></div>`}).join(""):`<p class="muted">${state.settings.showCompletedDeadlines?'등록된':'미완료'} 완료 확인이 없어요.</p>`}</section><section class="agenda-academic" aria-label="학사일정"><h3>학사일정</h3>${academic.length?academic.map(item=>`<p>${esc(item.title)}</p>`).join(""):'<p class="muted">등록된 학사일정이 없습니다.</p>'}</section><section class="agenda-body"><h3>내 일정 ${events.length+extracted.length?'· '+(events.length+extracted.length):''}</h3><div class="agenda-timeline"><div class="agenda-hours">${Array.from({length:range.hours},(_,i)=>`<div class="agenda-hour">${String(i+range.start/60).padStart(2,'0')}</div>`).join("")}</div><div class="agenda-grid" style="height:${range.hours*56}px" data-timeline-start="${range.start}" data-timeline-end="${range.end}" data-calendar-timeline="${state.today}" aria-label="오늘 일정 시간대 드래그 선택">${events.map((e,i)=>{const {count:n,slot}=layouts.get('event:'+e.id);return `<button class="event ${e.type} ${slot<n-1?"timeline-divider":""} ${isPrivateEvent(e)?"private-schedule":""} ${canMoveEvent(e)?"movable":""} ${minutes(e.end)-minutes(e.start)<30?"short":""}" data-action="view-event" data-event="${e.id}" title="${esc(calendarTitle(e))} · ${esc(fmtDate(e.date))} · ${e.start}–${e.end}" style="top:${(minutes(e.start)-range.start)*56/60}px;height:${Math.max(14,(minutes(e.end)-minutes(e.start))*56/60)}px;left:calc(${slot*100/n}% + 4px);width:calc(${100/n}% - 8px);right:auto"><strong>${eventMemoIcon(e)}${esc(calendarTitle(e))}</strong><small>${e.start}–${e.end}</small><small>${esc(e.place)}</small>${eventHandles(e)}</button>`}).join("")}${timelinePoints(state.today,range.start,56/60)}${state.today===Mock.today&&position>=0&&position<=range.hours*56?`<div class="now-line" style="top:${position}px"></div>`:""}</div></div>${state.data.notes.filter(n=>n.date===state.today).map(n=>`<button class="agenda-note" data-action="view-note" data-note="${n.id}">${esc(n.time)} · ${esc(n.text)}</button>`).join("")}</section><footer class="agenda-footer">${button("add-personal-event","내 일정 등록","calendar")+button("homeroom-work","담임 업무","users")}</footer></aside>`;
   }
   function heading(eyebrow, title, desc, actions = "") {
     return `<div class="page-heading"><div><div class="eyebrow">${esc(eyebrow)}</div><h1>${esc(title)}</h1><p>${esc(desc)}</p></div><div class="heading-actions">${actions}</div></div>`;
@@ -511,7 +512,7 @@
         )
         .join(
           "",
-        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.102</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
+        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.103</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
     );
   }
   const groupLabel=p=>String(p[state.group]||"").trim()||({grade:"학년 미지정",otherGroup:"기타 미지정"}[state.group]||"미지정");
@@ -561,18 +562,37 @@
       )
       .join(
         "",
-      )}<div class="timeline">${events.length ? events.map((e) => `<div class="timeline-item"><time class="timeline-time">${e.start}</time><div class="timeline-card ${e.type} ${isPrivateEvent(e)?"private-schedule":""}"><button class="btn-quiet" style="padding:0;border:0;text-align:left;color:inherit" data-action="view-event" data-event="${e.id}"><strong>${privateBadge(e)}${esc(calendarTitle(e))}</strong><small>${esc(e.place || "장소 미정")} · ${e.start}–${e.end}</small></button><span class="chip ${e.type === "personal" ? "" : e.type === "repeat" ? "orange" : "blue"}">${typeLabel(e.type)}</span>${e.note ? `<button class="note-pin" data-action="event-note" data-event="${e.id}" aria-label="일정 메모 보기" title="${esc(e.note)}">${icon("note", 15)}</button>` : ""}</div></div>`).join("") : `<div class="empty" style="padding:24px 5px">${icon("sun", 26)}<p>등록된 일정이 없어요.<br>여유로운 하루를 계획해 보세요.</p></div>`}${state.data.notes
-      .filter((n) => n.date === state.today)
-      .map(
-        (n) =>
-          `<div class="chip" style="margin-top:7px">${icon("note", 12)}${esc(n.time)} ${esc(n.text)}</div>`,
-      )
-      .join(
-        "",
-      )}</div>${button("nav-calendar", "전체 일정 보기", "arrow", "panel-foot")}</section>`;
+      )}<div class="timeline">${events.length ? events.map((e) => `<div class="timeline-item"><time class="timeline-time">${e.start}</time><div class="timeline-card ${e.type} ${isPrivateEvent(e)?"private-schedule":""}"><button class="btn-quiet" style="padding:0;border:0;text-align:left;color:inherit" data-action="view-event" data-event="${e.id}"><strong>${eventMemoIcon(e)}${esc(calendarTitle(e))}</strong><small>${esc(e.place || "장소 미정")} · ${e.start}–${e.end}</small></button><span class="chip ${e.type === "personal" ? "" : e.type === "repeat" ? "orange" : "blue"}">${typeLabel(e.type)}</span></div></div>`).join("") : `<div class="empty" style="padding:24px 5px">${icon("sun", 26)}<p>등록된 일정이 없어요.<br>여유로운 하루를 계획해 보세요.</p></div>`}</div>${button("nav-calendar", "전체 일정 보기", "arrow", "panel-foot")}</section>`;
   }
   function isPrivateEvent(event) {return !!event&&event.type==="personal"&&!event.source&&!event.noticeMail&&!event.targets?.length;}
-  function privateBadge(event) {return isPrivateEvent(event)?`<span class="private-badge">${icon("lock",9)} 개인</span>`:"";}
+  let scheduleMemoNotes=new Map(),scheduleMemoStore=null;
+  function loadScheduleMemos(){
+    const user=state.user&&(native?state.profile?.id&&'account:'+state.profile.id:'demo:'+state.user);
+    scheduleMemoStore=user?new IeumStickyNotes.Store(localStorage,user):null;
+    try{scheduleMemoNotes=new Map((scheduleMemoStore?.load().notes||[]).filter(n=>n.schedule).map(n=>[n.schedule.id,n]));}catch{scheduleMemoNotes=new Map();}
+  }
+  function eventMemoIcon(event){return `<span class="calendar-note-mark" data-event-note-mark="${esc(event.id)}" aria-hidden="true" ${scheduleMemoNotes.get(event.id)?.text.trim()?'':'hidden'}>${icon('note',12)}</span>`;}
+  function scheduleMetadata(event){return {id:event.id,title:calendarTitle(event).slice(0,200),date:event.date,start:event.start,end:event.end};}
+  function syncScheduleMemoMetadata(){
+    if(!scheduleMemoStore||!scheduleMemoNotes.size)return;
+    try{const data=scheduleMemoStore.load();let changed=false;for(const note of data.notes){if(!note.schedule)continue;const event=calendarEvent(note.schedule.id);if(!event)continue;const metadata=scheduleMetadata(event);if(JSON.stringify(note.schedule)!==JSON.stringify(metadata)){note.schedule=metadata;changed=true;}}if(changed){scheduleMemoStore.save(data);loadScheduleMemos();}}catch{}
+  }
+  function personalMemoSection(event){const note=scheduleMemoNotes.get(event.id);return `<section class="schedule-personal-memo" data-personal-memo="${esc(event.id)}" ${note?.text.trim()?'':'hidden'}><h3>나의 메모</h3><p class="schedule-memo-content">${esc(note?.text||'')}</p></section>`;}
+  function refreshScheduleMemoIcons(){
+    loadScheduleMemos();
+    $$('[data-event-note-mark]').forEach(el=>el.hidden=!scheduleMemoNotes.get(el.dataset.eventNoteMark)?.text.trim());
+    $$('[data-personal-memo]').forEach(el=>{const note=scheduleMemoNotes.get(el.dataset.personalMemo);if(!el.querySelector('form')){el.hidden=!note?.text.trim();el.querySelector('.schedule-memo-content').textContent=note?.text||'';}});
+  }
+  function editScheduleMemo(id){
+    const event=calendarEvent(id),section=$$('[data-personal-memo]').find(el=>el.dataset.personalMemo===id);if(!event||!section)return;
+    if(section.querySelector('form')){$('#schedule-memo-text').focus();return;}
+    loadScheduleMemos();const text=scheduleMemoNotes.get(id)?.text||'';
+    section.hidden=false;section.innerHTML=`<form id="schedule-memo-form"><label>나의 메모<textarea class="input" id="schedule-memo-text" rows="5" maxlength="4000" placeholder="이 일정에 필요한 내용을 기록하세요.">${esc(text)}</textarea></label><p class="form-error" role="alert" id="schedule-memo-error"></p><div class="schedule-memo-actions"><button type="button" class="btn" id="schedule-memo-cancel">취소</button><button type="submit" class="btn btn-primary">메모 저장</button></div></form>`;
+    const restore=()=>{section.outerHTML=personalMemoSection(event);};
+    $('#schedule-memo-cancel').onclick=restore;
+    $('#schedule-memo-form').onsubmit=e=>{e.preventDefault();try{scheduleMemoStore.setSchedule(scheduleMetadata(calendarEvent(id)||event),$('#schedule-memo-text').value);loadScheduleMemos();restore();refreshScheduleMemoIcons();}catch(error){$('#schedule-memo-error').textContent='메모를 저장하지 못했습니다. '+error.message;}};
+    $('#schedule-memo-text').focus();
+  }
   function typeLabel(t) {
     return (
       {
@@ -1349,17 +1369,9 @@
         const top = minutes(e.start) - range.start,
           height = minutes(e.end) - minutes(e.start),
           {count:n,slot} = layouts.get('event:'+e.id);
-        return `<button class="event ${e.type} ${slot<n-1?"timeline-divider":""} ${isPrivateEvent(e)?"private-schedule":""} ${canMoveEvent(e)?"movable":""} ${minutes(e.end)-minutes(e.start)<30?"short":""}" data-action="view-event" data-event="${e.id}" style="top:${Math.max(0, top)}px;height:${Math.max(14, Math.min(range.end-range.start - Math.max(0, top), height))}px;left:calc(${(slot * 100) / n}% + 5px);width:calc(${100 / n}% - 10px);right:auto" title="${esc(calendarTitle(e))} · ${esc(fmtDate(e.date))} · ${e.start}–${e.end}"><strong>${privateBadge(e)}${esc(calendarTitle(e))}</strong><small>${e.start}–${e.end}</small><small>${esc(e.place)}</small>${eventHandles(e)}</button>`;
+        return `<button class="event ${e.type} ${slot<n-1?"timeline-divider":""} ${isPrivateEvent(e)?"private-schedule":""} ${canMoveEvent(e)?"movable":""} ${minutes(e.end)-minutes(e.start)<30?"short":""}" data-action="view-event" data-event="${e.id}" style="top:${Math.max(0, top)}px;height:${Math.max(14, Math.min(range.end-range.start - Math.max(0, top), height))}px;left:calc(${(slot * 100) / n}% + 5px);width:calc(${100 / n}% - 10px);right:auto" title="${esc(calendarTitle(e))} · ${esc(fmtDate(e.date))} · ${e.start}–${e.end}"><strong>${eventMemoIcon(e)}${esc(calendarTitle(e))}</strong><small>${e.start}–${e.end}</small><small>${esc(e.place)}</small>${eventHandles(e)}</button>`;
       })
-      .join("")}${state.data.notes
-      .filter((n) => n.date === day)
-      .map(
-        (n) =>
-          `<button class="event-note" style="top:${Math.max(0, Math.min(range.end-range.start-25, minutes(n.time) - range.start))}px" data-action="view-note" data-note="${n.id}" title="${esc(n.text)}">${icon("note", 11)} ${esc(n.text)}</button>`,
-      )
-      .join(
-        "",
-      )}${timelinePoints(day,range.start,1)}${day === Mock.today && nowMin >= range.start && nowMin <= range.end ? `<div class="now-line" style="top:${nowMin - range.start}px"></div>` : ""}</div></div>`;
+      .join("")}${timelinePoints(day,range.start,1)}${day === Mock.today && nowMin >= range.start && nowMin <= range.end ? `<div class="now-line" style="top:${nowMin - range.start}px"></div>` : ""}</div></div>`;
   }
   function monthDates(anchor) {
     const d = parseDate(anchor);
@@ -1399,7 +1411,7 @@
             .join("")}${state.data.deadlines.filter(d=>d.date===day).map(d=>`<small class="deadline-pill">${esc(calendarTitle(d))}${d.dueTime?` · ${esc(d.dueTime)}까지`:" · 마감"}</small>`).join("")}${state.data.events
             .filter((e) => e.date === day)
             .slice(0, 3)
-            .map((e) => `<small>${esc(e.start)} ${esc(calendarTitle(e))}</small>`)
+            .map((e) => `<small>${esc(e.start)} ${eventMemoIcon(e)}${esc(calendarTitle(e))}</small>`)
             .join("")}</button>`,
       )
       .join("")}</div>`;
@@ -1417,7 +1429,7 @@
       return `<article class="month-cell duty-month-cell ${i%7===0?'sunday':i%7===6?'saturday':''} ${parseDate(day).getMonth()!==month?'other':''} ${day===Mock.today?'current':''}" data-duty-date="${day}" aria-label="${fmtDate(day)} 업무"><b>${parseDate(day).getDate()}</b>${entries.map(e=>{
         const own=e.duty.assigned.includes(actor.id),pending=exchangeVisible().some(r=>IeumDutyExchanges.active(r)&&[r.from.id,r.to.id].includes(e.id));
         const names=e.duty.assigned.map(id=>person(id).name).join(', ');
-        return `<button type="button" class="duty-month-entry duty-color-${e.duty.kind} ${own?'own-assignment':''} ${pending?'exchange-pending':''}" data-action="view-event" data-event="${esc(e.id)}" aria-label="${esc(IeumDuties.types[e.duty.kind].label+' · '+day+' · '+names+(own?' · 내 배정':'')+(pending?' · 교환 진행 중':''))}"><strong>${esc(IeumDuties.types[e.duty.kind].label)}</strong><span class="duty-month-teachers">${esc(names)}</span></button>`;
+        return `<button type="button" class="duty-month-entry duty-color-${e.duty.kind} ${own?'own-assignment':''} ${pending?'exchange-pending':''}" data-action="view-event" data-event="${esc(e.id)}" aria-label="${esc(IeumDuties.types[e.duty.kind].label+' · '+day+' · '+names+(own?' · 내 배정':'')+(pending?' · 교환 진행 중':''))}"><strong>${eventMemoIcon(e)}${esc(IeumDuties.types[e.duty.kind].label)}</strong><span class="duty-month-teachers">${esc(names)}</span></button>`;
       }).join('')}${!entries.length?'<span class="duty-month-empty">배정 없음</span>':''}</article>`;
     }).join('')}</div>`;
   }
@@ -1466,6 +1478,7 @@
     $("#bell-form").onsubmit=e=>{e.preventDefault();store(false);};const reset=$('[data-action="bell-reset"]');if(reset)reset.onclick=e=>{e.stopPropagation();store(true);};
   }
   async function openMemoSchedule(note){
+    if(note.eventId){if(windowApi?.openWorkspace){const result=await windowApi.openWorkspace('calendar',{kind:'event',id:note.eventId});if(result?.error)throw new Error(result.error);}else await revealBriefingTarget({kind:'event',id:note.eventId});return;}
     if(windowApi?.openMemoSchedule){const result=await windowApi.openMemoSchedule(note);if(result?.error)throw new Error(result.error);}
     else{memoBoard?.collapseEditor();memoScheduleForm({memoId:note.id,text:note.text});}
   }
@@ -1619,8 +1632,9 @@
   }
   function openScheduleDetail(item,title,body,footer) {
     const extra=`data-schedule="${esc(item.id)}"`;
-    openModal(title,body,
+    openModal(title,body+(state.data.events.some(e=>e.id===item.id)||state.data.dutyCalendar?.some(e=>e.id===item.id)?personalMemoSection(item):""),
       button("schedule-summary","일정 요약","down","",extra+' aria-expanded="false" aria-controls="schedule-summary-panel" title="일정 요약 펼치기"')+
+      (state.data.events.some(e=>e.id===item.id)||state.data.dutyCalendar?.some(e=>e.id===item.id)?button("schedule-memo","메모하기","note","",extra):"")+
       (relatedSource(item)?button("schedule-source","관련 메시지 보기","mail","",extra):"")+footer,"schedule-detail-modal");
     const summary=window.IeumScheduleSummary.summarize(item,sourceText(item));
     const rows=[["할 일",summary.task,"checklist"],["날짜·시간",summary.date+" · "+summary.time,"clock"],["장소",summary.place,"school"],["준비·확인",summary.preparation,"note"]];
@@ -1737,6 +1751,7 @@
     if(!native&&!keepDemoActor)state.exchangeDemoActor=null;
     const e = calendarEvent(id);
     if (!e) return;
+    loadScheduleMemos();
     const exchange=e.duty?dutyExchangeAvailability(e):null;
     if(e.duty&&!showInfo){
       const request=exchangeVisible().find(r=>IeumDutyExchanges.active(r)&&[r.from.id,r.to.id].includes(e.id));
@@ -2766,6 +2781,7 @@
         closeModal();
         renderPage();
         break;
+      case "schedule-memo": editScheduleMemo(d.schedule); break;
       case "schedule-summary": toggleScheduleSummary(target); break;
       case "schedule-source": {
         const item=[...state.data.events,...state.data.deadlines].find(i=>i.id===d.schedule);
@@ -3321,6 +3337,8 @@
       });
     }
   });
+  window.addEventListener('ieum-sticky-change',refreshScheduleMemoIcons);
+  window.addEventListener('storage',event=>{if(event.key===scheduleMemoStore?.key)refreshScheduleMemoIcons();});
   if(!native)window.addEventListener("storage",event=>{
     if(event.key!=="ieum-v1"||!event.newValue)return;
     try{const saved=JSON.parse(event.newValue);if(!saved.data)return;
