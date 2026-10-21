@@ -143,7 +143,7 @@
     status(message,error=false){const el=this.root.querySelector('#memo-save-status');if(el.textContent!==message)el.textContent=message;if(this.editor){this.editor.querySelector('[role=status]').textContent=message;this.editor.querySelector('[data-memo-retry]').hidden=!this.failed;}el.classList.toggle('memo-error',error);this.root.querySelector('[data-memo-retry]').hidden=!this.failed||this.readError;}
     announce(message){this.root.querySelector('.memo-announcement').textContent=message;}
     persist(){try{this.store.save(this.data);this.failed=false;this.status('이 PC에 저장됨');return true;}catch{this.failed=true;this.status('저장하지 못했습니다. 현재 내용을 유지하고 다시 저장해 주세요.',true);return false;}}
-    fit(input){input.style.height='auto';input.style.height=Math.min(240,Math.max(this.data.view==='grid'?116:72,input.scrollHeight))+'px';}
+    fit(input){const grid=this.data.view==='grid';input.style.height='auto';input.style.height=Math.min(grid?80:56,Math.max(grid?64:40,input.scrollHeight))+'px';}
     render(){
       this.cancelDrag();this.list.dataset.view=this.data.view;this.list.replaceChildren();
       for(const [i,note] of this.data.notes.entries()){
