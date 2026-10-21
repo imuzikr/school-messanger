@@ -8,6 +8,7 @@
     const seen=new Set();
     for(const n of value.notes){if(!n||typeof n.id!=='string'||!/^[-\w]{1,100}$/.test(n.id)||seen.has(n.id)||typeof n.text!=='string'||n.text.length>4000||(n.html!==undefined&&(typeof n.html!=='string'||n.html.length>64000))||!colors.includes(n.color)||!Number.isFinite(n.createdAt)||!Number.isFinite(n.updatedAt))throw Error('저장된 메모를 읽을 수 없습니다.');seen.add(n.id);}
     for(const n of value.notes)if(n.schedule!==undefined){const s=n.schedule;if(!s||typeof s.id!=='string'||!/^[-\w]{1,160}$/.test(s.id)||typeof s.title!=='string'||s.title.length>200||!/^\d{4}-\d{2}-\d{2}$/.test(s.date)||!/^\d{2}:\d{2}$/.test(s.start)||!/^\d{2}:\d{2}$/.test(s.end))throw Error('일정 메모 정보를 읽을 수 없습니다.');}
+    for(const n of value.notes)if(n.schedule?.kind!==undefined&&(n.schedule.kind!=='deadline'||typeof n.schedule.dueTime!=='string'||n.schedule.dueTime&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(n.schedule.dueTime)))throw Error('마감 메모 정보를 읽을 수 없습니다.');
     return value;
   }
   const escape=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -103,7 +104,7 @@
       const note=this.data.notes.find(n=>n.id===id);if(!note||this.readError)return;
       if(!note.schedule){this.toggleScheduleForm(id);return;}
       if(this.expanded===id)this.collapseEditor();
-      try{await this.onSchedule?.({id:note.id,text:note.text,...(note.schedule?{eventId:note.schedule.id}:{})});}catch(error){this.status('일정 입력창을 열지 못했습니다. '+error.message,true);}
+      try{await this.onSchedule?.({id:note.id,text:note.text,...(note.schedule?{eventId:note.schedule.id,kind:note.schedule.kind}:{})});}catch(error){this.status('일정 입력창을 열지 못했습니다. '+error.message,true);}
     }
     async toggleScheduleForm(id){
       if(this.scheduleSaving||this.scheduleOpening)return;
@@ -134,7 +135,7 @@
       };
       form.querySelector('[data-memo-date]').focus({preventScroll:true});
     }
-    scheduleHeader(note){const s=note.schedule;return '<div class="memo-schedule-header"><strong>'+escape(s.title)+'</strong><small>'+escape(s.date+' · '+s.start+'–'+s.end)+'</small></div>';}
+    scheduleHeader(note){const s=note.schedule;return '<div class="memo-schedule-header"><strong>'+escape(s.title)+'</strong><small>'+escape(s.date+(s.kind==='deadline'?(s.dueTime?' · '+s.dueTime+'까지':' · 날짜 마감'):' · '+s.start+'–'+s.end))+'</small></div>';}
     focusState(){const el=document.activeElement;if(!this.root.contains(el))return null;const selection=getSelection(),range=selection.rangeCount?selection.getRangeAt(0).cloneRange():null;return {el,id:el.dataset.memoText,range,scroll:this.list.scrollTop};}
     restoreFocus(s){if(s?.id&&!s.el.isConnected)s.el=this.list.querySelector(`[data-memo-text="${s.id}"]`);if(s?.el?.isConnected&&this.open){if(document.activeElement!==s.el)s.el.focus({preventScroll:true});if(s.range&&s.range.startContainer.isConnected&&(!getSelection().rangeCount||!getSelection().getRangeAt(0).isPointInRange(s.range.startContainer,s.range.startOffset))){getSelection().removeAllRanges();getSelection().addRange(s.range);}this.list.scrollTop=s.scroll;}}
     status(message,error=false){const el=this.root.querySelector('#memo-save-status');if(el.textContent!==message)el.textContent=message;if(this.editor){this.editor.querySelector('[role=status]').textContent=message;this.editor.querySelector('[data-memo-retry]').hidden=!this.failed;}el.classList.toggle('memo-error',error);this.root.querySelector('[data-memo-retry]').hidden=!this.failed||this.readError;}
