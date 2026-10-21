@@ -512,7 +512,7 @@
         )
         .join(
           "",
-        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.107</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
+        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.108</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
     );
   }
   const groupLabel=p=>String(p[state.group]||"").trim()||({grade:"학년 미지정",otherGroup:"기타 미지정"}[state.group]||"미지정");
@@ -571,7 +571,13 @@
     scheduleMemoStore=user?new IeumStickyNotes.Store(localStorage,user):null;
     try{scheduleMemoNotes=new Map((scheduleMemoStore?.load().notes||[]).filter(n=>n.schedule).map(n=>[n.schedule.id,n]));}catch{scheduleMemoNotes=new Map();}
   }
-  function eventMemoIcon(event){return `<span class="calendar-note-mark" data-event-note-mark="${esc(event.id)}" aria-hidden="true" ${scheduleMemoNotes.get(event.id)?.text.trim()?'':'hidden'}>${icon('note',12)}</span>`;}
+  function scheduleMemoDirectionIcons(id){
+    const directions=[];
+    if(id.startsWith('user-memo-'))directions.push('in');
+    if(scheduleMemoNotes.get(id)?.text.trim())directions.push('out');
+    return directions.map(direction=>`<svg data-memo-direction="${direction}" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5H5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7M7 13h3M7 17h7"/><path d="${direction==='in'?'M22 2 12 12M12 6v6h6':'M12 12 22 2M16 2h6v6'}"/></svg>`).join('');
+  }
+  function eventMemoIcon(event){const marks=scheduleMemoDirectionIcons(event.id);return `<span class="calendar-note-mark" data-event-note-mark="${esc(event.id)}" aria-hidden="true" ${marks?'':'hidden'}>${marks}</span>`;}
   const calendarMemoItem=id=>calendarEvent(id)||state.data.deadlines.find(d=>d.id===id);
   function scheduleMetadata(event){const deadline=state.data.deadlines.some(d=>d.id===event.id);return {id:event.id,title:calendarTitle(event).slice(0,200),date:event.date,start:deadline?event.dueTime||'00:00':event.start,end:deadline?event.dueTime||'00:00':event.end,...(deadline?{kind:'deadline',dueTime:event.dueTime||''}:{})};}
   function syncScheduleMemoMetadata(){
@@ -581,7 +587,7 @@
   function personalMemoSection(event){const note=scheduleMemoNotes.get(event.id);return `<section class="schedule-personal-memo" data-personal-memo="${esc(event.id)}" ${note?.text.trim()?'':'hidden'}><h3>나의 메모</h3><p class="schedule-memo-content">${esc(note?.text||'')}</p></section>`;}
   function refreshScheduleMemoIcons(){
     loadScheduleMemos();
-    $$('[data-event-note-mark]').forEach(el=>el.hidden=!scheduleMemoNotes.get(el.dataset.eventNoteMark)?.text.trim());
+    $$('[data-event-note-mark]').forEach(el=>{const marks=scheduleMemoDirectionIcons(el.dataset.eventNoteMark);el.hidden=!marks;if(el.innerHTML!==marks)el.innerHTML=marks;});
     $$('[data-personal-memo]').forEach(el=>{const note=scheduleMemoNotes.get(el.dataset.personalMemo);if(!el.querySelector('form')){el.hidden=!note?.text.trim();el.querySelector('.schedule-memo-content').textContent=note?.text||'';}});
   }
   function editScheduleMemo(id){
