@@ -3227,6 +3227,7 @@
   const formatTimelineTime = value => `${String(Math.floor(value/60)).padStart(2,"0")}:${String(value%60).padStart(2,"0")}`;
   let timelineSaving=false,suppressTimelineClickUntil=0;
   document.addEventListener('pointerdown',event=>{
+    if(event.button===0)suppressTimelineClickUntil=0;
     if(timelineResizeTarget&&!event.target.closest('[data-calendar-timeline] .resize-target'))setTimelineResizeTarget(null);
   },true);
   document.addEventListener('click',event=>{if(performance.now()<suppressTimelineClickUntil&&event.target.closest('[data-calendar-timeline]')){event.preventDefault();event.stopImmediatePropagation();}},true);
