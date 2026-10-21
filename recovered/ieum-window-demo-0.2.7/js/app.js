@@ -413,7 +413,7 @@
   function memoTab(){return `<button type="button" class="memo-tab" data-action="toggle-memo" aria-label="개인 메모장" aria-expanded="${!!state.showMemo}" aria-controls="memo-panel" title="개인 메모장">${icon('note',15)}<span>메모</span></button>`;}
   function syncMemoPanel(){
     const host=$('.desktop-frame');if(!host||!state.user||windowApi&&!windowApi.mainHost){memoBoard?.mount(null,null);return;}
-    if(!memoBoard)memoBoard=new IeumStickyNotes.Board({onClose:()=>toggleMemo(false),onSchedule:openMemoSchedule,onScheduleInfo:memoScheduleInfo,onScheduleSave:saveMemoSchedule,tabHTML:memoTab()});
+    if(!memoBoard)memoBoard=new IeumStickyNotes.Board({onClose:()=>toggleMemo(false),onSchedule:openMemoSchedule,onScheduleInfo:memoScheduleInfo,onScheduleSave:saveMemoSchedule,hasSchedule:note=>!!calendarMemoItem(note.schedule?.id||'user-memo-'+note.id),tabHTML:memoTab()});
     memoBoard.mount(host,native?'account:'+state.profile.id:'demo:'+state.user);memoBoard.setOpen(!!state.showMemo);
     document.body.classList.toggle('memo-expanded',!!state.showMemo);$$('[data-action="toggle-memo"]').forEach(el=>el.setAttribute('aria-expanded',String(!!state.showMemo)));
   }
@@ -512,7 +512,7 @@
         )
         .join(
           "",
-        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.106</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
+        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.107</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
     );
   }
   const groupLabel=p=>String(p[state.group]||"").trim()||({grade:"학년 미지정",otherGroup:"기타 미지정"}[state.group]||"미지정");
