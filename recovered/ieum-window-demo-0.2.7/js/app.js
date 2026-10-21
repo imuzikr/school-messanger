@@ -388,7 +388,7 @@
       if(!composeStarted){composeStarted=true;Promise.resolve(windowApi?.composeDraft?.()||{}).then(draft=>composeMail(draft));}
       return;
     }
-    if(requestedToday){document.body.classList.add('today-panel-window');document.body.dataset.panelSide=document.body.dataset.panelSide||params.get('side')||'left';$("#app").innerHTML=compactAgenda();return;}
+    if(requestedToday){document.body.classList.add('today-panel-window');document.body.dataset.panelSide=document.body.dataset.panelSide||params.get('side')||'left';$("#app").innerHTML=compactAgenda();syncTimelineResizeTarget();return;}
     const workspace=!!requestedWorkspace||!!requestedChat||!["people","chat"].includes(state.page);
     document.body.classList.toggle("compact-mode",!workspace);
     const labels={people:"교직원",chat:"대화",inbox:"메시지함",calendar:"내 캘린더",announcements:"학교 소식",links:"바로가기"};
@@ -405,13 +405,13 @@
     renderPage();renderFloating();
     maybeShowBriefing();
     if(params.get("source")&&!briefingTargetStarted){briefingTargetStarted=true;queueMicrotask(()=>revealBriefingTarget({kind:params.get("source"),id:params.get("item"),room:requestedChat}).catch(error=>toast("관련 내용을 열지 못했어요",error.message)));}
-    if(params.get("eventDraft")==="1"&&!eventWindowStarted){eventWindowStarted=true;windowApi.composeDraft().then(draft=>eventForm(draft));}
+    if(params.get("eventDraft")==="1"&&!eventWindowStarted&&(!native||network?.active)){eventWindowStarted=true;windowApi.composeDraft().then(draft=>draft.memoId?memoScheduleForm(draft):eventForm(draft));}
 
   }
   function memoTab(){return `<button type="button" class="memo-tab" data-action="toggle-memo" aria-label="개인 메모장" aria-expanded="${!!state.showMemo}" aria-controls="memo-panel" title="개인 메모장">${icon('note',15)}<span>메모</span></button>`;}
   function syncMemoPanel(){
     const host=$('.desktop-frame');if(!host||!state.user||windowApi&&!windowApi.mainHost){memoBoard?.mount(null,null);return;}
-    if(!memoBoard)memoBoard=new IeumStickyNotes.Board({onClose:()=>toggleMemo(false),tabHTML:memoTab()});
+    if(!memoBoard)memoBoard=new IeumStickyNotes.Board({onClose:()=>toggleMemo(false),onSchedule:openMemoSchedule,tabHTML:memoTab()});
     memoBoard.mount(host,native?'account:'+state.profile.id:'demo:'+state.user);memoBoard.setOpen(!!state.showMemo);
     document.body.classList.toggle('memo-expanded',!!state.showMemo);$$('[data-action="toggle-memo"]').forEach(el=>el.setAttribute('aria-expanded',String(!!state.showMemo)));
   }
@@ -432,6 +432,14 @@
     const notes=state.data.notes.filter(n=>n.date===state.today).sort((a,b)=>a.time.localeCompare(b.time));
     return `<aside class="compact-today agenda-list-panel" aria-label="오늘 일정 목록"><header class="agenda-header"><div><h2>${ib("today-prev","이전 날짜","left")}${fmtDate(state.today,{month:"long",day:"numeric",weekday:"short"})}${ib("today-next","다음 날짜","right")}</h2><small>오늘의 일정 · 목록</small></div>${button("add-event","일정 추가","plus")}</header><div class="agenda-list" role="list">${deadlines.map(d=>`<div class="agenda-list-row ${d.done?"done":""}" role="listitem"><input type="checkbox" data-deadline="${d.id}" aria-label="${esc(calendarTitle(d))} 완료" ${d.done?"checked":""}><button data-action="deadline-source" data-deadline="${d.id}"><span class="agenda-list-time">${d.dueTime?esc(d.dueTime)+"까지":"오늘 마감"}</span><strong>${esc(calendarTitle(d))}</strong><small>완료 확인${d.done?" · 완료":""}</small></button></div>`).join("")}${events.map(e=>`<div class="agenda-list-row" role="listitem"><button data-action="view-event" data-event="${e.id}"><span class="agenda-list-time">${esc(e.start)}–${esc(e.end)}</span><strong>${privateBadge(e)}${esc(calendarTitle(e))}</strong><small>${esc(e.place || typeLabel(e.type))}</small></button></div>`).join("")}${notes.map(n=>`<div class="agenda-list-row" role="listitem"><button data-action="view-note" data-note="${n.id}"><span class="agenda-list-time">${esc(n.time)}</span><strong>${esc(n.text)}</strong><small>메모</small></button></div>`).join("")}${!events.length&&!deadlines.length&&!notes.length?'<p class="agenda-list-empty">이날 등록된 일정이 없어요.</p>':""}</div></aside>`;
   }
+  let timelineResizeTarget=null;
+  function syncTimelineResizeTarget(){
+    const blocks=$$('[data-calendar-timeline] .event');
+    const item=state.data.events.find(event=>event.id===timelineResizeTarget);
+    if(!item||!canMoveEvent(item)||!blocks.some(block=>block.dataset.event===timelineResizeTarget))timelineResizeTarget=null;
+    blocks.forEach(block=>block.classList.toggle('resize-target',block.dataset.event===timelineResizeTarget));
+  }
+  function setTimelineResizeTarget(id){timelineResizeTarget=id;syncTimelineResizeTarget();}
   function canMoveEvent(event){if(event.duty)return false;return !event.noticeMail&&!['makeup','lessonChange'].includes(event.type)&&(!event.readonly||event.canReschedule);}
   function eventHandles(event){return canMoveEvent(event)?'<span class="event-resize top" data-resize="start" title="시작 시간 조절"></span><span class="event-resize bottom" data-resize="end" title="종료 시간 조절"></span>':'';}
   function timelineRange(days,minimumEnd=1080){
@@ -477,6 +485,7 @@
     if (state.page === "inbox") initMailResize();
     const drawer=$(".today-drawer");
     if(drawer){const scroll=$(".agenda-body",drawer)?.scrollTop||0;drawer.innerHTML=compactAgenda();$(".agenda-body",drawer).scrollTop=scroll;}
+    syncTimelineResizeTarget();
   }
   function peoplePage() {
     return (
@@ -502,7 +511,7 @@
         )
         .join(
           "",
-        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.101</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
+        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.102</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
     );
   }
   const groupLabel=p=>String(p[state.group]||"").trim()||({grade:"학년 미지정",otherGroup:"기타 미지정"}[state.group]||"미지정");
@@ -951,6 +960,8 @@
     eventDraft = null;
   let updateBriefingShape=null;
   function openModal(title, body, footer = "", cls = "") {
+    cancelTimelineSelection?.();
+    setTimelineResizeTarget(null);
     if (modalCleanup) {
       modalCleanup();
       modalCleanup = null;
@@ -1454,8 +1465,20 @@
     };
     $("#bell-form").onsubmit=e=>{e.preventDefault();store(false);};const reset=$('[data-action="bell-reset"]');if(reset)reset.onclick=e=>{e.stopPropagation();store(true);};
   }
+  async function openMemoSchedule(note){
+    if(windowApi?.openMemoSchedule){const result=await windowApi.openMemoSchedule(note);if(result?.error)throw new Error(result.error);}
+    else{memoBoard?.collapseEditor();memoScheduleForm({memoId:note.id,text:note.text});}
+  }
+  function memoScheduleForm({memoId,text}){
+    if(!state.user||typeof memoId!=='string'||!/^[-\w]{1,100}$/.test(memoId)||typeof text!=='string'||text.length>4000)return;
+    const id='user-memo-'+memoId,existing=state.data.events.find(event=>event.id===id);
+    eventForm(existing?{...existing,privateOnly:true}:{saveId:id,title:text.trim().split('\n')[0].slice(0,100),note:text.slice(0,1000),date:koreanToday(),privateOnly:true});
+    eventDraft.memoSchedule=true;
+    $('#event-form').insertAdjacentHTML('afterbegin','<p class="muted memo-schedule-hint">저장하면 내 캘린더에 등록됩니다. 메모를 수정하거나 삭제해도 등록한 일정은 유지됩니다.'+(!existing&&text.length>1000?' 일정 내용에는 메모의 앞 1,000자를 가져왔습니다.':'')+'</p>');
+  }
   function eventForm({
     id = null,
+    saveId = null,
     title = "",
     date = state.today,
     start = "09:00",
@@ -1473,7 +1496,7 @@
     privateOnly=privateOnly||!!(id&&isPrivateEvent(state.data.events.find(e=>e.id===id)));
     if(privateOnly){type="personal";targets=[];}
     if(!privateOnly&&!id&&["personal","group","repeat"].includes(type))type="group";
-    eventDraft = { id, mail, done, type, privateOnly };
+    eventDraft = { id, saveId, mail, done, type, privateOnly };
     openModal(
       id ? "일정 수정" : privateOnly ? "내 일정 등록" : "새로운 일정",
       `<form id="event-form" class="event-form"><label>제목 (선택)<input class="input" id="event-title" placeholder="비워 두면 내용으로 일정을 표시합니다" value="${esc(title)}" maxlength="100"></label><div class="two-fields"><label>날짜<input class="input" id="event-date" type="date" value="${date}" required></label><label id="event-place-label">장소<input class="input" id="event-place" placeholder="예: 도서관 세미나실" value="${esc(place)}" maxlength="100"></label></div><label id="makeup-period-box" hidden>보강 교시<select class="input" id="makeup-period"></select><small class="muted">해당 날짜의 일과표 시간을 적용합니다. 수신자 캘린더에 자동 등록됩니다.</small></label><div class="two-fields" id="event-time-range"><label>시작 시간<input class="input" id="event-start" type="time" value="${start}" required></label><label>종료 시간<input class="input" id="event-end" type="time" value="${end}" required></label></div><label id="event-deadline-time" hidden>마감 시간 (선택)<input class="input" id="event-due-time" type="time" value="${esc(dueTime)}"><small class="muted">예: 월요일 16:00까지 제출. 시작 시간 없이 마감 시각만 저장합니다. 시간을 비우면 날짜만 표시합니다.</small></label><div id="event-target-box" ${type !== "group" ? "hidden" : ""}><span>메시지 수신자 · 일정 공유</span><div id="event-targets" class="recipient-options">${state.data.people.map(p=>`<label><input type="checkbox" value="${p.id}" ${targets.includes(p.id)?"checked":""}><span>${esc(p.name)} · ${esc(p.department)}</span></label>`).join("")}</div><small class="muted">수신자가 없으면 내 개인 일정입니다. 선택하면 메시지를 발송하고 선택한 선생님들의 캘린더에도 공유합니다.</small></div><label>내용<textarea class="input" id="event-note" rows="3" placeholder="미리 기억해 둘 내용을 적어 주세요." maxlength="1000">${esc(note)}</textarea></label><div id="event-error" class="form-error" role="alert"></div></form>`,
@@ -1531,7 +1554,7 @@
     if(type==="makeup"&&(!$$("#event-targets input:checked").length||!$("#event-note").value.trim())){$("#event-error").textContent="보강 수신자와 안내 내용을 입력해 주세요.";return;}
     eventSaving=true;const eventSubmit=$('button[form="event-form"]');if(eventSubmit)eventSubmit.disabled=true;
     const oldData=JSON.parse(JSON.stringify(state.data));
-    const id = eventDraft.id || uid("user-event");
+    const id = eventDraft.id || eventDraft.saveId || uid("user-event");
     if (eventDraft.id && ["note", "deadline"].includes(type))
       state.data.events = state.data.events.filter(
         (e) => e.id !== eventDraft.id,
@@ -1576,9 +1599,11 @@
     }
     const stored=await save();eventSaving=false;if(eventSubmit)eventSubmit.disabled=false;
     if(!stored){state.data=oldData;return;}
+    const memoSchedule=eventDraft.memoSchedule;
     closeModal();
     state.today = date;
     state.week = weekStart(date);
+    if(memoSchedule){state.page='calendar';state.calendarView='week';}
     render();
     toast(sharedEvent?.targets.length?"일정을 공유하고 메시지를 보냈어요":"개인 일정을 저장했어요", fmtDate(date) + " · " + title, "calendar");
   }
@@ -3087,6 +3112,7 @@
       e.target.closest("form").requestSubmit();
     }
     if (e.key === "Escape") {
+      if(timelineResizeTarget){cancelTimelineSelection?.();setTimelineResizeTarget(null);e.preventDefault();return;}
       if ($("#context-root").firstChild) $("#context-root").innerHTML = "";
       else if ($("#modal-root").firstChild) closeModal();
       else if (state.floating) {
@@ -3120,6 +3146,7 @@
   });
   document.addEventListener("dblclick", e=>{const person=e.target.closest('.org-tree .person-line');if(person)composeMail({to:selectedMessageRecipients(person.dataset.person)});});
   windowApi?.subscribe(event=>{
+    if(event.kind==='memo-schedule'&&!$('#modal-root').firstChild&&(!native||network?.active))memoScheduleForm(event.draft);
     if(event.kind==='briefing-target')revealBriefingTarget(event.target).catch(error=>toast('관련 내용을 열지 못했어요',error.message));
     if(event.kind==='memo-panel'&&windowApi.mainHost){state.showMemo=event.open;syncMemoPanel();}
     if(event.kind==='minimal-main'&&windowApi.mainHost){state.minimal=event.open;document.body.classList.toggle('minimal-main',event.open);}
@@ -3137,6 +3164,17 @@
   });
   document.addEventListener("contextmenu", (e) => {
     if(e.target.closest("#mail-editor")){e.preventDefault();captureEditorLink(e);menu(e.clientX,e.clientY,[{action:"editor-link",label:"링크 삽입",icon:"link"}]);return;}
+    const block=e.target.closest('[data-calendar-timeline] .event');
+    if(block){
+      e.preventDefault();
+      if(timelineSaving||$('#modal-root').firstChild)return;
+      cancelTimelineSelection?.();
+      const item=state.data.events.find(event=>event.id===block.dataset.event);
+      $('#context-root').innerHTML='';
+      setTimelineResizeTarget(item&&canMoveEvent(item)?item.id:null);
+      return;
+    }
+    setTimelineResizeTarget(null);
     const p = e.target.closest(".person[data-person]"),
       r = e.target.closest(".room"),
       hours = e.target.closest("[data-day-hours]");
@@ -3188,6 +3226,9 @@
   let cancelTimelineSelection = null;
   const formatTimelineTime = value => `${String(Math.floor(value/60)).padStart(2,"0")}:${String(value%60).padStart(2,"0")}`;
   let timelineSaving=false,suppressTimelineClickUntil=0;
+  document.addEventListener('pointerdown',event=>{
+    if(timelineResizeTarget&&!event.target.closest('[data-calendar-timeline] .resize-target'))setTimelineResizeTarget(null);
+  },true);
   document.addEventListener('click',event=>{if(performance.now()<suppressTimelineClickUntil&&event.target.closest('[data-calendar-timeline]')){event.preventDefault();event.stopImmediatePropagation();}},true);
   document.addEventListener('pointerdown',event=>{
     const block=event.target.closest('[data-calendar-timeline] .event,[data-calendar-timeline] .timeline-point');

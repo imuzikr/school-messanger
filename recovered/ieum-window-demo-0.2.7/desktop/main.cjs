@@ -189,6 +189,13 @@ expose('ieum:workspace',(event,page,value)=>{
 });
 expose('ieum:compose',(event,draft={})=>{if(!draft||typeof draft!=='object'||JSON.stringify(draft).length>4*1024*1024)throw new Error('작성 내용이 너무 큽니다.');const w=createWindow('ieum://app/index.html?compose=1',{width:720,height:820,minWidth:620});w.ieumComposeDraft=draft;return {ok:true};});
 expose('ieum:compose-draft',event=>BrowserWindow.fromWebContents(event.sender).ieumComposeDraft||BrowserWindow.fromWebContents(event.sender).ieumEventDraft||{});
+expose('ieum:memo-schedule',(event,note)=>{
+ if(BrowserWindow.fromWebContents(event.sender)!==mainWindow||role==='server')throw new Error('메신저 본창의 메모에서만 등록할 수 있습니다.');
+ if(!note||typeof note.id!=='string'||!/^[-\w]{1,100}$/.test(note.id)||typeof note.text!=='string'||note.text.length>4000)throw new Error('메모 내용이 올바르지 않습니다.');
+ const draft={memoId:note.id,text:note.text},previous=[...windows].find(w=>!w.isDestroyed()&&w.ieumMemoId===note.id);
+ if(previous){previous.show();previous.focus();previous.webContents.send('ieum:update',{kind:'memo-schedule',draft});return {ok:true};}
+ const w=createWindow('ieum://app/index.html?workspace=calendar&eventDraft=1',{width:1180,height:800,minWidth:700});w.ieumPage='calendar';w.ieumMemoId=note.id;w.ieumEventDraft=draft;return {ok:true};
+});
 expose('ieum:compose-sent',(event,linked)=>{const w=BrowserWindow.fromWebContents(event.sender);if(!w.ieumComposeDraft)throw new Error('작성 창에서만 완료할 수 있습니다.');emit({kind:'changed'});w.close();bringMain();if(linked&&typeof linked.title==='string'&&typeof linked.mail==='string'){const calendar=createWindow('ieum://app/index.html?workspace=calendar&eventDraft=1',{width:1180,height:800,minWidth:700});calendar.ieumEventDraft={title:linked.title.slice(0,150),mail:linked.mail,date:linked.date};}return {ok:true};});
 expose('ieum:chat',(event,room,value)=>{
  if(typeof room!=='string'||!/^[-A-Za-z0-9]{1,100}$/.test(room))throw new Error('대화방 식별자가 올바르지 않습니다.');

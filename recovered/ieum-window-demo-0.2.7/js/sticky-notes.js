@@ -24,9 +24,9 @@
     save(value){this.storage.setItem(this.key,JSON.stringify(validate(value)));}
   }
   class Board{
-    constructor({onClose,tabHTML}){
+    constructor({onClose,onSchedule,tabHTML}){
       const tabTemplate=document.createElement('template');tabTemplate.innerHTML=tabHTML||'';this.tab=tabTemplate.content.firstElementChild;
-      this.onClose=onClose;this.user=null;this.data=blank();this.undo=[];this.drag=null;this.expanded=null;this.failed=false;this.readError=false;
+      this.onClose=onClose;this.onSchedule=onSchedule;this.user=null;this.data=blank();this.undo=[];this.drag=null;this.expanded=null;this.failed=false;this.readError=false;
       this.root=document.createElement('aside');this.root.id='memo-panel';this.root.className='memo-drawer';this.root.setAttribute('aria-label','개인 메모장');this.root.setAttribute('aria-hidden','true');this.root.inert=true;
       this.root.innerHTML='<header class="memo-head"><div><span class="memo-eyebrow">나만의 작은 기록</span><h2>메모장 <small id="memo-count">0</small></h2></div><button type="button" class="icon-btn" data-memo-close aria-label="메모장 닫기">×</button></header><div class="memo-tools"><div class="memo-views" role="group" aria-label="메모 보기 방식"><button type="button" data-memo-view="list" aria-pressed="false" title="목록 보기">☰ <span>목록</span></button><button type="button" data-memo-view="grid" aria-pressed="true" title="그리드 보기">▦ <span>그리드</span></button></div><button type="button" class="btn memo-add" data-memo-add>＋ 새 메모</button></div><p class="memo-hint">점 손잡이를 잡아 이동하거나 아래에 놓아 삭제하세요.</p><div class="memo-cards" id="memo-cards"></div><div class="memo-trash" data-memo-trash hidden>여기에 놓아 삭제</div><footer class="memo-foot"><div class="memo-undo" hidden><span>메모를 삭제했습니다.</span><button type="button" data-memo-undo>되돌리기</button></div><div class="memo-save-line"><span id="memo-save-status" role="status" aria-live="polite">이 PC에 자동 저장됩니다.</span><button type="button" data-memo-retry hidden>다시 저장</button></div><span class="memo-announcement sr-only" aria-live="polite"></span></footer>';
       this.list=this.root.querySelector('.memo-cards');
@@ -57,6 +57,8 @@
       this.editor=document.createElement('section');this.editor.className='memo-editor '+note.color;this.editor.setAttribute('role','dialog');this.editor.setAttribute('aria-label','메모 크게 쓰기');
       this.editor.innerHTML='<header class="memo-editor-head"><span>나의 메모</span><button type="button" data-memo-collapse aria-label="메모 최소화" title="작게 보기">_</button></header><div class="memo-format" role="group" aria-label="메모 서식">'+[['bold','굵게 (Ctrl+B)','<b>B</b>'],['italic','기울임 (Ctrl+I)','<i>I</i>'],['underline','밑줄 (Ctrl+U)','<u>U</u>'],['insertUnorderedList','글머리 기호','• 목록'],['insertOrderedList','번호 목록','1. 목록']].map(([command,label,content])=>'<button type="button" data-memo-format="'+command+'" aria-label="'+label+'" title="'+label+'" aria-pressed="false">'+content+'</button>').join('')+'</div><div class="memo-rich" contenteditable="true" role="textbox" aria-label="확대한 메모" aria-multiline="true" data-placeholder="생각을 편하게 적어 두세요…" spellcheck="false"></div><footer class="memo-editor-foot"><span role="status">이 PC에 자동 저장됩니다.</span><button type="button" data-memo-retry hidden>다시 저장</button></footer>';
       const input=this.editor.querySelector('.memo-rich');this.bindRich(input,note);
+      this.editor.querySelector('.memo-format').insertAdjacentHTML('beforeend','<button type="button" class="memo-schedule" data-memo-schedule>일정 등록</button>');
+      this.editor.querySelector('[data-memo-schedule]').onclick=()=>{this.commitRich(input);this.schedule(note.id);};
       this.editor.querySelectorAll('[data-memo-format]').forEach(button=>{button.onpointerdown=e=>e.preventDefault();button.onclick=()=>this.format(button.dataset.memoFormat,input);});
       this.editor.querySelector('[data-memo-collapse]').onclick=()=>this.collapseEditor(true);this.editor.querySelector('[data-memo-retry]').onclick=()=>this.persist();this.editor.onkeydown=e=>{if(e.key==='Escape'&&!e.isComposing){e.preventDefault();e.stopPropagation();this.collapseEditor(true);}};
       document.body.append(this.editor);this.positionEditor();input.focus();const range=document.createRange();range.selectNodeContents(input);range.collapse(false);getSelection().removeAllRanges();getSelection().addRange(range);this.editorRange=range.cloneRange();this.updateFormat();
@@ -84,6 +86,11 @@
     }
     updateFormat(){if(!this.editor)return;this.editor.querySelectorAll('[data-memo-format]').forEach(button=>button.setAttribute('aria-pressed',String(document.queryCommandState(button.dataset.memoFormat))));}
     collapseEditor(focus=false){if(!this.expanded)return;const id=this.expanded;this.expanded=null;this.editorRange=null;this.editor?.remove();this.editor=null;if(focus)this.list.querySelector(`[data-memo-id="${id}"] [data-memo-expand]`)?.focus();}
+    async schedule(id){
+      const note=this.data.notes.find(n=>n.id===id);if(!note||this.readError)return;
+      if(this.expanded===id)this.collapseEditor();
+      try{await this.onSchedule?.({id:note.id,text:note.text});}catch(error){this.status('일정 입력창을 열지 못했습니다. '+error.message,true);}
+    }
     focusState(){const el=document.activeElement;if(!this.root.contains(el))return null;const selection=getSelection(),range=selection.rangeCount?selection.getRangeAt(0).cloneRange():null;return {el,id:el.dataset.memoText,range,scroll:this.list.scrollTop};}
     restoreFocus(s){if(s?.id&&!s.el.isConnected)s.el=this.list.querySelector(`[data-memo-text="${s.id}"]`);if(s?.el?.isConnected&&this.open){if(document.activeElement!==s.el)s.el.focus({preventScroll:true});if(s.range&&s.range.startContainer.isConnected&&(!getSelection().rangeCount||!getSelection().getRangeAt(0).isPointInRange(s.range.startContainer,s.range.startOffset))){getSelection().removeAllRanges();getSelection().addRange(s.range);}this.list.scrollTop=s.scroll;}}
     status(message,error=false){const el=this.root.querySelector('#memo-save-status');if(el.textContent!==message)el.textContent=message;if(this.editor){this.editor.querySelector('[role=status]').textContent=message;this.editor.querySelector('[data-memo-retry]').hidden=!this.failed;}el.classList.toggle('memo-error',error);this.root.querySelector('[data-memo-retry]').hidden=!this.failed||this.readError;}
@@ -97,6 +104,7 @@
         card.innerHTML='<div class="sticky-note-tools"><button type="button" class="memo-grip" data-memo-grip aria-label="메모 순서 이동" title="잡아서 바로 이동 · Alt+방향키로 순서 이동">⠿</button><span class="memo-order"></span><button type="button" class="memo-expand" data-memo-expand aria-label="메모 확대" title="크게 쓰기">↗</button><button type="button" class="memo-delete" data-memo-delete aria-label="메모 삭제" title="메모 삭제">×</button></div><div class="memo-rich" data-memo-text contenteditable="true" role="textbox" aria-multiline="true" spellcheck="false" data-placeholder="잊기 전에 적어 두세요…"></div>';
         card.querySelector('.memo-order').textContent=String(i+1).padStart(2,'0');
         const input=card.querySelector('.memo-rich');input.setAttribute('aria-label',(i+1)+'번째 메모');this.bindRich(input,note);
+        card.insertAdjacentHTML('beforeend','<button type="button" class="memo-schedule" data-memo-schedule>일정 등록</button>');
         this.list.append(card);this.fit(input);
       }
       if(!this.data.notes.length){const empty=document.createElement('div');empty.className='memo-empty';empty.innerHTML='<span aria-hidden="true">✎</span><strong>생각이 떠오르면 가볍게</strong><p>새 메모를 눌러 첫 기록을 남겨 보세요.</p>';this.list.append(empty);}
@@ -117,6 +125,7 @@
         const now=Date.now(),note={id:crypto.randomUUID(),text:'',color:colors[this.data.notes.length%colors.length],createdAt:now,updatedAt:now};this.data.notes.unshift(note);this.persist();this.render();this.list.scrollTop=0;this.openEditor(note.id);
       }else if(button.dataset.memoView){const focused=this.focusState();this.data.view=button.dataset.memoView;this.persist();this.render();this.restoreFocus(focused);}
       else if(button.hasAttribute('data-memo-expand'))this.openEditor(button.closest('[data-memo-id]').dataset.memoId);
+      else if(button.hasAttribute('data-memo-schedule'))this.schedule(button.closest('[data-memo-id]').dataset.memoId);
       else if(button.hasAttribute('data-memo-delete'))this.remove(button.closest('[data-memo-id]').dataset.memoId);
       else if(button.hasAttribute('data-memo-undo')){
         if(this.data.notes.length>=200){this.status('메모를 하나 지운 뒤 되돌릴 수 있습니다.',true);return;}const last=this.undo.pop();if(!last)return;this.data.notes.splice(Math.min(last.index,this.data.notes.length),0,last.note);this.persist();this.render();this.list.querySelector(`[data-memo-text="${last.note.id}"]`)?.focus();this.announce('삭제한 메모를 복원했습니다.');

@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('ieumDesktop',Object.freeze({
   clipboardImage: ()=>ipcRenderer.invoke('ieum:clipboard-image'),
   briefingShape: bounds=>ipcRenderer.invoke('ieum:briefing-shape',bounds),
   openWorkspace: (page,target)=>ipcRenderer.invoke('ieum:workspace',page,target),
+  openMemoSchedule: note=>ipcRenderer.invoke('ieum:memo-schedule',note),
   toggleToday: (open,position)=>ipcRenderer.invoke('ieum:today',!!open,position),
   toggleMemo: open=>ipcRenderer.invoke('ieum:memo',!!open),
   resizeMain: (open,position)=>ipcRenderer.invoke('ieum:resize',!!open,position),
