@@ -413,7 +413,7 @@
   function memoTab(){return `<button type="button" class="memo-tab" data-action="toggle-memo" aria-label="개인 메모장" aria-expanded="${!!state.showMemo}" aria-controls="memo-panel" title="개인 메모장">${icon('note',15)}<span>메모</span></button>`;}
   function syncMemoPanel(){
     const host=$('.desktop-frame');if(!host||!state.user||windowApi&&!windowApi.mainHost){memoBoard?.mount(null,null);return;}
-    if(!memoBoard)memoBoard=new IeumStickyNotes.Board({onClose:()=>toggleMemo(false),onSchedule:openMemoSchedule,tabHTML:memoTab()});
+    if(!memoBoard)memoBoard=new IeumStickyNotes.Board({onClose:()=>toggleMemo(false),onSchedule:openMemoSchedule,onScheduleInfo:memoScheduleInfo,onScheduleSave:saveMemoSchedule,tabHTML:memoTab()});
     memoBoard.mount(host,native?'account:'+state.profile.id:'demo:'+state.user);memoBoard.setOpen(!!state.showMemo);
     document.body.classList.toggle('memo-expanded',!!state.showMemo);$$('[data-action="toggle-memo"]').forEach(el=>el.setAttribute('aria-expanded',String(!!state.showMemo)));
   }
@@ -512,7 +512,7 @@
         )
         .join(
           "",
-        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.103</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
+        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.104</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
     );
   }
   const groupLabel=p=>String(p[state.group]||"").trim()||({grade:"학년 미지정",otherGroup:"기타 미지정"}[state.group]||"미지정");
@@ -1476,6 +1476,24 @@
       saving=true;const submit=$('button[form="bell-form"]');if(submit)submit.disabled=true;const stored=await save();saving=false;if(submit)submit.disabled=false;if(!stored){state.data=old;return;}closeModal();render();toast(basic?"기본 일과 시간을 저장했어요":"일과표를 저장하고 전체 안내를 발송했어요",title,"calendar");
     };
     $("#bell-form").onsubmit=e=>{e.preventDefault();store(false);};const reset=$('[data-action="bell-reset"]');if(reset)reset.onclick=e=>{e.stopPropagation();store(true);};
+  }
+  let memoScheduleSaving=false;
+  async function memoScheduleInfo(id){if(native)await network?.refresh();const event=state.data.events.find(e=>e.id==='user-memo-'+id);return event?{date:event.date,start:event.start,end:event.end}:{date:koreanToday(),start:'09:00',end:'10:00'};}
+  async function saveMemoSchedule(note){
+    if(memoScheduleSaving)throw Error('일정을 저장하고 있습니다.');
+    if(!state.user||native&&!network?.active)throw Error('로그인과 서버 연결을 확인해 주세요.');
+    if(typeof note.id!=='string'||!/^[-\w]{1,100}$/.test(note.id)||typeof note.text!=='string'||note.text.length>4000)throw Error('메모 내용이 올바르지 않습니다.');
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(note.date)||!Number.isFinite(parseDate(note.date).getTime())||dateKey(parseDate(note.date))!==note.date)throw Error('날짜를 확인해 주세요.');
+    if(!/^([01]\d|2[0-3]):[0-5]\d$/.test(note.start)||!/^([01]\d|2[0-3]):[0-5]\d$/.test(note.end)||note.start>=note.end)throw Error('종료 시간은 시작 시간보다 늦어야 해요.');
+    const id='user-memo-'+note.id,existing=state.data.events.find(e=>e.id===id),title=note.text.trim().split('\n')[0].slice(0,100);
+    if(!existing&&!title)throw Error('일정 제목으로 사용할 메모 내용을 먼저 입력해 주세요.');
+    if(existing&&(!isPrivateEvent(existing)||!canMoveEvent(existing)))throw Error('이 일정은 메모에서 수정할 수 없습니다.');
+    const oldData=JSON.parse(JSON.stringify(state.data)),actor=native?state.profile.id:state.user;
+    const event=existing?{...existing,date:note.date,start:note.start,end:note.end}:{id,title,date:note.date,start:note.start,end:note.end,type:'personal',targets:[],place:'',note:note.text.slice(0,1000)};
+    if(existing)state.data.events=state.data.events.map(e=>e.id===id?event:e);else state.data.events.push(event);
+    memoScheduleSaving=true;
+    try{if(!await save()){if(!native)state.data=oldData;throw Error('일정을 저장하지 못했습니다. 입력한 날짜와 시간은 유지됩니다.');}if((native?state.profile?.id:state.user)!==actor)throw Error('로그인 계정이 바뀌었습니다.');render({persist:false});}
+    finally{memoScheduleSaving=false;}
   }
   async function openMemoSchedule(note){
     if(note.eventId){if(windowApi?.openWorkspace){const result=await windowApi.openWorkspace('calendar',{kind:'event',id:note.eventId});if(result?.error)throw new Error(result.error);}else await revealBriefingTarget({kind:'event',id:note.eventId});return;}

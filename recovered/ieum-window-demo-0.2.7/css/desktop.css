@@ -456,11 +456,20 @@ body.minimal-main>.memo-tab,.unified-main:has(.briefing-overlay)>.memo-tab{displ
 .memo-schedule-header{padding:8px 12px 0;display:grid;gap:4px;overflow-wrap:anywhere}
 .memo-schedule-header strong{font-size:12px}.memo-schedule-header small{font-size:10px;color:#6c715d}
 .memo-editor .memo-schedule-header{padding:12px 20px 0}.memo-editor .memo-schedule-header strong{font-size:14px}
+.memo-schedule-header::after{content:"";display:block;border-bottom:1px solid #756a4926;margin-top:8px}
 .schedule-personal-memo{margin-top:20px;padding:16px;background:var(--green-light,#edf4ee);border:1px solid var(--line);border-radius:8px}
 .schedule-personal-memo[hidden]{display:none!important}
 .schedule-personal-memo h3{font-size:13px;margin:0 0 8px}.schedule-memo-content{white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;line-height:1.7}
 #schedule-memo-form label{display:grid;gap:8px;font-size:13px}#schedule-memo-text{width:100%;resize:vertical;min-height:120px}
 .schedule-memo-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
+.memo-schedule-form{padding:12px 17px;border-bottom:1px solid #6b684025;flex-shrink:0}
+.memo-schedule-form[hidden]{display:none!important}.memo-schedule-form fieldset{border:0;padding:0;margin:0;min-width:0}
+.memo-schedule-fields{display:grid;grid-template-columns:minmax(0,1.25fr) repeat(2,minmax(0,1fr));gap:8px}
+.memo-schedule-fields label{display:grid;gap:5px;font-size:11px}.memo-schedule-fields input{width:100%;min-width:0;padding:7px 5px;border:1px solid #8b98745c;border-radius:5px;background:#ffffff80;color:inherit;font:inherit;box-sizing:border-box}
+.memo-schedule-actions{display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-top:8px}
+.memo-schedule-actions button{border:1px solid #8b98745c;background:#ffffff80;border-radius:5px;padding:6px 10px;font:inherit;font-size:11px;color:inherit;cursor:pointer}
+.memo-schedule-actions button[type=submit]{background:#407965;border-color:#407965;color:white}
+.memo-schedule-result{margin-right:auto;font-size:11px;color:#315c4e}.memo-schedule-error{font-size:11px;color:#a43434;line-height:1.5;margin-top:6px}
 
 /* Keep settings dismissal reachable above long, scrollable content. */
 .settings-modal .modal-head,.settings-modal .modal-foot{flex-shrink:0}

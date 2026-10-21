@@ -33,9 +33,10 @@
     }
   }
   class Board{
-    constructor({onClose,onSchedule,tabHTML}){
+    constructor({onClose,onSchedule,onScheduleInfo,onScheduleSave,tabHTML}){
       const tabTemplate=document.createElement('template');tabTemplate.innerHTML=tabHTML||'';this.tab=tabTemplate.content.firstElementChild;
       this.onClose=onClose;this.onSchedule=onSchedule;this.user=null;this.data=blank();this.undo=[];this.drag=null;this.expanded=null;this.failed=false;this.readError=false;
+      this.onScheduleInfo=onScheduleInfo;this.onScheduleSave=onScheduleSave;this.scheduleSaving=false;
       this.root=document.createElement('aside');this.root.id='memo-panel';this.root.className='memo-drawer';this.root.setAttribute('aria-label','개인 메모장');this.root.setAttribute('aria-hidden','true');this.root.inert=true;
       this.root.innerHTML='<header class="memo-head"><div><span class="memo-eyebrow">나만의 작은 기록</span><h2>메모장 <small id="memo-count">0</small></h2></div><button type="button" class="icon-btn" data-memo-close aria-label="메모장 닫기">×</button></header><div class="memo-tools"><div class="memo-views" role="group" aria-label="메모 보기 방식"><button type="button" data-memo-view="list" aria-pressed="false" title="목록 보기">☰ <span>목록</span></button><button type="button" data-memo-view="grid" aria-pressed="true" title="그리드 보기">▦ <span>그리드</span></button></div><button type="button" class="btn memo-add" data-memo-add>＋ 새 메모</button></div><p class="memo-hint">점 손잡이를 잡아 이동하거나 아래에 놓아 삭제하세요.</p><div class="memo-cards" id="memo-cards"></div><div class="memo-trash" data-memo-trash hidden>여기에 놓아 삭제</div><footer class="memo-foot"><div class="memo-undo" hidden><span>메모를 삭제했습니다.</span><button type="button" data-memo-undo>되돌리기</button></div><div class="memo-save-line"><span id="memo-save-status" role="status" aria-live="polite">이 PC에 자동 저장됩니다.</span><button type="button" data-memo-retry hidden>다시 저장</button></div><span class="memo-announcement sr-only" aria-live="polite"></span></footer>';
       this.list=this.root.querySelector('.memo-cards');
@@ -46,7 +47,7 @@
       this.root.addEventListener('contextmenu',e=>{if(e.target.closest('[data-memo-grip]'))e.preventDefault();});
       window.addEventListener('storage',e=>{if(!this.store||e.key!==this.store.key)return;if(this.failed){this.status('다른 창에서 메모가 변경되었습니다. 현재 내용을 먼저 저장해 주세요.',true);return;}try{const focus=this.focusState();this.data=this.store.load();this.render();this.restoreFocus(focus);}catch{this.status('변경된 메모를 읽지 못했습니다. 현재 메모는 유지됩니다.',true);}});
       window.addEventListener('ieum-sticky-change',e=>{if(!this.store||e.detail.key!==this.store.key||e.detail.store===this.store)return;try{if(this.failed)return;const focus=this.focusState();this.data=this.store.load();this.render();this.restoreFocus(focus);}catch{this.status('변경된 메모를 읽지 못했습니다.',true);}});
-      window.addEventListener('blur',()=>{this.cancelDrag();this.collapseEditor();});
+      window.addEventListener('blur',()=>{this.cancelDrag();if(!this.editor?.querySelector('.memo-schedule-form:not([hidden])'))this.collapseEditor();});
       document.addEventListener('pointerdown',e=>{if(this.expanded&&!this.editor.contains(e.target))this.collapseEditor();},true);
       window.addEventListener('resize',()=>this.position());
     }
@@ -100,8 +101,38 @@
     collapseEditor(focus=false){if(!this.expanded)return;const id=this.expanded;this.expanded=null;this.editorRange=null;this.editor?.remove();this.editor=null;if(focus)this.list.querySelector(`[data-memo-id="${id}"] [data-memo-expand]`)?.focus();}
     async schedule(id){
       const note=this.data.notes.find(n=>n.id===id);if(!note||this.readError)return;
+      if(!note.schedule){this.toggleScheduleForm(id);return;}
       if(this.expanded===id)this.collapseEditor();
       try{await this.onSchedule?.({id:note.id,text:note.text,...(note.schedule?{eventId:note.schedule.id}:{})});}catch(error){this.status('일정 입력창을 열지 못했습니다. '+error.message,true);}
+    }
+    async toggleScheduleForm(id){
+      if(this.scheduleSaving||this.scheduleOpening)return;
+      if(this.expanded!==id)this.openEditor(id);
+      if(!this.editor)return;
+      const previous=this.editor.querySelector('.memo-schedule-form');
+      if(previous&&!previous.hidden){previous.hidden=true;this.editor.querySelector('[data-memo-schedule]').setAttribute('aria-expanded','false');return;}
+      previous?.remove();
+      const editor=this.editor;let info;this.scheduleOpening=true;
+      try{info=await this.onScheduleInfo?.(id)||{};}catch(e){this.status(e.message,true);return;}finally{this.scheduleOpening=false;}
+      if(editor!==this.editor||this.expanded!==id)return;
+      const form=document.createElement('form');form.className='memo-schedule-form';
+      form.innerHTML='<fieldset><div class="memo-schedule-fields"><label>날짜<input type="date" data-memo-date required value="'+escape(info.date||'')+'"></label><label>시작 시간<input type="time" data-memo-start required value="'+escape(info.start||'09:00')+'"></label><label>종료 시간<input type="time" data-memo-end required value="'+escape(info.end||'10:00')+'"></label></div><p class="memo-schedule-error" role="alert"></p><div class="memo-schedule-actions"><span class="memo-schedule-result" role="status"></span><button type="button" data-memo-schedule-cancel>취소</button><button type="submit">일정 저장</button></div></fieldset>';
+      this.editor.querySelector('.memo-editor-head').insertAdjacentElement('afterend',form);
+      this.editor.querySelector('[data-memo-schedule]').setAttribute('aria-expanded','true');
+      form.querySelector('[data-memo-schedule-cancel]').onclick=()=>{form.hidden=true;this.editor?.querySelector('[data-memo-schedule]')?.setAttribute('aria-expanded','false');};
+      form.oninput=()=>{form.querySelector('.memo-schedule-result').textContent='';form.querySelector('[role=alert]').textContent='';};
+      form.onsubmit=async event=>{
+        event.preventDefault();if(this.scheduleSaving)return;
+        const note=this.data.notes.find(n=>n.id===id);if(!note)return;
+        const error=form.querySelector('[role=alert]'),result=form.querySelector('.memo-schedule-result');error.textContent='';result.textContent='';
+        this.commitRich(this.editor.querySelector('.memo-rich'));
+        const payload={id,text:note.text,date:form.querySelector('[data-memo-date]').value,start:form.querySelector('[data-memo-start]').value,end:form.querySelector('[data-memo-end]').value};
+        this.scheduleSaving=true;form.querySelector('fieldset').disabled=true;
+        try{if(!this.onScheduleSave)throw Error('일정 저장을 사용할 수 없습니다.');await this.onScheduleSave(payload);result.textContent='캘린더에 저장했습니다.';}
+        catch(e){error.textContent=e.message;}
+        finally{this.scheduleSaving=false;form.querySelector('fieldset').disabled=false;}
+      };
+      form.querySelector('[data-memo-date]').focus({preventScroll:true});
     }
     scheduleHeader(note){const s=note.schedule;return '<div class="memo-schedule-header"><strong>'+escape(s.title)+'</strong><small>'+escape(s.date+' · '+s.start+'–'+s.end)+'</small></div>';}
     focusState(){const el=document.activeElement;if(!this.root.contains(el))return null;const selection=getSelection(),range=selection.rangeCount?selection.getRangeAt(0).cloneRange():null;return {el,id:el.dataset.memoText,range,scroll:this.list.scrollTop};}
