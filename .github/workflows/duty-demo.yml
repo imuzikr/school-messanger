@@ -1,7 +1,7 @@
 name: Verify and package duty demo
 on:
   push:
-    branches: [codex/duty-demo-0.2.105]
+    branches: [codex/duty-demo-0.2.106]
 permissions:
   contents: read
 defaults:
@@ -87,7 +87,7 @@ jobs:
           npm install --no-save --package-lock=false playwright@1.56.1 pngjs@7.0.0
           python -m pip install openpyxl==3.1.5
           $env:IEUM_TEST_PYTHON="python"
-          $env:IEUM_TEST_EXECUTABLE=(Resolve-Path "release/Ieum-Deadline-Demo-0.2.105-win-x64/Ieum-Deadline-Demo.exe").Path
+          $env:IEUM_TEST_EXECUTABLE=(Resolve-Path "release/Ieum-Deadline-Demo-0.2.106-win-x64/Ieum-Deadline-Demo.exe").Path
           node tests/electron-mail-receipts.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node tests/electron-settings-close.cjs
@@ -128,14 +128,14 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node tests/electron-briefing.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -c "from zipfile import ZipFile; z=ZipFile('release/Ieum-Deadline-Demo-0.2.105-win-x64.zip'); assert z.testzip() is None; print('Windows ZIP CRC PASS')"
+          python -c "from zipfile import ZipFile; z=ZipFile('release/Ieum-Deadline-Demo-0.2.106-win-x64.zip'); assert z.testzip() is None; print('Windows ZIP CRC PASS')"
       - uses: actions/upload-artifact@v4
         with:
-          name: Ieum-Demo-0.2.105
-          path: recovered/ieum-window-demo-0.2.7/release/Ieum-Deadline-Demo-0.2.105-win-x64.zip
+          name: Ieum-Demo-0.2.106
+          path: recovered/ieum-window-demo-0.2.7/release/Ieum-Deadline-Demo-0.2.106-win-x64.zip
       - name: Publish tested portable demo
         env:
           GH_TOKEN: ${{ github.token }}
         shell: pwsh
         run: |
-          gh release create v0.2.105 release/Ieum-Deadline-Demo-0.2.105-win-x64.zip release/SHA256SUMS.txt --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "이음 Windows 데모 0.2.105" --notes "개인 메모 아이콘을 초록색 바탕과 진한 초록색 선으로 강조합니다. 완료 확인·마감 목록과 달력의 마감 표시에도 메모가 있는 제목 맨 앞에 같은 아이콘을 표시합니다. 마감 상세에서 메모하기와 메모장 연동을 지원하며, 원문은 관련 메시지 보기에서 확인할 수 있습니다. 전체 압축 해제 후 Ieum-Deadline-Demo.exe를 실행하세요."
+          gh release create v0.2.106 release/Ieum-Deadline-Demo-0.2.106-win-x64.zip release/SHA256SUMS.txt --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "이음 Windows 데모 0.2.106" --notes "메모지에서 등록한 일정은 상세 화면에서 메모 일정으로 표시합니다. 일반 개인 일정의 표시와 기존 저장 방식은 유지합니다. 전체 압축 해제 후 Ieum-Deadline-Demo.exe를 실행하세요."
