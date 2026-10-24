@@ -32,6 +32,21 @@
   if(!(mail.homeroomDays||[]).some(d=>d.date===target))mail.homeroomDays=[...(mail.homeroomDays||[]),{date:target,hidden:false,carriedFrom:date}];return target;
  }
  function dismissDay(mail,date){if(!onDay(mail,date))throw Error('이 날짜에 받은 담임 업무가 없습니다.');const copy=(mail.homeroomDays||[]).find(d=>d.date===date);if(copy)copy.hidden=true;else mail.homeroomDays=[...(mail.homeroomDays||[]),{date,hidden:true,carriedFrom:''}];}
+ function preview(mail){
+  const text=String(mail.body||'').replace(/\r\n?/g,'\n').trim(),line=text.split('\n').find(line=>line.trim())?.trim()||'';
+  let body=line;
+  for(let i=0;i<line.length;i++){
+   if(!/[.!?。！？]/.test(line[i]))continue;
+   if(line[i]==='.'){
+    const before=line.slice(0,i+1),after=line.slice(i+1);
+    if(/\d$/.test(line.slice(0,i))&&/^\s*\d/.test(after)||/\d{1,4}\.\s*\d{1,2}(?:\.\s*\d{1,2})?\.$/.test(before)||/[A-Za-z]$/.test(line.slice(0,i))&&/^[A-Za-z]/.test(after))continue;
+   }
+   let end=i+1;while(end<line.length&&/[.!?。！？"'”’」』)\]]/.test(line[end]))end++;body=line.slice(0,end);break;
+  }
+  const supplied=String(mail.title||'').trim(),hasTitle=mail.titleProvided===true||mail.titleProvided!==false&&supplied!=='담임';
+  const chars=Array.from(text.replace(/\s+/g,' ')),fallback=chars.slice(0,30).join('')+(chars.length>30?'…':'');
+  return {title:hasTitle&&supplied?supplied:fallback||'제목 없음',body};
+ }
  function pinnedItem(mail,date){
   return {title:String(mail.title||'담임').slice(0,150),titleFromMail:true,date,dueTime:'',note:String(mail.body||'').slice(0,1000),done:false,homeroomMail:mail.id,source:{kind:'mail',id:mail.id}};
  }
@@ -44,5 +59,5 @@
   samples.forEach(([title,body],i)=>{const id='demo-homeroom-'+date+'-'+(i+1);if(data.mails.some(m=>m.id===id))return;data.mails.push({id,from:people[i%Math.max(1,people.length)]?.id||'me',to:['me'],cc:[],title:'[샘플] '+title,body,category:'homeroom',folder:'inbox',files:[],date,time:`09:${String(i*10).padStart(2,'0')}`,createdAt:Date.parse(date+`T09:${String(i*10).padStart(2,'0')}:00+09:00`),receipts:['read'],unread:false,important:false,demoHomeroom:true});});
   data.homeroomSamplesVersion=2;data.homeroomSamplesDate=date;
  }
- const api={entries,stamp,pinnedItem,seedDemo,validDay,nextDay,receivedDate,onDay,dailyEntries,carry,dismissDay};if(typeof module==='object'&&module.exports)module.exports=api;else root.IeumHomeroom=api;
+ const api={entries,stamp,pinnedItem,seedDemo,preview,validDay,nextDay,receivedDate,onDay,dailyEntries,carry,dismissDay};if(typeof module==='object'&&module.exports)module.exports=api;else root.IeumHomeroom=api;
 })(typeof window==='object'?window:globalThis);

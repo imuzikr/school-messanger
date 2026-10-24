@@ -430,7 +430,7 @@
     if(!IeumHomeroom.validDay(date))return;
     if(native)await network?.refresh();
     const mail=homeroomEntries(date).find(m=>m.id===id);if(!mail)return;
-    try{const memoId=homeroomMemoStore().setMail({id:mail.id,title:String(mail.title||'담임 업무').slice(0,200),from:mailSenderName(mail).slice(0,200),date:mail.date,time:mail.time||''});closeModal();await toggleMemo(true);state.showMemo=true;syncMemoPanel();memoBoard.openEditor(memoId);}
+    try{const memoId=homeroomMemoStore().setMail({id:mail.id,title:IeumHomeroom.preview(mail).title.slice(0,200),from:mailSenderName(mail).slice(0,200),date:mail.date,time:mail.time||''});closeModal();await toggleMemo(true);state.showMemo=true;syncMemoPanel();memoBoard.openEditor(memoId);}
     catch(error){toast('메모를 열지 못했어요',error.message);}
   }
   let homeroomCardDate=koreanToday(),homeroomModalDate=koreanToday();
@@ -438,7 +438,7 @@
   function homeroomNavigation(date,scope){return `<div class="homeroom-date-nav">${ib('homeroom-prev','이전 날짜의 담임 업무','left',`data-scope="${scope}"`)}<strong>${esc(fmtDate(date,{year:'numeric',month:'long',day:'numeric',weekday:'short'}))}</strong>${ib('homeroom-next','다음 날짜의 담임 업무','right',`data-scope="${scope}"`)}${button('homeroom-today','오늘','','',`data-scope="${scope}"`)}</div>`;}
   function homeroomItems(date){
     const entries=homeroomEntries(date);
-    return entries.length?entries.map(m=>{const attrs=`data-mail="${esc(m.id)}" data-date="${date}"`,carried=(m.homeroomDays||[]).some(d=>d.date===IeumHomeroom.nextDay(date));return `<article class="homeroom-entry" data-homeroom-mail="${esc(m.id)}" data-homeroom-date="${date}"><header><strong>${esc(mailSenderName(m))}</strong>${button('homeroom-source','관련 메시지 보기','mail','',attrs)}<time>${esc(m.date)} ${esc(m.time||'')}</time>${button('homeroom-pin',state.data.deadlines.some(d=>d.homeroomMail===m.id)?'고정됨':'고정','pin','homeroom-pin',`${attrs} aria-pressed="${state.data.deadlines.some(d=>d.homeroomMail===m.id)}" title="완료 확인에 고정하거나 해제"`)}${button('homeroom-memo',homeroomMemo(m.id)?'메모 보기':'메모하기','note','',attrs)}${button('homeroom-defer',carried?'이월됨':'내일로','right','homeroom-defer',`${attrs} ${carried?'disabled':''}`)}<button type="button" class="icon-btn homeroom-dismiss" data-action="homeroom-dismiss" ${attrs} aria-label="이 날짜의 담임 업무에서 삭제" title="이 날짜의 담임 업무에서 삭제">${icon('x',16)}</button></header>${m.homeroomCarriedFrom?`<p class="homeroom-carried">${esc(fmtDate(m.homeroomCarriedFrom,{month:'numeric',day:'numeric'}))}에서 이월</p>`:''}${m.title&&m.title!=='담임'?`<h3>${esc(m.title)}</h3>`:''}<div class="homeroom-content">${esc(String(m.body||'').replace(/\r\n?/g,'\n').replace(/\n(?:[ \t]*\n)+/g,'\n\n'))}</div></article>`;}).join(''):'<div class="empty"><p>이 날짜의 담임 업무가 없습니다.</p></div>';
+    return entries.length?entries.map(m=>{const preview=IeumHomeroom.preview(m),attrs=`data-mail="${esc(m.id)}" data-date="${date}"`,carried=(m.homeroomDays||[]).some(d=>d.date===IeumHomeroom.nextDay(date));return `<article class="homeroom-entry" data-homeroom-mail="${esc(m.id)}" data-homeroom-date="${date}"><header><strong>${esc(mailSenderName(m))}</strong>${button('homeroom-source','관련 메시지 보기','mail','',attrs)}<time>${esc(m.date)} ${esc(m.time||'')}</time>${button('homeroom-pin',state.data.deadlines.some(d=>d.homeroomMail===m.id)?'고정됨':'고정','pin','homeroom-pin',`${attrs} aria-pressed="${state.data.deadlines.some(d=>d.homeroomMail===m.id)}" title="완료 확인에 고정하거나 해제"`)}${button('homeroom-memo',homeroomMemo(m.id)?'메모 보기':'메모하기','note','',attrs)}${button('homeroom-defer',carried?'이월됨':'내일로','right','homeroom-defer',`${attrs} ${carried?'disabled':''}`)}<button type="button" class="icon-btn homeroom-dismiss" data-action="homeroom-dismiss" ${attrs} aria-label="이 날짜의 담임 업무에서 삭제" title="이 날짜의 담임 업무에서 삭제">${icon('x',16)}</button></header>${m.homeroomCarriedFrom?`<p class="homeroom-carried">${esc(fmtDate(m.homeroomCarriedFrom,{month:'numeric',day:'numeric'}))}에서 이월</p>`:''}<h3>${esc(preview.title)}</h3><div class="homeroom-content">${esc(preview.body)}</div></article>`;}).join(''):'<div class="empty"><p>이 날짜의 담임 업무가 없습니다.</p></div>';
   }
   function homeroomModal(options={}){
     if(options.date)homeroomModalDate=options.date;
@@ -534,7 +534,7 @@
         )
         .join(
           "",
-        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.112</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
+        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.113</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
     );
   }
   const groupLabel=p=>String(p[state.group]||"").trim()||({grade:"학년 미지정",otherGroup:"기타 미지정"}[state.group]||"미지정");
@@ -1302,7 +1302,7 @@
       to: [...new Set([...recipients, ...cc,...(notice?notice.rows.flatMap(row=>[row.teacher,row.originalTeacher,row.homeroomTeacher].filter(Boolean)):[])])],
       cc,
       title,
-      ...(composeDraft.titleChoice==="담임"?{category:"homeroom"}:{}),
+      ...(composeDraft.titleChoice==="담임"?{category:"homeroom",titleProvided:!!$("#mail-title").value.trim()}:{}),
       body,
       html: safeRichHTML($("#mail-editor").innerHTML),
       folder: "sent",
