@@ -10,6 +10,7 @@
     for(const n of value.notes)if(n.schedule!==undefined){const s=n.schedule;if(!s||typeof s.id!=='string'||!/^[-\w]{1,160}$/.test(s.id)||typeof s.title!=='string'||s.title.length>200||!/^\d{4}-\d{2}-\d{2}$/.test(s.date)||!/^\d{2}:\d{2}$/.test(s.start)||!/^\d{2}:\d{2}$/.test(s.end))throw Error('일정 메모 정보를 읽을 수 없습니다.');}
     for(const n of value.notes)if(n.schedule?.kind!==undefined&&(n.schedule.kind!=='deadline'||typeof n.schedule.dueTime!=='string'||n.schedule.dueTime&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(n.schedule.dueTime)))throw Error('마감 메모 정보를 읽을 수 없습니다.');
     for(const n of value.notes)if(n.mail!==undefined){const m=n.mail;if(!m||typeof m.id!=='string'||!/^[-\w]{1,160}$/.test(m.id)||typeof m.title!=='string'||m.title.length>200||typeof m.from!=='string'||m.from.length>200||!/^\d{4}-\d{2}-\d{2}$/.test(m.date)||typeof m.time!=='string'||m.time&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(m.time))throw Error('메시지 메모 정보를 읽지 못했습니다.');}
+    for(const n of value.notes)if(n.mail?.viewDate!==undefined&&(typeof n.mail.viewDate!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(n.mail.viewDate)))throw Error('담임 업무 날짜를 읽지 못했습니다.');
     return value;
   }
   const escape=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -41,10 +42,10 @@
     }
   }
   class Board{
-    constructor({onClose,onSchedule,onScheduleInfo,onScheduleSave,hasSchedule,onMail,tabHTML}){
+    constructor({onClose,onSchedule,onScheduleInfo,onScheduleSave,hasSchedule,onMail,onHomeroom,tabHTML}){
       const tabTemplate=document.createElement('template');tabTemplate.innerHTML=tabHTML||'';this.tab=tabTemplate.content.firstElementChild;
       this.onClose=onClose;this.onSchedule=onSchedule;this.user=null;this.data=blank();this.undo=[];this.drag=null;this.expanded=null;this.failed=false;this.readError=false;
-      this.onMail=onMail;this.hasSchedule=hasSchedule;this.onScheduleInfo=onScheduleInfo;this.onScheduleSave=onScheduleSave;this.scheduleSaving=false;
+      this.onHomeroom=onHomeroom;this.onMail=onMail;this.hasSchedule=hasSchedule;this.onScheduleInfo=onScheduleInfo;this.onScheduleSave=onScheduleSave;this.scheduleSaving=false;
       this.root=document.createElement('aside');this.root.id='memo-panel';this.root.className='memo-drawer';this.root.setAttribute('aria-label','개인 메모장');this.root.setAttribute('aria-hidden','true');this.root.inert=true;
       this.root.innerHTML='<header class="memo-head"><div><span class="memo-eyebrow">나만의 작은 기록</span><h2>메모장 <small id="memo-count">0</small></h2></div><button type="button" class="icon-btn" data-memo-close aria-label="메모장 닫기">×</button></header><div class="memo-tools"><div class="memo-views" role="group" aria-label="메모 보기 방식"><button type="button" data-memo-view="list" aria-pressed="false" title="목록 보기">☰ <span>목록</span></button><button type="button" data-memo-view="grid" aria-pressed="true" title="그리드 보기">▦ <span>그리드</span></button></div><button type="button" class="btn memo-add" data-memo-add>＋ 새 메모</button></div><p class="memo-hint">점 손잡이를 잡아 이동하거나 아래에 놓아 삭제하세요.</p><div class="memo-cards" id="memo-cards"></div><div class="memo-trash" data-memo-trash hidden>여기에 놓아 삭제</div><footer class="memo-foot"><div class="memo-undo" hidden><span>메모를 삭제했습니다.</span><button type="button" data-memo-undo>되돌리기</button></div><div class="memo-save-line"><span id="memo-save-status" role="status" aria-live="polite">이 PC에 자동 저장됩니다.</span><button type="button" data-memo-retry hidden>다시 저장</button></div><span class="memo-announcement sr-only" aria-live="polite"></span></footer>';
       this.list=this.root.querySelector('.memo-cards');
@@ -80,6 +81,7 @@
       this.editor.querySelector('.memo-format').insertAdjacentHTML('beforeend','<button type="button" class="memo-schedule" data-memo-schedule>일정 등록</button>');
       if(note.schedule||note.mail)this.editor.querySelector('[data-memo-schedule]').textContent=note.mail?'메시지 보기':'일정 보기';
       this.editor.querySelector('[data-memo-schedule]').onclick=()=>{this.commitRich(input);this.schedule(note.id);};
+      if(note.mail){this.editor.querySelector('[data-memo-schedule]').insertAdjacentHTML('afterend','<button type="button" class="memo-homeroom" data-memo-homeroom>담임 업무 보기</button>');this.editor.querySelector('[data-memo-homeroom]').onclick=async()=>{this.commitRich(input);if(this.failed)return;this.collapseEditor();try{await this.onHomeroom?.(note.mail);}catch(error){this.status('담임 업무를 열지 못했습니다. '+error.message,true);}};}
       this.editor.querySelectorAll('[data-memo-format]').forEach(button=>{button.onpointerdown=e=>e.preventDefault();button.onclick=()=>this.format(button.dataset.memoFormat,input);});
       this.editor.querySelector('[data-memo-collapse]').onclick=()=>this.collapseEditor(true);this.editor.querySelector('[data-memo-retry]').onclick=()=>this.persist();this.editor.onkeydown=e=>{if(e.key==='Escape'&&!e.isComposing){e.preventDefault();e.stopPropagation();this.collapseEditor(true);}};
       document.body.append(this.editor);this.updateScheduleMarks();this.positionEditor();input.focus();const range=document.createRange();range.selectNodeContents(input);range.collapse(false);getSelection().removeAllRanges();getSelection().addRange(range);this.editorRange=range.cloneRange();this.updateFormat();

@@ -413,7 +413,7 @@
   function memoTab(){return `<button type="button" class="memo-tab" data-action="toggle-memo" aria-label="개인 메모장" aria-expanded="${!!state.showMemo}" aria-controls="memo-panel" title="개인 메모장">${icon('note',15)}<span>메모</span></button>`;}
   function syncMemoPanel(){
     const host=$('.desktop-frame');if(!host||!state.user||windowApi&&!windowApi.mainHost){memoBoard?.mount(null,null);return;}
-    if(!memoBoard)memoBoard=new IeumStickyNotes.Board({onClose:()=>toggleMemo(false),onSchedule:openMemoSchedule,onScheduleInfo:memoScheduleInfo,onScheduleSave:saveMemoSchedule,onMail:openHomeroomSource,hasSchedule:note=>!!calendarMemoItem(note.schedule?.id||'user-memo-'+note.id),tabHTML:memoTab()});
+    if(!memoBoard)memoBoard=new IeumStickyNotes.Board({onClose:()=>toggleMemo(false),onSchedule:openMemoSchedule,onScheduleInfo:memoScheduleInfo,onScheduleSave:saveMemoSchedule,onMail:openHomeroomSource,onHomeroom:openHomeroomFromMemo,hasSchedule:note=>!!calendarMemoItem(note.schedule?.id||'user-memo-'+note.id),tabHTML:memoTab()});
     memoBoard.mount(host,native?'account:'+state.profile.id:'demo:'+state.user);memoBoard.setOpen(!!state.showMemo);
     document.body.classList.toggle('memo-expanded',!!state.showMemo);$$('[data-action="toggle-memo"]').forEach(el=>el.setAttribute('aria-expanded',String(!!state.showMemo)));
   }
@@ -424,13 +424,17 @@
   }
   function homeroomMemoStore(){return new IeumStickyNotes.Store(localStorage,native?'account:'+state.profile.id:'demo:'+state.user);}
   function homeroomMemo(id){try{return homeroomMemoStore().load().notes.find(n=>n.mail?.id===id);}catch{return null;}}
+  function openHomeroomFromMemo(mail){
+    const date=IeumHomeroom.validDay(mail.viewDate)?mail.viewDate:IeumHomeroom.validDay(mail.date)?mail.date:koreanToday();
+    homeroomModal({date});requestAnimationFrame(()=>{const entry=$$('#homeroom-feed [data-homeroom-mail]').find(el=>el.dataset.homeroomMail===mail.id);entry?.scrollIntoView({block:'nearest'});});
+  }
   async function openHomeroomSource(id){closeModal();if(windowApi)await windowApi.openWorkspace('inbox',{kind:'mail',id});else await revealBriefingTarget({kind:'mail',id});}
   async function openHomeroomMemo(id,date=homeroomModalDate){
     if(windowApi&&!windowApi.mainHost){const result=await windowApi.openHomeroomMemo({id,date});if(result.error)toast('메모를 열지 못했어요',result.error);return;}
     if(!IeumHomeroom.validDay(date))return;
     if(native)await network?.refresh();
     const mail=homeroomEntries(date).find(m=>m.id===id);if(!mail)return;
-    try{const memoId=homeroomMemoStore().setMail({id:mail.id,title:IeumHomeroom.preview(mail).title.slice(0,200),from:mailSenderName(mail).slice(0,200),date:mail.date,time:mail.time||''});closeModal();await toggleMemo(true);state.showMemo=true;syncMemoPanel();memoBoard.openEditor(memoId);}
+    try{const memoId=homeroomMemoStore().setMail({id:mail.id,title:IeumHomeroom.preview(mail).title.slice(0,200),from:mailSenderName(mail).slice(0,200),date:mail.date,time:mail.time||'',viewDate:date});closeModal();await toggleMemo(true);state.showMemo=true;syncMemoPanel();memoBoard.openEditor(memoId);}
     catch(error){toast('메모를 열지 못했어요',error.message);}
   }
   let homeroomCardDate=koreanToday(),homeroomModalDate=koreanToday();
@@ -534,7 +538,7 @@
         )
         .join(
           "",
-        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.113</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
+        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.114</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
     );
   }
   const groupLabel=p=>String(p[state.group]||"").trim()||({grade:"학년 미지정",otherGroup:"기타 미지정"}[state.group]||"미지정");

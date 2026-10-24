@@ -516,3 +516,5 @@ body.minimal-main>.memo-tab,.unified-main:has(.briefing-overlay)>.memo-tab{displ
 .memo-calendar-mark{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;width:22px;height:22px;border-radius:5px;background:#dcefe5;color:#267253;vertical-align:middle}
 .memo-calendar-mark[hidden]{display:none!important}
 .memo-editor-title{display:inline-flex;align-items:center;gap:8px}
+
+.memo-format .memo-homeroom{border-color:#8b98745c;background:#ffffff50;color:#315c4e}
