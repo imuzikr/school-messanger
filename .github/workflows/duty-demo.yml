@@ -1,7 +1,7 @@
 name: Verify and package duty demo
 on:
   push:
-    branches: [codex/duty-demo-0.2.110]
+    branches: [codex/duty-demo-0.2.111]
 permissions:
   contents: read
 defaults:
@@ -36,6 +36,7 @@ jobs:
           xvfb-run -a node tests/electron-wings.cjs
           xvfb-run -a node tests/electron-homeroom.cjs
           xvfb-run -a node tests/electron-homeroom-lan.cjs
+          xvfb-run -a node tests/electron-homeroom-daily.cjs
           xvfb-run -a node tests/electron-sticky-notes.cjs
           xvfb-run -a node tests/electron-memo-calendar.cjs
           xvfb-run -a node tests/electron-schedule-memos.cjs
@@ -87,7 +88,7 @@ jobs:
           npm install --no-save --package-lock=false playwright@1.56.1 pngjs@7.0.0
           python -m pip install openpyxl==3.1.5
           $env:IEUM_TEST_PYTHON="python"
-          $env:IEUM_TEST_EXECUTABLE=(Resolve-Path "release/Ieum-Deadline-Demo-0.2.110-win-x64/Ieum-Deadline-Demo.exe").Path
+          $env:IEUM_TEST_EXECUTABLE=(Resolve-Path "release/Ieum-Deadline-Demo-0.2.111-win-x64/Ieum-Deadline-Demo.exe").Path
           node tests/electron-mail-receipts.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node tests/electron-settings-close.cjs
@@ -97,6 +98,7 @@ jobs:
           node tests/electron-wings.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node tests/electron-homeroom.cjs
+          node tests/electron-homeroom-daily.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node tests/electron-sticky-notes.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -128,14 +130,14 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node tests/electron-briefing.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -c "from zipfile import ZipFile; z=ZipFile('release/Ieum-Deadline-Demo-0.2.110-win-x64.zip'); assert z.testzip() is None; print('Windows ZIP CRC PASS')"
+          python -c "from zipfile import ZipFile; z=ZipFile('release/Ieum-Deadline-Demo-0.2.111-win-x64.zip'); assert z.testzip() is None; print('Windows ZIP CRC PASS')"
       - uses: actions/upload-artifact@v4
         with:
-          name: Ieum-Demo-0.2.110
-          path: recovered/ieum-window-demo-0.2.7/release/Ieum-Deadline-Demo-0.2.110-win-x64.zip
+          name: Ieum-Demo-0.2.111
+          path: recovered/ieum-window-demo-0.2.7/release/Ieum-Deadline-Demo-0.2.111-win-x64.zip
       - name: Publish tested portable demo
         env:
           GH_TOKEN: ${{ github.token }}
         shell: pwsh
         run: |
-          gh release create v0.2.110 release/Ieum-Deadline-Demo-0.2.110-win-x64.zip release/SHA256SUMS.txt --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "이음 Windows 데모 0.2.110" --notes "담임 업무를 연한 가로선으로 구분하고 각 항목에 메모하기·메모 보기와 X 삭제를 추가합니다. 개인 메모는 실제 메모장에 연결하며 삭제는 본인의 담임 업무 목록에만 적용합니다. 서로 다른 발신자의 체험용 수신 샘플 4개와 상담 일정·제출 마감 연동을 포함합니다. 실서버의 목록 삭제 기능은 서버도 같은 버전으로 업데이트해야 합니다. 전체 압축 해제 후 Ieum-Deadline-Demo.exe를 실행하세요."
+          gh release create v0.2.111 release/Ieum-Deadline-Demo-0.2.111-win-x64.zip release/SHA256SUMS.txt --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "이음 Windows 데모 0.2.111" --notes "업무 달력 오른쪽에 날짜별 담임 업무 카드를 추가합니다. 이전·다음 날짜와 오늘로 이동하고 내일로 버튼으로 한 번만 복사 이월합니다. 오늘 일정의 담임 업무는 오늘 분량을 표시하며 날짜별 삭제·개인 메모 연결·과거 기록을 보존합니다. 나의 할 일은 기존 할 일 추가 입력 기능이 있어 유지합니다. 실서버도 같은 버전으로 업데이트하세요. 전체 압축 해제 후 Ieum-Deadline-Demo.exe를 실행하세요."

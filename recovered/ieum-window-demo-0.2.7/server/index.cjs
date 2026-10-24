@@ -83,6 +83,7 @@ async function startServer(options = {}) {
   CREATE TABLE IF NOT EXISTS reactions(message_id TEXT REFERENCES messages(id) ON DELETE CASCADE,user_id TEXT REFERENCES users(id) ON DELETE CASCADE,PRIMARY KEY(message_id,user_id));
   CREATE TABLE IF NOT EXISTS mails(id TEXT PRIMARY KEY,sender TEXT REFERENCES users(id),payload TEXT NOT NULL,sender_folder TEXT NOT NULL DEFAULT 'sent',sender_important INTEGER NOT NULL DEFAULT 0,event_id TEXT);
   CREATE TABLE IF NOT EXISTS recipients(mail_id TEXT REFERENCES mails(id) ON DELETE CASCADE,user_id TEXT REFERENCES users(id),status TEXT NOT NULL DEFAULT 'unread',folder TEXT NOT NULL DEFAULT 'inbox',important INTEGER NOT NULL DEFAULT 0,event_id TEXT,PRIMARY KEY(mail_id,user_id));
+  CREATE TABLE IF NOT EXISTS homeroom_days(mail_id TEXT NOT NULL,user_id TEXT NOT NULL,date TEXT NOT NULL,hidden INTEGER NOT NULL DEFAULT 0,carried_from TEXT NOT NULL DEFAULT '',PRIMARY KEY(mail_id,user_id,date),FOREIGN KEY(mail_id,user_id) REFERENCES recipients(mail_id,user_id) ON DELETE CASCADE);
   CREATE TABLE IF NOT EXISTS duty_exchanges(id TEXT PRIMARY KEY,payload TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS duty_exchange_notices(request_id TEXT NOT NULL,user_id TEXT NOT NULL,version TEXT NOT NULL,PRIMARY KEY(request_id,user_id));
   CREATE TABLE IF NOT EXISTS events(id TEXT PRIMARY KEY,owner TEXT REFERENCES users(id),payload TEXT NOT NULL);
@@ -182,7 +183,7 @@ async function startServer(options = {}) {
       return {id:r.id,name:r.name,notice:r.notice,pinned:!!r.pinned,muted:!!r.muted,members:roomUsers(r.id).filter(v=>v!==user.id),unread:db.prepare('SELECT count(*) n FROM messages WHERE room_id=? AND seq>? AND sender<>?').get(r.id,r.read_seq,user.id).n,messages:raw.map(m=>{const likes=db.prepare('SELECT user_id FROM reactions WHERE message_id=?').all(m.id);return {...parse(m.payload),id:m.id,sender:me(m.sender),likes:likes.length,liked:likes.some(l=>l.user_id===user.id)};})};
     });
     const mailRows=db.prepare("SELECT * FROM mails WHERE sender=? OR id IN(SELECT mail_id FROM recipients WHERE user_id=? AND status NOT IN('recalled','scheduled'))").all(user.id,user.id);
-    const mails=mailRows.map(m=>{const recipients=db.prepare('SELECT * FROM recipients WHERE mail_id=?').all(m.id),mine=m.sender===user.id,r=recipients.find(r=>r.user_id===user.id);const payload=parse(m.payload);const inlineStored=/data:image\/(?:png|jpeg|webp|gif);base64,/.test(payload.html||'');const html=inlineStored?payload.html.replace(/data:image\/(?:png|jpeg|webp|gif);base64,[A-Za-z0-9+/]+={0,2}/g,''):payload.html;return {...payload,html,inlineStored,files:payload.files.map((file,index)=>({name:file.name,size:file.size,bytes:file.bytes,stored:true,sourceMail:m.id,index})),id:m.id,from:me(m.sender),to:recipients.map(r=>r.user_id),receipts:recipients.map(r=>r.status==='scheduled'?'unread':r.status),folder:mine?m.sender_folder:r.folder,important:!!(mine?m.sender_important:r.important),unread:!mine&&r.status==='unread',eventId:(mine?m.event_id:r.event_id)||null,previousFolder:mine?'sent':'inbox',canRecall:mine,homeroomHidden:!!r?.homeroom_hidden};}).sort((a,b)=>b.createdAt-a.createdAt);
+    const mails=mailRows.map(m=>{const recipients=db.prepare('SELECT * FROM recipients WHERE mail_id=?').all(m.id),mine=m.sender===user.id,r=recipients.find(r=>r.user_id===user.id);const payload=parse(m.payload);const inlineStored=/data:image\/(?:png|jpeg|webp|gif);base64,/.test(payload.html||'');const html=inlineStored?payload.html.replace(/data:image\/(?:png|jpeg|webp|gif);base64,[A-Za-z0-9+/]+={0,2}/g,''):payload.html;return {...payload,html,inlineStored,files:payload.files.map((file,index)=>({name:file.name,size:file.size,bytes:file.bytes,stored:true,sourceMail:m.id,index})),id:m.id,from:me(m.sender),to:recipients.map(r=>r.user_id),receipts:recipients.map(r=>r.status==='scheduled'?'unread':r.status),folder:mine?m.sender_folder:r.folder,important:!!(mine?m.sender_important:r.important),unread:!mine&&r.status==='unread',eventId:(mine?m.event_id:r.event_id)||null,previousFolder:mine?'sent':'inbox',canRecall:mine,homeroomHidden:!!r?.homeroom_hidden,homeroomDays:db.prepare('SELECT date,hidden,carried_from FROM homeroom_days WHERE mail_id=? AND user_id=? ORDER BY date').all(m.id,user.id).map(d=>({date:d.date,hidden:!!d.hidden,carriedFrom:d.carried_from}))};}).sort((a,b)=>b.createdAt-a.createdAt);
     const events=db.prepare('SELECT * FROM events').all().filter(e=>{const p=parse(e.payload);return p.duty?(e.owner===user.id||p.targets.includes(user.id)):e.owner===user.id||(['group','makeup','lessonChange'].includes(p.type)&&p.targets.includes(user.id)&&(!(p.noticeMail||p.deliveryMail)||db.prepare("SELECT 1 FROM recipients WHERE mail_id=? AND user_id=? AND status NOT IN('recalled','scheduled')").get(p.noticeMail||p.deliveryMail,user.id)));}).map(e=>({...parse(e.payload),id:e.id,owner:e.owner,readonly:!!parse(e.payload).duty||e.owner!==user.id,canReschedule:(!parse(e.payload).duty||user.admin||dutySettings().managers[parse(e.payload).duty.kind]?.includes(user.id))&&!parse(e.payload).noticeMail&&!['makeup','lessonChange'].includes(parse(e.payload).type)}));
     duties.normalizeTitles(events);
     reconcileExchanges();const exchangeCtx=exchangeContext(),actor={id:user.id,admin:!!user.admin};
@@ -360,10 +361,19 @@ async function startServer(options = {}) {
       for(const event of db.prepare('SELECT * FROM events').all()){const payload=parse(event.payload);if(!['makeup','lessonChange'].includes(payload.type)||date&&payload.date!==date)continue;const slot=resolvePeriod(payload.date,payload.period);payload.start=slot.start;payload.end=slot.end;db.prepare('UPDATE events SET payload=? WHERE id=?').run(json(payload),event.id);}
       break;
     }
+    case 'homeroom.defer':
     case 'homeroom.dismiss':{
-      const mailId=str(v.mail,100),row=db.prepare('SELECT payload FROM mails WHERE id=?').get(mailId),recipient=db.prepare("SELECT 1 FROM recipients WHERE mail_id=? AND user_id=? AND status NOT IN('recalled','scheduled') AND folder<>'trash'").get(mailId,user.id);
-      if(!row||!recipient||parse(row.payload).category!=='homeroom')fail(403,'수신한 담임 업무만 삭제할 수 있습니다.');
-      db.prepare('UPDATE recipients SET homeroom_hidden=1 WHERE mail_id=? AND user_id=?').run(mailId,user.id);break;
+      const mailId=str(v.mail,100),row=db.prepare('SELECT payload FROM mails WHERE id=?').get(mailId),recipient=db.prepare("SELECT * FROM recipients WHERE mail_id=? AND user_id=? AND status NOT IN('recalled','scheduled') AND folder<>'trash'").get(mailId,user.id);
+      if(!row||!recipient||parse(row.payload).category!=='homeroom')fail(403,'수신한 담임 업무만 변경할 수 있습니다.');
+      if(op.type==='homeroom.dismiss'&&v.date===undefined){db.prepare('UPDATE recipients SET homeroom_hidden=1 WHERE mail_id=? AND user_id=?').run(mailId,user.id);break;}
+      const date=validDate(v.date),mail={...parse(row.payload),homeroomHidden:!!recipient.homeroom_hidden,homeroomDays:db.prepare('SELECT date,hidden,carried_from FROM homeroom_days WHERE mail_id=? AND user_id=?').all(mailId,user.id).map(d=>({date:d.date,hidden:!!d.hidden,carriedFrom:d.carried_from}))};
+      if(op.type==='homeroom.dismiss'){
+        if(date!==homeroom.receivedDate(mail)&&!mail.homeroomDays.some(d=>d.date===date))fail(403,'이 날짜에 받은 담임 업무가 없습니다.');
+        db.prepare('INSERT INTO homeroom_days(mail_id,user_id,date,hidden) VALUES(?,?,?,1) ON CONFLICT(mail_id,user_id,date) DO UPDATE SET hidden=1').run(mailId,user.id,date);
+      }else{
+        if(!homeroom.onDay(mail,date))fail(403,'이 날짜에 받은 담임 업무가 없습니다.');const target=homeroom.nextDay(date);validDate(target);
+        db.prepare('INSERT OR IGNORE INTO homeroom_days(mail_id,user_id,date,hidden,carried_from) VALUES(?,?,?,0,?)').run(mailId,user.id,target,date);
+      }break;
     }
     case 'homeroom.pin':{
       const mailId=str(v.mail,100),itemId='user-homeroom-'+hash(json([user.id,mailId]));
@@ -371,7 +381,7 @@ async function startServer(options = {}) {
       if(!v.pinned){db.prepare('DELETE FROM items WHERE id=? AND owner=?').run(itemId,user.id);break;}
       const row=db.prepare('SELECT * FROM mails WHERE id=?').get(mailId),recipient=db.prepare("SELECT * FROM recipients WHERE mail_id=? AND user_id=? AND status NOT IN('recalled','scheduled') AND folder<>'trash'").get(mailId,user.id);
       if(!row||!recipient||parse(row.payload).category!=='homeroom')fail(403,'수신한 담임 메시지만 고정할 수 있습니다.');
-      const payload=homeroom.pinnedItem({...parse(row.payload),id:mailId},dateKey());
+      const payload=homeroom.pinnedItem({...parse(row.payload),id:mailId},v.date===undefined?dateKey():validDate(v.date));
       db.prepare('INSERT OR IGNORE INTO items VALUES(?,?,?,?)').run(itemId,user.id,'deadlines',json(payload));break;
     }
     case 'item.upsert':{

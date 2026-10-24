@@ -189,6 +189,11 @@ expose('ieum:workspace',(event,page,value)=>{
 });
 expose('ieum:compose',(event,draft={})=>{if(!draft||typeof draft!=='object'||JSON.stringify(draft).length>4*1024*1024)throw new Error('작성 내용이 너무 큽니다.');const w=createWindow('ieum://app/index.html?compose=1',{width:720,height:820,minWidth:620});w.ieumComposeDraft=draft;return {ok:true};});
 expose('ieum:compose-draft',event=>BrowserWindow.fromWebContents(event.sender).ieumComposeDraft||BrowserWindow.fromWebContents(event.sender).ieumEventDraft||{});
+expose('ieum:homeroom-memo',(event,target)=>{
+ if(role==='server'||!mainWindow||mainWindow.isDestroyed())throw new Error('메신저 본창을 먼저 열어 주세요.');
+ if(!target||typeof target.id!=='string'||!/^[-\w]{1,100}$/.test(target.id)||typeof target.date!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(target.date))throw new Error('메모 연결이 올바르지 않습니다.');
+ if(minimalState)setMinimalMain(false);mainWindow.show();mainWindow.focus();mainWindow.webContents.send('ieum:update',{kind:'homeroom-memo',target:{id:target.id,date:target.date}});return {ok:true};
+});
 expose('ieum:memo-schedule',(event,note)=>{
  if(BrowserWindow.fromWebContents(event.sender)!==mainWindow||role==='server')throw new Error('메신저 본창의 메모에서만 등록할 수 있습니다.');
  if(!note||typeof note.id!=='string'||!/^[-\w]{1,100}$/.test(note.id)||typeof note.text!=='string'||note.text.length>4000)throw new Error('메모 내용이 올바르지 않습니다.');

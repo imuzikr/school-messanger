@@ -157,7 +157,7 @@
           (key) => {
             state.data[key].push(
               ...(saved.data[key] || []).filter((item) =>
-                item.id.startsWith("user-") || item.id.startsWith("auto-") || item.id.startsWith("duty-"),
+                item.id.startsWith("user-") || item.id.startsWith("auto-") || item.id.startsWith("duty-") || key==="mails"&&item.category==="homeroom",
               ),
             );
           },
@@ -426,17 +426,31 @@
   function homeroomMemoStore(){return new IeumStickyNotes.Store(localStorage,native?'account:'+state.profile.id:'demo:'+state.user);}
   function homeroomMemo(id){try{return homeroomMemoStore().load().notes.find(n=>n.mail?.id===id);}catch{return null;}}
   async function openHomeroomSource(id){closeModal();if(windowApi)await windowApi.openWorkspace('inbox',{kind:'mail',id});else await revealBriefingTarget({kind:'mail',id});}
-  async function openHomeroomMemo(id){
-    const mail=homeroomEntries().find(m=>m.id===id);if(!mail)return;
+  async function openHomeroomMemo(id,date=homeroomModalDate){
+    if(windowApi&&!windowApi.mainHost){const result=await windowApi.openHomeroomMemo({id,date});if(result.error)toast('메모를 열지 못했어요',result.error);return;}
+    if(!IeumHomeroom.validDay(date))return;
+    if(native)await network?.refresh();
+    const mail=homeroomEntries(date).find(m=>m.id===id);if(!mail)return;
     try{const memoId=homeroomMemoStore().setMail({id:mail.id,title:String(mail.title||'담임 업무').slice(0,200),from:mailSenderName(mail).slice(0,200),date:mail.date,time:mail.time||''});closeModal();await toggleMemo(true);state.showMemo=true;syncMemoPanel();memoBoard.openEditor(memoId);}
     catch(error){toast('메모를 열지 못했어요',error.message);}
   }
-  function homeroomEntries(){const ids=native?[state.profile?.id]:['me',state.data.people.find(p=>p.name===state.user)?.id].filter(Boolean);return IeumHomeroom.entries(state.data.mails,ids);}
-  function homeroomModal(options={}){
-    const entries=homeroomEntries();openModal('담임 업무',`<div id="homeroom-feed">${entries.length?entries.map(m=>`<article class="homeroom-entry" data-homeroom-mail="${esc(m.id)}"><header><strong>${esc(mailSenderName(m))}</strong>${button('homeroom-source','관련 메시지 보기','mail','',`data-mail="${esc(m.id)}"`)}<time>${esc(m.date)} ${esc(m.time||'')}</time>${button('homeroom-pin',state.data.deadlines.some(d=>d.homeroomMail===m.id)?'고정됨':'고정','pin','homeroom-pin',`data-mail="${esc(m.id)}" aria-pressed="${state.data.deadlines.some(d=>d.homeroomMail===m.id)}" title="완료 확인에 고정하거나 해제"`)}${button('homeroom-memo',homeroomMemo(m.id)?'메모 보기':'메모하기','note','',`data-mail="${esc(m.id)}"`)}<button type="button" class="icon-btn homeroom-dismiss" data-action="homeroom-dismiss" data-mail="${esc(m.id)}" aria-label="담임 업무에서 삭제" title="담임 업무에서 삭제">${icon('x',16)}</button></header>${m.title&&m.title!=='담임'?`<h3>${esc(m.title)}</h3>`:''}<div class="homeroom-content">${esc(String(m.body||'').replace(/\r\n?/g,'\n').replace(/\n(?:[ \t]*\n)+/g,'\n\n'))}</div></article>`).join(''):'<div class="empty"><p>아직 받은 담임 업무가 없습니다.</p></div>'}</div>`,button('close-modal','닫기'),'wide homeroom-modal');
-    requestAnimationFrame(()=>{const body=$('.homeroom-modal .modal-body');if(body)body.scrollTop=options.scroll??body.scrollHeight;});
+  let homeroomCardDate=koreanToday(),homeroomModalDate=koreanToday();
+  function homeroomEntries(date=homeroomModalDate){const ids=native?[state.profile?.id]:['me',demoCalendarPerson()?.id].filter(Boolean);return IeumHomeroom.dailyEntries(state.data.mails,ids,date);}
+  function homeroomNavigation(date,scope){return `<div class="homeroom-date-nav">${ib('homeroom-prev','이전 날짜의 담임 업무','left',`data-scope="${scope}"`)}<strong>${esc(fmtDate(date,{year:'numeric',month:'long',day:'numeric',weekday:'short'}))}</strong>${ib('homeroom-next','다음 날짜의 담임 업무','right',`data-scope="${scope}"`)}${button('homeroom-today','오늘','','',`data-scope="${scope}"`)}</div>`;}
+  function homeroomItems(date){
+    const entries=homeroomEntries(date);
+    return entries.length?entries.map(m=>{const attrs=`data-mail="${esc(m.id)}" data-date="${date}"`,carried=(m.homeroomDays||[]).some(d=>d.date===IeumHomeroom.nextDay(date));return `<article class="homeroom-entry" data-homeroom-mail="${esc(m.id)}" data-homeroom-date="${date}"><header><strong>${esc(mailSenderName(m))}</strong>${button('homeroom-source','관련 메시지 보기','mail','',attrs)}<time>${esc(m.date)} ${esc(m.time||'')}</time>${button('homeroom-pin',state.data.deadlines.some(d=>d.homeroomMail===m.id)?'고정됨':'고정','pin','homeroom-pin',`${attrs} aria-pressed="${state.data.deadlines.some(d=>d.homeroomMail===m.id)}" title="완료 확인에 고정하거나 해제"`)}${button('homeroom-memo',homeroomMemo(m.id)?'메모 보기':'메모하기','note','',attrs)}${button('homeroom-defer',carried?'이월됨':'내일로','right','homeroom-defer',`${attrs} ${carried?'disabled':''}`)}<button type="button" class="icon-btn homeroom-dismiss" data-action="homeroom-dismiss" ${attrs} aria-label="이 날짜의 담임 업무에서 삭제" title="이 날짜의 담임 업무에서 삭제">${icon('x',16)}</button></header>${m.homeroomCarriedFrom?`<p class="homeroom-carried">${esc(fmtDate(m.homeroomCarriedFrom,{month:'numeric',day:'numeric'}))}에서 이월</p>`:''}${m.title&&m.title!=='담임'?`<h3>${esc(m.title)}</h3>`:''}<div class="homeroom-content">${esc(String(m.body||'').replace(/\r\n?/g,'\n').replace(/\n(?:[ \t]*\n)+/g,'\n\n'))}</div></article>`;}).join(''):'<div class="empty"><p>이 날짜의 담임 업무가 없습니다.</p></div>';
   }
-  function refreshHomeroom(){if(!$('#homeroom-feed'))return;const body=$('.homeroom-modal .modal-body'),scroll=body.scrollHeight-body.scrollTop-body.clientHeight<40?null:body.scrollTop;homeroomModal({scroll});}
+  function homeroomModal(options={}){
+    if(options.date)homeroomModalDate=options.date;
+    openModal('담임 업무',homeroomNavigation(homeroomModalDate,'modal')+`<div id="homeroom-feed" data-homeroom-date="${homeroomModalDate}">${homeroomItems(homeroomModalDate)}</div>`,button('close-modal','닫기'),'wide homeroom-modal');
+    requestAnimationFrame(()=>{const body=$('.homeroom-modal .modal-body');if(body)body.scrollTop=options.scroll??0;});
+  }
+  function homeroomCard(){return `<section class="panel homeroom-card" id="homeroom-card" aria-label="날짜별 담임 업무"><div class="panel-head"><h2>담임 업무</h2><small>${homeroomEntries(homeroomCardDate).length}건</small></div>${homeroomNavigation(homeroomCardDate,'card')}<div class="homeroom-card-body" data-homeroom-date="${homeroomCardDate}">${homeroomItems(homeroomCardDate)}</div></section>`;}
+  function refreshHomeroom(){
+    if($('#homeroom-feed')){const body=$('.homeroom-modal .modal-body');homeroomModal({scroll:body.scrollTop});}
+    const card=$('#homeroom-card');if(card){const scroll=card.querySelector('.homeroom-card-body').scrollTop;card.outerHTML=homeroomCard();$('#homeroom-card .homeroom-card-body').scrollTop=scroll;}
+  }
   function compactAgendaList() {
     const events=state.data.events.filter(e=>e.date===state.today).sort((a,b)=>a.start.localeCompare(b.start));
     const deadlines=state.data.deadlines.filter(d=>d.date===state.today).sort((a,b)=>(a.dueTime||"24:00").localeCompare(b.dueTime||"24:00"));
@@ -521,7 +535,7 @@
         )
         .join(
           "",
-        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.110</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
+        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.111</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
     );
   }
   const groupLabel=p=>String(p[state.group]||"").trim()||({grade:"학년 미지정",otherGroup:"기타 미지정"}[state.group]||"미지정");
@@ -1353,7 +1367,7 @@
           button("add-event", "일정 등록", "plus", "btn-primary"),
       );}
   function calendarPage() {
-    if(state.calendarView==="duty")return calendarHeading()+exchangeDashboard()+`<section class="panel calendar-month-panel duty-calendar-panel" aria-label="업무 달력">${dutyMonthlyBody()}</section>`;
+    if(state.calendarView==="duty")return calendarHeading()+exchangeDashboard()+`<div class="calendar-layout duty-calendar-layout"><section class="panel calendar-month-panel duty-calendar-panel" aria-label="업무 달력">${dutyMonthlyBody()}</section><aside class="calendar-aside homeroom-calendar-aside">${homeroomCard()}</aside></div>`;
     if(state.calendarView==="month")return calendarHeading()+exchangeDashboard()+`<div class="calendar-layout"><section class="panel calendar-month-panel">${monthlyBody()}</section><aside class="calendar-aside">${checklistPanel()}</aside></div>`;
     const weekDays=Array.from({length:7},(_,i)=>addDays(state.week,i)),datedItems=[...state.data.events,...state.data.deadlines,...state.data.academic];
     const showDay=date=>state.today===date||datedItems.some(item=>item.date===date);
@@ -2282,19 +2296,21 @@
     if(action === "bell-default-settings"){bellScheduleForm({basic:true});return;}
     if(action === "bell-schedule"){if(target.closest(".school-work-menu"))closeModal();bellScheduleForm();return;}
     if(action === "edit-duty"){dutyAssignmentForm(target.dataset.event);return;}
-    if(action==='homeroom-work'){homeroomModal();return;}
-    if(action==='homeroom-memo'){await openHomeroomMemo(target.dataset.mail);return;}
-    if(action==='homeroom-dismiss'){
-      const mail=homeroomEntries().find(m=>m.id===target.dataset.mail);if(!mail||target.disabled)return;target.disabled=true;
-      try{await dutyOperation('homeroom.dismiss',{mail:mail.id},()=>{mail.homeroomHidden=true;});render();refreshHomeroom();toast('담임 업무 목록에서 삭제했어요','원본 메시지와 작성한 개인 메모는 보관됩니다.');}
-      catch(error){target.disabled=false;toast('삭제하지 못했어요',error.message);}return;
+    if(action==='homeroom-work'){homeroomModal({date:koreanToday()});return;}
+    if(['homeroom-prev','homeroom-next','homeroom-today'].includes(action)){const card=target.dataset.scope==='card',current=card?homeroomCardDate:homeroomModalDate,date=action==='homeroom-today'?koreanToday():addDays(current,action==='homeroom-prev'?-1:1);if(!IeumHomeroom.validDay(date))return;if(card){homeroomCardDate=date;refreshHomeroom();}else homeroomModal({date});return;}
+    if(action==='homeroom-memo'){await openHomeroomMemo(target.dataset.mail,target.dataset.date);return;}
+    if(action==='homeroom-defer'||action==='homeroom-dismiss'){
+      const date=target.dataset.date,mail=homeroomEntries(date).find(m=>m.id===target.dataset.mail);if(!mail||target.disabled)return;target.disabled=true;
+      const defer=action==='homeroom-defer';
+      try{await dutyOperation(defer?'homeroom.defer':'homeroom.dismiss',{mail:mail.id,date},()=>{const original=state.data.mails.find(m=>m.id===mail.id);if(defer)IeumHomeroom.carry(original,date);else IeumHomeroom.dismissDay(original,date);});render();refreshHomeroom();toast(defer?'다음 날짜의 담임 업무로 이월했어요':'이 날짜의 담임 업무에서 삭제했어요',defer?'오늘 기록과 메모는 그대로 보관됩니다.':'원본 메시지와 다른 날짜의 기록은 보관됩니다.');}
+      catch(error){target.disabled=false;toast(defer?'이월하지 못했어요':'삭제하지 못했어요',error.message);}return;
     }
     if(action==='homeroom-pin'){
-      const mail=homeroomEntries().find(m=>m.id===target.dataset.mail);if(!mail||target.disabled)return;
+      const mail=homeroomEntries(target.dataset.date).find(m=>m.id===target.dataset.mail);if(!mail||target.disabled)return;
       const current=state.data.deadlines.find(d=>d.homeroomMail===mail.id),pinned=!current;target.disabled=true;
-      try{await dutyOperation('homeroom.pin',{mail:mail.id,pinned},()=>{
+      try{await dutyOperation('homeroom.pin',{mail:mail.id,pinned,date:target.dataset.date},()=>{
         if(current)state.data.deadlines=state.data.deadlines.filter(d=>d.id!==current.id);
-        else state.data.deadlines.push({id:uid('user-homeroom'),...IeumHomeroom.pinnedItem(mail,window.IeumDeadlines.sentDate(Date.now()))});
+        else state.data.deadlines.push({id:uid('user-homeroom'),...IeumHomeroom.pinnedItem(mail,target.dataset.date)});
       });render();refreshHomeroom();toast(pinned?'완료 확인에 고정했어요':'고정을 해제했어요');}
       catch(error){target.disabled=false;toast('고정을 변경하지 못했어요',error.message);}return;
     }
@@ -3203,6 +3219,7 @@
   });
   document.addEventListener("dblclick", e=>{const person=e.target.closest('.org-tree .person-line');if(person)composeMail({to:selectedMessageRecipients(person.dataset.person)});});
   windowApi?.subscribe(event=>{
+    if(event.kind==='homeroom-memo')openHomeroomMemo(event.target.id,event.target.date).catch(error=>toast('메모를 열지 못했어요',error.message));
     if(event.kind==='memo-schedule'&&!$('#modal-root').firstChild&&(!native||network?.active))memoScheduleForm(event.draft);
     if(event.kind==='briefing-target')revealBriefingTarget(event.target).catch(error=>toast('관련 내용을 열지 못했어요',error.message));
     if(event.kind==='memo-panel'&&windowApi.mainHost){state.showMemo=event.open;syncMemoPanel();}
@@ -3391,6 +3408,8 @@
       render({persist:false});drafts.forEach(([id,value])=>{const el=$(`[data-chat-input="${id}"]`);if(el)el.value=value;});
     }catch{}
   });
+  let homeroomDaySeen=koreanToday();
+  setInterval(()=>{const today=koreanToday();if(today===homeroomDaySeen)return;const previous=homeroomDaySeen;homeroomDaySeen=today;if(homeroomCardDate===previous)homeroomCardDate=today;if(homeroomModalDate===previous)homeroomModalDate=today;refreshHomeroom();},30000);
   IeumDuties.normalizeTitles(state.data.events);
   if(!native&&!Array.isArray(state.data.classTeachers))state.data.classTeachers=JSON.parse(JSON.stringify(Mock.classTeachers));
   if(native){

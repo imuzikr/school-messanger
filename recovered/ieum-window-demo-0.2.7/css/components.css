@@ -3030,3 +3030,12 @@ input[type="checkbox"] {
 .exchange-request-nav .icon-btn{width:30px;height:30px}.exchange-request-nav .icon-btn:disabled{opacity:.3;cursor:default}#exchange-request-nav:empty{display:none}
 
 #exchange-request-form .exchange-reason-field{display:grid;gap:8px;font-size:13px}#exchange-reason{display:block;width:100%;min-height:88px;padding:12px;border:1px solid var(--line);border-radius:8px;resize:vertical;line-height:1.6}
+
+.duty-calendar-layout{grid-template-columns:minmax(0,1fr) 330px;align-items:start}
+.homeroom-card{height:calc(100dvh - 235px);min-height:280px;display:flex;flex-direction:column;overflow:hidden}
+.homeroom-card .panel-head{flex-shrink:0}.homeroom-card-body{padding:0 15px 12px;overflow:auto;min-height:0;flex:1;scrollbar-width:thin}
+.homeroom-date-nav{display:grid;grid-template-columns:30px minmax(0,1fr) 30px auto;gap:5px;align-items:center;margin-bottom:12px}
+.homeroom-date-nav strong{text-align:center;font-size:12px;white-space:nowrap}.homeroom-date-nav .icon-btn{width:30px;height:32px}.homeroom-date-nav .btn{padding:5px 8px;font-size:11px}
+.homeroom-card>.homeroom-date-nav{padding:12px 12px 0;flex-shrink:0}.homeroom-card .homeroom-entry header{gap:7px}.homeroom-card .homeroom-entry time{margin-left:0;font-size:10px}.homeroom-card .homeroom-content{font-size:12px}.homeroom-card .homeroom-entry header>.btn{font-size:10px;padding:4px 5px}.homeroom-card .empty{padding:28px 4px}
+.homeroom-carried{font-size:11px;color:var(--green);margin:8px 0 0}.homeroom-defer:disabled{opacity:.65}
+@media(max-width:1000px){.duty-calendar-layout{grid-template-columns:minmax(0,1fr)}.duty-calendar-layout .homeroom-card{height:440px}.duty-calendar-layout .homeroom-calendar-aside{display:block}}
