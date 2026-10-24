@@ -1,7 +1,7 @@
 name: Verify and package duty demo
 on:
   push:
-    branches: [codex/duty-demo-0.2.111]
+    branches: [codex/duty-demo-0.2.112]
 permissions:
   contents: read
 defaults:
@@ -88,7 +88,7 @@ jobs:
           npm install --no-save --package-lock=false playwright@1.56.1 pngjs@7.0.0
           python -m pip install openpyxl==3.1.5
           $env:IEUM_TEST_PYTHON="python"
-          $env:IEUM_TEST_EXECUTABLE=(Resolve-Path "release/Ieum-Deadline-Demo-0.2.111-win-x64/Ieum-Deadline-Demo.exe").Path
+          $env:IEUM_TEST_EXECUTABLE=(Resolve-Path "release/Ieum-Deadline-Demo-0.2.112-win-x64/Ieum-Deadline-Demo.exe").Path
           node tests/electron-mail-receipts.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node tests/electron-settings-close.cjs
@@ -130,14 +130,14 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node tests/electron-briefing.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -c "from zipfile import ZipFile; z=ZipFile('release/Ieum-Deadline-Demo-0.2.111-win-x64.zip'); assert z.testzip() is None; print('Windows ZIP CRC PASS')"
+          python -c "from zipfile import ZipFile; z=ZipFile('release/Ieum-Deadline-Demo-0.2.112-win-x64.zip'); assert z.testzip() is None; print('Windows ZIP CRC PASS')"
       - uses: actions/upload-artifact@v4
         with:
-          name: Ieum-Demo-0.2.111
-          path: recovered/ieum-window-demo-0.2.7/release/Ieum-Deadline-Demo-0.2.111-win-x64.zip
+          name: Ieum-Demo-0.2.112
+          path: recovered/ieum-window-demo-0.2.7/release/Ieum-Deadline-Demo-0.2.112-win-x64.zip
       - name: Publish tested portable demo
         env:
           GH_TOKEN: ${{ github.token }}
         shell: pwsh
         run: |
-          gh release create v0.2.111 release/Ieum-Deadline-Demo-0.2.111-win-x64.zip release/SHA256SUMS.txt --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "이음 Windows 데모 0.2.111" --notes "업무 달력 오른쪽에 날짜별 담임 업무 카드를 추가합니다. 이전·다음 날짜와 오늘로 이동하고 내일로 버튼으로 한 번만 복사 이월합니다. 오늘 일정의 담임 업무는 오늘 분량을 표시하며 날짜별 삭제·개인 메모 연결·과거 기록을 보존합니다. 나의 할 일은 기존 할 일 추가 입력 기능이 있어 유지합니다. 실서버도 같은 버전으로 업데이트하세요. 전체 압축 해제 후 Ieum-Deadline-Demo.exe를 실행하세요."
+          gh release create v0.2.112 release/Ieum-Deadline-Demo-0.2.112-win-x64.zip release/SHA256SUMS.txt --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "이음 Windows 데모 0.2.112" --notes "나의 할 일 카드와 할 일 추가·완료·삭제 기능을 제거합니다. 월간·주간 달력과 오늘의 브리핑에서도 할 일 표시를 없애며 월간 달력은 빈 오른쪽 영역 없이 표시합니다. 담임 업무의 날짜 조회·이월, 일정과 마감 완료 확인은 유지합니다. 전체 압축 해제 후 Ieum-Deadline-Demo.exe를 실행하세요."

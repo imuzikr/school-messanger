@@ -761,9 +761,6 @@ input[type="checkbox"] {
   gap: 9px;
   align-items: center;
 }
-.task-list {
-  padding: 8px 22px 17px;
-}
 .task-row {
   display: flex;
   align-items: flex-start;
@@ -1899,18 +1896,6 @@ input[type="checkbox"] {
   grid-template-columns: 1fr 1fr;
   gap: 14px;
 }
-.checklist-input {
-  display: flex;
-  gap: 5px;
-  margin: 10px 18px 18px;
-}
-.checklist-input .input {
-  padding: 8px;
-  font-size: 11px;
-}
-.checklist-input .btn {
-  padding: 6px;
-}
 .overlay {
   position: fixed;
   inset: 0;
@@ -2862,8 +2847,7 @@ input[type="checkbox"] {
 .dark .icon-btn:hover {
   background: var(--soft);
 }
-.dark .today-hero,
-.dark .task-list {
+.dark .today-hero {
   background: var(--surface);
 }
 .dark .panel-foot {

@@ -149,7 +149,7 @@ expose('ieum:briefing-shape',(event,bounds)=>{
 });
 function sourceTarget(target){
  if(target==null)return null;
- if(!target||!['mail','message','event','deadline','task','exchange'].includes(target.kind)||typeof target.id!=='string'||!target.id||target.id.length>100)throw new Error('연결된 항목이 올바르지 않습니다.');
+ if(!target||!['mail','message','event','deadline','exchange'].includes(target.kind)||typeof target.id!=='string'||!target.id||target.id.length>100)throw new Error('연결된 항목이 올바르지 않습니다.');
  return {kind:target.kind,id:target.id};
 }
 function targetQuery(target){return target?'&source='+encodeURIComponent(target.kind)+'&item='+encodeURIComponent(target.id):'';}

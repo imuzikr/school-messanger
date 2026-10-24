@@ -170,10 +170,6 @@
       },
       { id: "n1", date: weekDate(2), time: "14:00", text: "협의 결과 정리" },
     ],
-    tasks: [
-      { id: "t0", title: "협의회 자료 확인하기", done: false },
-      { id: "t1", title: "상담 일정 정리하기", done: false },
-      { id: "t2", title: "가정통신문 검토", done: true },
-    ],
+    tasks: [],
   };
 })();

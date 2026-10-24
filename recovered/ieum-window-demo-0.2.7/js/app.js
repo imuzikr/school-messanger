@@ -241,10 +241,9 @@
   function showBriefing(){
     const date=koreanToday(),events=state.data.events.filter(e=>e.date===date).sort((a,b)=>a.start.localeCompare(b.start));
     const deadlines=state.data.deadlines.filter(d=>d.date===date&&!d.done).sort((a,b)=>(a.dueTime||"24:00").localeCompare(b.dueTime||"24:00"));
-    const tasks=state.data.tasks.filter(t=>!t.done);
     const list=(items,emptyText)=>items.length?'<ul>'+items.join("")+'</ul>':'<p class="muted">'+emptyText+'</p>';
     const rows=events.map(event=>{const summary=window.IeumScheduleSummary.summarize(event,sourceText(event));return briefingRow("event",event,eventMemoIcon(event)+'<strong>'+esc(event.start)+'–'+esc(event.end)+' · '+esc(summary.task)+'</strong><small>'+esc(summary.place)+(summary.preparation!=="별도 안내 없음"?' · '+esc(summary.preparation):'')+'</small>');});
-    const body='<article class="today-briefing"><p class="briefing-date">'+esc(fmtDate(date))+'</p><p>오늘의 약속과 해야 할 일을 확인하세요.</p><div class="briefing-counts">일정 '+events.length+' · 마감 '+deadlines.length+' · 할 일 '+tasks.length+'</div><h3>오늘의 일정</h3>'+list(rows,"오늘 등록된 일정이 없습니다.")+'<h3>오늘의 마감</h3>'+list(deadlines.map(d=>briefingRow("deadline",d,'<strong>'+esc(d.dueTime||"오늘까지")+' · '+esc(calendarTitle(d))+'</strong>')),"오늘 남은 마감이 없습니다.")+'<h3>나의 할 일</h3>'+list(tasks.map(t=>briefingRow("task",t,esc(t.title))),"남은 할 일이 없습니다.")+'</article>';
+    const body='<article class="today-briefing"><p class="briefing-date">'+esc(fmtDate(date))+'</p><p>오늘의 일정과 마감을 확인하세요.</p><div class="briefing-counts">일정 '+events.length+' · 마감 '+deadlines.length+'</div><h3>오늘의 일정</h3>'+list(rows,"오늘 등록된 일정이 없습니다.")+'<h3>오늘의 마감</h3>'+list(deadlines.map(d=>briefingRow("deadline",d,'<strong>'+esc(d.dueTime||"오늘까지")+' · '+esc(calendarTitle(d))+'</strong>')),"오늘 남은 마감이 없습니다.")+'</article>';
     openModal("오늘의 브리핑",body,button("close-modal","하루 시작하기","check","btn-primary"),"briefing-modal");
   }
   async function revealBriefingTarget(target){
@@ -274,16 +273,16 @@
       await save();render();$(".chat-layout")?.classList.add("conversation-open");
       const row=$$('article[data-message]').find(el=>el.dataset.message===target.id);row?.classList.add("briefing-target");row?.setAttribute("tabindex","-1");row?.scrollIntoView({block:"center"});row?.focus({preventScroll:true});return;
     }
-    const collection={event:"events",deadline:"deadlines",task:"tasks"}[target.kind];
+    const collection={event:"events",deadline:"deadlines"}[target.kind];
     const item=collection&&state.data[collection].find(item=>item.id===target.id);
     if(!item){toast("항목을 찾을 수 없어요","이미 삭제된 항목입니다.");return;}
     state.page="calendar";state.today=item.date||koreanToday();state.week=weekStart(state.today);monthAnchor=state.today;render();
     if(target.kind==="event")viewEvent(item.id);
     else if(target.kind==="deadline")viewDeadline(item.id);
-    else {const input=$$('input[data-task]').find(el=>el.dataset.task===item.id),row=input?.closest(".task-row");row?.classList.add("briefing-target");row?.setAttribute("tabindex","-1");row?.scrollIntoView({block:"center"});row?.focus({preventScroll:true});}
+
   }
   async function openBriefingEntry(kind,id){
-    const collection={event:"events",deadline:"deadlines",task:"tasks"}[kind],item=collection&&state.data[collection].find(item=>item.id===id);
+    const collection={event:"events",deadline:"deadlines"}[kind],item=collection&&state.data[collection].find(item=>item.id===id);
     if(!item)return;
     const source=relatedSource(item);
     let target=source?{kind:source.kind,id:source.id}:{kind,id};
@@ -535,7 +534,7 @@
         )
         .join(
           "",
-        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.111</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}${taskPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
+        )}</div></div><div class="search">${icon("search", 17)}<input class="input" id="people-search" aria-label="교직원 검색" placeholder="이름, 부서, 교과, 학년, 기타 그룹 검색" value="${esc(state.search)}"></div><div class="school-tools"><small class="muted">v0.2.112</small></div><div class="people-summary"><label class="select-label"><input id="select-all" type="checkbox" ${state.selected.size === state.data.people.length ? "checked" : ""}>전체 선택</label><span id="selected-count">${state.selected.size ? state.selected.size + "명 선택" : "이름을 더블클릭해 메시지를 보내세요"}</span></div><div class="org-tree" id="org-tree">${orgTree()}</div></section><aside class="side-stack">${todayPanel()}<div class="quiet-card">${icon("leaf", 28)}<div><strong style="font-size:12px">오늘도, 서로에게 든든한 동료.</strong><p>작은 인사가 하루를 바꿔요.</p></div></div><div class="welcome-strip">TEACH · CONNECT · GROW</div></aside></div>`
     );
   }
   const groupLabel=p=>String(p[state.group]||"").trim()||({grade:"학년 미지정",otherGroup:"기타 미지정"}[state.group]||"미지정");
@@ -636,7 +635,6 @@
       }[t] || t
     );
   }
-  function taskPanel() {return checklistPanel();}
   function empty(title, body, name = "chat") {
     return `<div class="empty">${icon(name, 35)}<h3>${esc(title)}</h3><p>${esc(body)}</p></div>`;
   }
@@ -1368,13 +1366,13 @@
       );}
   function calendarPage() {
     if(state.calendarView==="duty")return calendarHeading()+exchangeDashboard()+`<div class="calendar-layout duty-calendar-layout"><section class="panel calendar-month-panel duty-calendar-panel" aria-label="업무 달력">${dutyMonthlyBody()}</section><aside class="calendar-aside homeroom-calendar-aside">${homeroomCard()}</aside></div>`;
-    if(state.calendarView==="month")return calendarHeading()+exchangeDashboard()+`<div class="calendar-layout"><section class="panel calendar-month-panel">${monthlyBody()}</section><aside class="calendar-aside">${checklistPanel()}</aside></div>`;
+    if(state.calendarView==="month")return calendarHeading()+exchangeDashboard()+`<section class="panel calendar-month-panel">${monthlyBody()}</section>`;
     const weekDays=Array.from({length:7},(_,i)=>addDays(state.week,i)),datedItems=[...state.data.events,...state.data.deadlines,...state.data.academic];
     const showDay=date=>state.today===date||datedItems.some(item=>item.date===date);
     const days=weekDays.slice(0,showDay(weekDays[6])?7:showDay(weekDays[5])?6:5),range=timelineRange(days,1320);
     return (
       calendarHeading() + exchangeDashboard() +
-      `<div style="display:flex;align-items:center;justify-content:space-between;margin:-3px 0 18px;gap:10px"><span class="stat-line">${icon("calendar", 15)} 이번 주 ${state.data.events.filter((e) => days.includes(e.date)).length}개의 일정</span><div class="calendar-toolbar">${ib("week-prev", "이전 주", "left")}<h2>${fmtDate(days[0], { month: "numeric", day: "numeric" })} — ${fmtDate(days[days.length-1], { month: "numeric", day: "numeric" })}</h2>${ib("week-next", "다음 주", "right")}${button("week-reset", "이번 주")}</div></div><div class="calendar-layout"><section class="panel calendar-grid"><div class="time-column"><div class="calendar-top">일정</div><div class="academic-row">학사 일정</div><div class="deadline-row">완료 확인</div><div class="hours" style="height:${range.end-range.start}px">${Array.from({ length: range.hours }, (_, i) => `<div class="hour-label">${String(i + range.start/60).padStart(2, "0")}:00</div>`).join("")}<div class="timeline-end-label">${String(range.end/60).padStart(2,"0")}:00</div></div></div>${days.map((day) => dayColumn(day,range)).join("")}</section><aside class="calendar-aside"><section class="panel mini-calendar">${miniMonth()}</section>${checklistPanel()}<div class="panel legend"><span><i style="background:#7898bb"></i>단체 일정</span><span><i style="background:#d39a26"></i>개인 일정</span><span><i style="background:#be9c64"></i>정기 업무</span></div></aside></div>`
+      `<div style="display:flex;align-items:center;justify-content:space-between;margin:-3px 0 18px;gap:10px"><span class="stat-line">${icon("calendar", 15)} 이번 주 ${state.data.events.filter((e) => days.includes(e.date)).length}개의 일정</span><div class="calendar-toolbar">${ib("week-prev", "이전 주", "left")}<h2>${fmtDate(days[0], { month: "numeric", day: "numeric" })} — ${fmtDate(days[days.length-1], { month: "numeric", day: "numeric" })}</h2>${ib("week-next", "다음 주", "right")}${button("week-reset", "이번 주")}</div></div><div class="calendar-layout"><section class="panel calendar-grid"><div class="time-column"><div class="calendar-top">일정</div><div class="academic-row">학사 일정</div><div class="deadline-row">완료 확인</div><div class="hours" style="height:${range.end-range.start}px">${Array.from({ length: range.hours }, (_, i) => `<div class="hour-label">${String(i + range.start/60).padStart(2, "0")}:00</div>`).join("")}<div class="timeline-end-label">${String(range.end/60).padStart(2,"0")}:00</div></div></div>${days.map((day) => dayColumn(day,range)).join("")}</section><aside class="calendar-aside"><section class="panel mini-calendar">${miniMonth()}</section><div class="panel legend"><span><i style="background:#7898bb"></i>단체 일정</span><span><i style="background:#d39a26"></i>개인 일정</span><span><i style="background:#be9c64"></i>정기 업무</span></div></aside></div>`
     );
   }
   function dayColumn(day,range=timelineRange([day])) {
@@ -1419,9 +1417,6 @@
           `<button data-action="calendar-jump" data-date="${day}" class="${parseDate(day).getMonth() !== month ? "other" : ""} ${day === Mock.today ? "current" : ""} ${day === state.today ? "selected" : ""}" aria-label="${fmtDate(day)}">${parseDate(day).getDate()}</button>`,
       )
       .join("")}</div>`;
-  }
-  function checklistPanel() {
-    return `<section class="panel"><div class="panel-head"><h2>나의 할 일</h2><small>${state.data.tasks.filter((t) => t.done).length}/${state.data.tasks.length}</small></div><div class="task-list">${state.data.tasks.map((t) => `<label class="task-row"><input type="checkbox" data-task="${t.id}" ${t.done ? "checked" : ""}><span class="${t.done ? "done" : ""}">${esc(t.title)}</span><button class="icon-btn" style="height:20px;width:20px;margin-left:auto" data-action="remove-task" data-task="${t.id}" aria-label="할 일 삭제">${icon("x", 12)}</button></label>`).join("")}</div><form class="checklist-input" id="task-form"><input class="input" id="task-title" aria-label="새 할 일" placeholder="할 일 추가" maxlength="120" required><button class="btn" type="submit" aria-label="할 일 추가">${icon("plus", 15)}</button></form></section>`;
   }
   let monthAnchor = Mock.today;
   function monthly() {
@@ -2885,20 +2880,6 @@
         renderPage();
         break;
       }
-      case "checklist":
-        openModal(
-          "나의 할 일",
-          checklistPanel(),
-          button("close-modal", "완료", "", "btn-primary"),
-        );
-        break;
-      case "remove-task":
-        state.data.tasks = state.data.tasks.filter((t) => t.id !== d.task);
-        save();
-        if ($("#modal-root").firstChild) {
-          $(".modal-body").innerHTML = checklistPanel();
-        } else renderPage();
-        break;
       case "settings":
         settingsModal();
         break;
@@ -3040,15 +3021,6 @@
             $(".room-info p", el).textContent = r.messages.at(-1)?.text || "";
         });
       }
-    } else if (e.target.id === "task-form") {
-      e.preventDefault();
-      const title = $("#task-title").value.trim();
-      if (!title) return;
-      state.data.tasks.push({ id: uid("user-task"), title, done: false });
-      save();
-      if ($("#modal-root").firstChild)
-        $(".modal-body").innerHTML = checklistPanel();
-      else renderPage();
     } else if (e.target.id === "shortcut-form") {
       e.preventDefault();
       const url = $("#shortcut-url").value.trim(),
@@ -3161,17 +3133,9 @@
         );
       $("#org-tree").innerHTML = orgTree();
       refreshSelection();
-    } else if (el.matches("[data-deadline],[data-task]")) {
-      const item = el.dataset.deadline
-        ? state.data.deadlines.find((d) => d.id === el.dataset.deadline)
-        : state.data.tasks.find((t) => t.id === el.dataset.task);
-      if (item) {
-        item.done = el.checked;
-        save();
-        if ($("#modal-root").firstChild && el.dataset.task)
-          $(".modal-body").innerHTML = checklistPanel();
-        else renderPage();
-      }
+    } else if (el.matches("[data-deadline]")) {
+      const item = state.data.deadlines.find((d) => d.id === el.dataset.deadline);
+      if (item) {item.done = el.checked;save();renderPage();}
     }
   });
   document.addEventListener("keydown", (e) => {

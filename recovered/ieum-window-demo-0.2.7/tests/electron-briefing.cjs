@@ -52,11 +52,11 @@ try{
  };
  const inbox=await openMail('event','user-brief-event');
  await reopen();await inbox.locator('#mail-search').fill('일치하지 않는 검색');const count=(await app.windows()).length;await openMail('deadline','user-brief-deadline',inbox);assert.equal((await app.windows()).length,count);assert.equal(await inbox.locator('#mail-search').inputValue(),'');
- await reopen();await openMail('task','user-brief-task-linked',inbox);
+ await reopen();assert.equal(await p.locator('.briefing-entry[data-kind=task]').count(),0);assert.ok(!(await p.locator('.today-briefing').innerText()).includes('나의 할 일'));await p.locator('.briefing-modal [data-action=close-modal]').last().click();
  await reopen();const chatOpened=app.waitForEvent('window');await p.locator('.briefing-entry[data-item="user-brief-message-event"]').click();const chat=await chatOpened;await chat.locator('article.briefing-target[data-message="user-brief-chat"]').waitFor();assert.ok((await chat.locator('article.briefing-target').innerText()).includes('원본 대화'));assert.equal(await p.locator('.briefing-modal').count(),0);
  await reopen();const calOpened=app.waitForEvent('window');await p.locator('.briefing-entry[data-item="user-brief-personal"]').click();const calendar=await calOpened;await calendar.locator('.schedule-detail-modal').waitFor();assert.equal(await p.locator('.briefing-modal').count(),0);await calendar.locator('.modal-head [data-action=close-modal]').click();
- await reopen();await p.locator('.briefing-entry[data-item="user-brief-task"]').click();await calendar.locator('.task-row.briefing-target').waitFor();assert.equal(await calendar.locator('input[data-task="user-brief-task"]').isChecked(),false);assert.equal(await p.locator('.briefing-modal').count(),0);
+
  assert.equal(await p.locator('#app').evaluate(el=>getComputedStyle(el).visibility),'visible');
  assert.deepEqual(errors,[]);
- console.log('PASS: transparent card-only pixels and native shape on both sides; restore host; event/deadline/task -> actual mail, reused inbox and cleared filters; keyboard activation; original chat scroll/highlight; manual items show details without toggling completion.');
+ console.log('PASS: transparent card-only pixels and native shape on both sides; restore host; event/deadline -> actual mail; removed tasks stay absent, reused inbox and cleared filters; keyboard activation; original chat scroll/highlight; manual items show details without toggling completion.');
 }finally{if(app)await app.close();fs.rmSync(data,{recursive:true,force:true});}})().catch(e=>{console.error(e);process.exitCode=1});
