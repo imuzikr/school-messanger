@@ -114,7 +114,7 @@ body.today-panel-window{background:transparent!important;overflow:hidden}
 
 [data-calendar-timeline] .event{min-height:14px}
 [data-calendar-timeline] .event.short{padding:0 8px}
-.event.short strong{line-height:14px}.event.short small{display:none}.event.short .event-resize{height:5px}
+.event.short strong{height:14px;line-height:14px}.event.short small{display:none}.event.short .event-resize{height:5px}
 .toast.timeline-feedback{pointer-events:none}.toast.timeline-feedback .toast-close{display:none}
 
 .inbox-layout{display:flex;gap:0}.inbox-layout>.mail-workspace{width:100%;min-width:0;flex:1}
@@ -520,3 +520,6 @@ body.minimal-main>.memo-tab,.unified-main:has(.briefing-overlay)>.memo-tab{displ
 .memo-format .memo-homeroom{border-color:#8b98745c;background:#ffffff50;color:#315c4e}
 
 .homeroom-deadline-mark{display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;flex-shrink:0;margin-right:4px;padding:1px 2px;border-radius:3px;background:#eaf0f8;color:#486c99;line-height:1}
+
+.event strong .calendar-note-mark{height:14px;vertical-align:top;margin-top:1px;padding:0 2px}
+.event.short strong .calendar-note-mark{height:12px}.event.short .calendar-note-mark svg{width:12px;height:12px}
