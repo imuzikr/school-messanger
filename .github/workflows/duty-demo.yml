@@ -1,7 +1,7 @@
 name: Verify and package duty demo
 on:
   push:
-    branches: [codex/duty-demo-0.2.114]
+    branches: [codex/duty-demo-0.2.115]
 permissions:
   contents: read
 defaults:
@@ -88,7 +88,7 @@ jobs:
           npm install --no-save --package-lock=false playwright@1.56.1 pngjs@7.0.0
           python -m pip install openpyxl==3.1.5
           $env:IEUM_TEST_PYTHON="python"
-          $env:IEUM_TEST_EXECUTABLE=(Resolve-Path "release/Ieum-Deadline-Demo-0.2.114-win-x64/Ieum-Deadline-Demo.exe").Path
+          $env:IEUM_TEST_EXECUTABLE=(Resolve-Path "release/Ieum-Deadline-Demo-0.2.115-win-x64/Ieum-Deadline-Demo.exe").Path
           node tests/electron-mail-receipts.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node tests/electron-settings-close.cjs
@@ -130,14 +130,14 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node tests/electron-briefing.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -c "from zipfile import ZipFile; z=ZipFile('release/Ieum-Deadline-Demo-0.2.114-win-x64.zip'); assert z.testzip() is None; print('Windows ZIP CRC PASS')"
+          python -c "from zipfile import ZipFile; z=ZipFile('release/Ieum-Deadline-Demo-0.2.115-win-x64.zip'); assert z.testzip() is None; print('Windows ZIP CRC PASS')"
       - uses: actions/upload-artifact@v4
         with:
-          name: Ieum-Demo-0.2.114
-          path: recovered/ieum-window-demo-0.2.7/release/Ieum-Deadline-Demo-0.2.114-win-x64.zip
+          name: Ieum-Demo-0.2.115
+          path: recovered/ieum-window-demo-0.2.7/release/Ieum-Deadline-Demo-0.2.115-win-x64.zip
       - name: Publish tested portable demo
         env:
           GH_TOKEN: ${{ github.token }}
         shell: pwsh
         run: |
-          gh release create v0.2.114 release/Ieum-Deadline-Demo-0.2.114-win-x64.zip release/SHA256SUMS.txt --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "이음 Windows 데모 0.2.114" --notes "담임 업무에서 작성한 확대 메모의 메시지 보기 옆에 담임 업무 보기 버튼을 추가합니다. 작성 내용을 유지하고 메모를 열었던 날짜의 담임 업무 모달로 돌아갑니다. 이월된 업무도 해당 이월 날짜로 돌아가며 기존 연결 메모도 사용할 수 있습니다. 전체 압축 해제 후 Ieum-Deadline-Demo.exe를 실행하세요."
+          gh release create v0.2.115 release/Ieum-Deadline-Demo-0.2.115-win-x64.zip release/SHA256SUMS.txt --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "이음 Windows 데모 0.2.115" --notes "담임 업무에서 고정한 완료 확인 항목의 제목 맨 앞에 교사와 학생을 상징하는 파란색 아이콘을 표시합니다. 메모 아이콘보다 먼저 표시하고 완료 체크 후에도 유지합니다. 달력과 브리핑의 같은 고정 항목에도 표시하며 일반 마감에는 붙이지 않습니다. 전체 압축 해제 후 Ieum-Deadline-Demo.exe를 실행하세요."

@@ -518,3 +518,5 @@ body.minimal-main>.memo-tab,.unified-main:has(.briefing-overlay)>.memo-tab{displ
 .memo-editor-title{display:inline-flex;align-items:center;gap:8px}
 
 .memo-format .memo-homeroom{border-color:#8b98745c;background:#ffffff50;color:#315c4e}
+
+.homeroom-deadline-mark{display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;flex-shrink:0;margin-right:4px;padding:1px 2px;border-radius:3px;background:#eaf0f8;color:#486c99;line-height:1}
