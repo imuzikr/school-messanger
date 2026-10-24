@@ -378,7 +378,7 @@ body.minimal-main .minimal-bar{display:flex;align-items:center;width:100vw;heigh
 .sticky-note:after{content:"";position:absolute;right:0;bottom:0;width:11px;height:11px;border-top-left-radius:3px;background:#746b4310;pointer-events:none}
 .sticky-note-tools{display:flex;align-items:center;padding:4px 5px 0;gap:5px;min-height:29px;user-select:none}
 .memo-grip,.memo-delete{padding:0;border:0;background:transparent;color:#8b8565;font-size:18px;width:26px;height:25px;border-radius:5px;cursor:pointer;flex-shrink:0;display:grid;place-items:center}
-.memo-grip{cursor:grab;touch-action:none;font-size:21px}.memo-grip:active{cursor:grabbing}.memo-delete{margin-left:auto;font-size:20px;color:#95876f}
+.memo-grip{cursor:grab;touch-action:none;font-size:21px}.memo-grip:active{cursor:grabbing}.memo-delete{margin-left:auto;width:30px;font-size:10px;font-weight:600;color:#8d6558}
 .memo-delete:hover{background:#af675718;color:#975444}.memo-grip:hover{background:#84744512}
 .memo-order{font-size:9px;letter-spacing:.08em;color:#8a846e;opacity:.7}
 .sticky-note .memo-rich{display:block;width:100%;min-width:0;min-height:40px;max-height:80px;padding:4px 10px 8px;border:0;background:transparent;resize:none;font:inherit;font-size:12px;line-height:1.8;color:#514d3e;outline:none;overflow-y:auto;scrollbar-width:thin;box-sizing:border-box;overflow-wrap:anywhere}
@@ -523,3 +523,7 @@ body.minimal-main>.memo-tab,.unified-main:has(.briefing-overlay)>.memo-tab{displ
 
 .event strong .calendar-note-mark{height:14px;vertical-align:top;margin-top:1px;padding:0 2px}
 .event.short strong .calendar-note-mark{height:12px}.event.short .calendar-note-mark svg{width:12px;height:12px}
+
+.memo-editor-actions{display:flex;align-items:center;gap:6px}
+.memo-editor-head .memo-delete-editor{width:auto;height:30px;padding:4px 9px;border:1px solid #a96c5e55;border-radius:5px;background:#ffffff50;color:#8d4d40;font-size:11px}
+.memo-editor-head .memo-delete-editor:hover{background:#af675718}
