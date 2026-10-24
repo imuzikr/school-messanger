@@ -1,7 +1,7 @@
 name: Verify and package duty demo
 on:
   push:
-    branches: [codex/duty-demo-0.2.117]
+    branches: [codex/duty-demo-0.2.118]
 permissions:
   contents: read
 defaults:
@@ -88,7 +88,7 @@ jobs:
           npm install --no-save --package-lock=false playwright@1.56.1 pngjs@7.0.0
           python -m pip install openpyxl==3.1.5
           $env:IEUM_TEST_PYTHON="python"
-          $env:IEUM_TEST_EXECUTABLE=(Resolve-Path "release/Ieum-Deadline-Demo-0.2.117-win-x64/Ieum-Deadline-Demo.exe").Path
+          $env:IEUM_TEST_EXECUTABLE=(Resolve-Path "release/Ieum-Deadline-Demo-0.2.118-win-x64/Ieum-Deadline-Demo.exe").Path
           node tests/electron-mail-receipts.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node tests/electron-settings-close.cjs
@@ -130,14 +130,14 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node tests/electron-briefing.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -c "from zipfile import ZipFile; z=ZipFile('release/Ieum-Deadline-Demo-0.2.117-win-x64.zip'); assert z.testzip() is None; print('Windows ZIP CRC PASS')"
+          python -c "from zipfile import ZipFile; z=ZipFile('release/Ieum-Deadline-Demo-0.2.118-win-x64.zip'); assert z.testzip() is None; print('Windows ZIP CRC PASS')"
       - uses: actions/upload-artifact@v4
         with:
-          name: Ieum-Demo-0.2.117
-          path: recovered/ieum-window-demo-0.2.7/release/Ieum-Deadline-Demo-0.2.117-win-x64.zip
+          name: Ieum-Demo-0.2.118
+          path: recovered/ieum-window-demo-0.2.7/release/Ieum-Deadline-Demo-0.2.118-win-x64.zip
       - name: Publish tested portable demo
         env:
           GH_TOKEN: ${{ github.token }}
         shell: pwsh
         run: |
-          gh release create v0.2.117 release/Ieum-Deadline-Demo-0.2.117-win-x64.zip release/SHA256SUMS.txt --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "이음 Windows 데모 0.2.117" --notes "메모 카드의 삭제 버튼을 글자로 명확히 표시하고 확대 메모 상단에 메모 삭제 버튼을 추가합니다. 메모장 하단 되돌리기로 복원할 수 있습니다. 삭제 저장에 실패하면 원래 메모와 편집 화면을 보존합니다. 메모를 삭제해도 연결된 일정과 메시지는 유지합니다. 전체 압축 해제 후 Ieum-Deadline-Demo.exe를 실행하세요."
+          gh release create v0.2.118 release/Ieum-Deadline-Demo-0.2.118-win-x64.zip release/SHA256SUMS.txt --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "이음 Windows 데모 0.2.118" --notes "메신저 오늘 일정의 학사일정을 완료 확인 위로 이동합니다. 학사일정 → 완료 확인 → 내 일정 순서로 표시하며 날짜 이동, 완료 체크 및 원문 연결은 유지합니다. 전체 압축 해제 후 Ieum-Deadline-Demo.exe를 실행하세요."
